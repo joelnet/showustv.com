@@ -132,7 +132,7 @@ a:hover { text-decoration: underline; }
   left: 0;
   right: 0;
   z-index: 30;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   background: rgba(15, 18, 24, 0.94);
   backdrop-filter: blur(10px);
   border-top: 1px solid var(--line);
@@ -752,6 +752,32 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .list-pos { width: 22px; text-align: right; }
 .list-item-actions { display: flex; gap: 6px; }
 .list-item-actions .btn-ghost { padding: 5px 10px; }
+
+/* ---------- Profile ---------- */
+
+.profile-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin: 18px 0 26px;
+}
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.stat-value { font-family: var(--font-display); font-weight: 700; font-size: 22px; }
+.stat-value.mono { font-size: 22px; color: var(--text); }
+.stat-label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+
+.profile-list-link { flex: 1; display: flex; flex-direction: column; gap: 2px; color: var(--text); min-width: 0; }
+.profile-list-link:hover { text-decoration: none; }
+.profile-list-link:hover .list-name { text-decoration: underline; }
+.profile-add-list { margin-top: 16px; }
 
 /* ---------- Settings / about ---------- */
 

@@ -44,3 +44,26 @@ export function runtimeStr(min: number | null): string {
   if (!min) return "";
   return min >= 60 ? `${Math.floor(min / 60)}h ${min % 60}m` : `${min}m`;
 }
+
+// Accumulated watch time, friendly-form: the two largest non-zero units,
+// e.g. "3 months 4 days" or "6 hours 12 minutes". Months are 30 days.
+export function watchTimeStr(min: number): string {
+  if (min <= 0) return "0 minutes";
+  const units: [string, number][] = [
+    ["month", 30 * 24 * 60],
+    ["day", 24 * 60],
+    ["hour", 60],
+    ["minute", 1],
+  ];
+  const parts: string[] = [];
+  let rest = Math.round(min);
+  for (const [name, size] of units) {
+    const n = Math.floor(rest / size);
+    if (n > 0) {
+      parts.push(`${n} ${name}${n === 1 ? "" : "s"}`);
+      rest -= n * size;
+    } else if (parts.length) break; // stop at first gap so units stay adjacent
+    if (parts.length === 2) break;
+  }
+  return parts.join(" ");
+}

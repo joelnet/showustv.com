@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, NavLink, Link, Outlet, Navigate, useNavig
 import { api } from "./api";
 import { Spinner, Wordmark } from "./components/ui";
 import { ConfirmProvider } from "./components/dialog";
-import { IconPlay, IconSearch, IconLibrary, IconList, IconGear } from "./components/icons";
+import { IconPlay, IconSearch, IconLibrary, IconList, IconGear, IconUser } from "./components/icons";
 import { Landing } from "./pages/landing";
 import { Login } from "./pages/login";
 import { WatchNext } from "./pages/watchnext";
@@ -14,6 +14,8 @@ import { MoviePage } from "./pages/movie";
 import { LibraryPage } from "./pages/library";
 import { ListsPage, ListDetailPage } from "./pages/lists";
 import { PublicListPage } from "./pages/public-list";
+import { ProfilePage } from "./pages/profile";
+import { PublicProfilePage } from "./pages/public-profile";
 import { SettingsPage } from "./pages/settings";
 import { AboutPage } from "./pages/about";
 
@@ -61,6 +63,7 @@ function Header() {
         <NavLink to="/" end>Watch next</NavLink>
         <NavLink to="/library">Library</NavLink>
         <NavLink to="/lists">Lists</NavLink>
+        <NavLink to="/profile">Profile</NavLink>
       </nav>
       <form
         className="header-search"
@@ -87,6 +90,7 @@ function TabBar() {
       <NavLink to="/search"><IconSearch /><span>Search</span></NavLink>
       <NavLink to="/library"><IconLibrary /><span>Library</span></NavLink>
       <NavLink to="/lists"><IconList /><span>Lists</span></NavLink>
+      <NavLink to="/profile"><IconUser /><span>Profile</span></NavLink>
     </nav>
   );
 }
@@ -114,6 +118,7 @@ export function App() {
           {!user && <Route path="/" element={<Landing />} />}
           <Route path="/login" element={<Login />} />
           <Route path="/u/:username/lists/:id" element={<PublicListPage />} />
+          <Route path="/u/:username" element={<PublicProfilePage />} />
           <Route element={<Shell />}>
             <Route path="/" element={<WatchNext />} />
             <Route path="/search" element={<SearchPage />} />
@@ -125,6 +130,7 @@ export function App() {
             <Route path="/library/watchlist" element={<LibraryPage tab="watchlist" />} />
             <Route path="/lists" element={<ListsPage />} />
             <Route path="/lists/:id" element={<ListDetailPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
