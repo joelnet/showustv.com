@@ -17,6 +17,7 @@ import { PublicListPage } from "./pages/public-list";
 import { ProfilePage } from "./pages/profile";
 import { PublicProfilePage } from "./pages/public-profile";
 import { SettingsPage } from "./pages/settings";
+import { ImportPage } from "./pages/import";
 import { AboutPage } from "./pages/about";
 
 export interface User {
@@ -132,6 +133,7 @@ export function App() {
             <Route path="/lists/:id" element={<ListDetailPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/settings/import" element={<ImportPage />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>

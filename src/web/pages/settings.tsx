@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { post, put } from "../api";
 import { useAuth } from "../app";
 
@@ -43,6 +43,16 @@ export function SettingsPage() {
       <button className="btn" onClick={save} disabled={busy || tz === user!.tz}>
         {saved ? "Saved ✓" : "Save changes"}
       </button>
+
+      <hr className="settings-rule" />
+      <h2 className="settings-subtitle">Import</h2>
+      <p className="settings-hint">
+        Moving over from TV Time? Upload your GDPR export zip and bring your shows, watch history and movies with
+        you.
+      </p>
+      <Link className="btn btn-ghost" to="/settings/import">
+        Import from TV Time
+      </Link>
 
       <hr className="settings-rule" />
       <button

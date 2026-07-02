@@ -786,6 +786,40 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .settings-field { display: flex; flex-direction: column; gap: 6px; margin: 18px 0 14px; font-weight: 500; }
 .settings-hint { color: var(--muted); font-size: 12.5px; font-weight: 400; }
 .settings-rule { border: none; border-top: 1px solid var(--line); margin: 26px 0; }
+.settings-subtitle { font-size: 17px; margin: 0 0 6px; }
+.settings .settings-hint { margin: 0 0 12px; }
+
+/* ---------- TV Time import ---------- */
+
+.import-page { max-width: 620px; }
+.import-page > .settings-hint { font-size: 13.5px; line-height: 1.55; margin-bottom: 18px; }
+.import-file-btn { position: relative; overflow: hidden; }
+.import-file-btn input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+.import-busy { max-width: 420px; display: flex; flex-direction: column; gap: 10px; }
+.import-busy .progress { height: 6px; }
+
+.import-preview { display: flex; flex-direction: column; gap: 18px; }
+.import-block {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px 18px;
+}
+.import-block h2 { font-size: 15.5px; margin: 0 0 10px; }
+.import-block-ok h2 { color: var(--green); }
+.import-block-warn h2 { color: var(--amber); }
+.import-block ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 5px; }
+.import-block > p { margin: 0; color: var(--muted); }
+.import-block details { margin-top: 10px; }
+.import-block summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+.import-detail-list {
+  margin-top: 8px !important;
+  max-height: 260px;
+  overflow-y: auto;
+  font-size: 13px;
+}
+.import-dim { color: var(--muted); }
+.import-actions { display: flex; gap: 10px; }
 
 .about { max-width: 560px; }
 .about .wordmark { font-size: 24px; }
