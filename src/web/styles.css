@@ -806,6 +806,47 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .profile-list-link:hover .list-name { text-decoration: underline; }
 .profile-add-list { margin-top: 16px; }
 
+/* ---------- Friends / social ---------- */
+
+.friend-add { display: flex; gap: 10px; }
+.friend-add input { flex: 1; max-width: 320px; min-width: 0; }
+.friend-note { color: var(--muted); font-size: 13.5px; margin: 8px 0 0; }
+
+.friend-chip {
+  display: inline-flex;
+  align-items: center;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 12px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.friend-chip:hover { border-color: var(--amber); color: var(--amber); text-decoration: none; }
+
+.also-watching { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 16px; }
+.also-watching-label { color: var(--muted); font-size: 13px; }
+
+.activity-feed { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.activity-feed li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+}
+.activity-poster { width: 38px; aspect-ratio: 2/3; object-fit: cover; border-radius: 5px; flex-shrink: 0; }
+.activity-text { flex: 1; font-size: 14px; min-width: 0; }
+.activity-user { font-weight: 600; color: var(--text); }
+.activity-when { flex-shrink: 0; }
+
+.public-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: -8px 0 20px; }
+.public-actions .friend-note { margin: 0; }
+
 /* ---------- Settings / about ---------- */
 
 .settings { max-width: 460px; }
@@ -1055,6 +1096,10 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   .list-item-actions .btn-ghost { padding: 9px 10px; min-width: 40px; min-height: 40px; }
 
   .import-actions { flex-wrap: wrap; }
+
+  /* Activity rows: timestamp drops under the text instead of crowding it. */
+  .activity-feed li { flex-wrap: wrap; }
+  .activity-when { flex-basis: 100%; padding-left: 50px; }
 
   .landing-hero { padding-top: 40px; }
   .landing-cta-row .btn-lg { flex: 1 1 100%; justify-content: center; }

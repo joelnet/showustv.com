@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, post, put, del } from "../api";
+import { useApi } from "../hooks";
 import { useAuth } from "../app";
 import { poster, backdrop, providerLogo } from "../img";
 import { fmtAirDate } from "../format";
@@ -71,6 +72,25 @@ function priorUnwatched(d: ShowPayload, target: Episode): number {
   return d.seasons
     .flatMap((s) => s.episodes)
     .filter((e) => e.season_number > 0 && e.aired && !e.watched && isBefore(e, target)).length;
+}
+
+// Friends who track this show — username chips linking to their profile.
+// Quietly renders nothing while loading, with no friends, or offline.
+function AlsoWatching({ showId }: { showId: string }) {
+  const { data } = useApi<{ friends: { username: string; state: string }[] }>(`/social/also-watching/${showId}`);
+  if (!data?.friends.length) return null;
+  const label = (state: string) =>
+    state === "watch_later" ? "wants to watch" : state === "finished" || state === "up_to_date" ? "watched" : "watching";
+  return (
+    <div className="also-watching">
+      <span className="also-watching-label">Friends also watching</span>
+      {data.friends.map((f) => (
+        <Link key={f.username} to={`/u/${f.username}`} className="friend-chip" title={`${f.username} — ${label(f.state)}`}>
+          {f.username}
+        </Link>
+      ))}
+    </div>
+  );
 }
 
 export function ShowPage() {
@@ -256,6 +276,8 @@ export function ShowPage() {
       </section>
 
       {show.overview && <p className="show-overview">{show.overview}</p>}
+
+      <AlsoWatching showId={id!} />
 
       <div className="rating-row">
         <ScorePicker

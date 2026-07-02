@@ -13,6 +13,7 @@ import {
   IconTrash,
   IconArrowUp,
   IconArrowDown,
+  IconUsers,
 } from "../components/icons";
 
 export interface WatchStats {
@@ -88,6 +89,11 @@ export function ProfilePage() {
       <div className="list-head">
         <h1 className="page-title">Profile</h1>
         <div className="list-head-actions">
+          {/* The mobile tab bar keeps its 5 slots — this is the Friends
+              entry point on small screens (desktop also has it in the header nav). */}
+          <Link className="btn btn-ghost" to="/friends">
+            <IconUsers size={15} /> Friends
+          </Link>
           <button
             className="btn btn-ghost"
             disabled={busy}

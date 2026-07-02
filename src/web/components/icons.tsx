@@ -21,6 +21,7 @@ import {
   faCalendarDays,
   faStar,
   faUser,
+  faUserGroup,
 } from "@fortawesome/free-solid-svg-icons";
 import { faHeart as faHeartOutline } from "@fortawesome/free-regular-svg-icons";
 
@@ -48,3 +49,4 @@ export const IconArrowDown = wrap(faArrowDown);
 export const IconCalendar = wrap(faCalendarDays);
 export const IconStar = wrap(faStar);
 export const IconUser = wrap(faUser);
+export const IconUsers = wrap(faUserGroup);

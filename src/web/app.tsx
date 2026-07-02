@@ -17,6 +17,7 @@ import { ListsPage, ListDetailPage } from "./pages/lists";
 import { PublicListPage } from "./pages/public-list";
 import { ProfilePage } from "./pages/profile";
 import { PublicProfilePage } from "./pages/public-profile";
+import { FriendsPage } from "./pages/friends";
 import { SettingsPage } from "./pages/settings";
 import { ImportPage } from "./pages/import";
 import { AboutPage } from "./pages/about";
@@ -66,6 +67,7 @@ function Header() {
         <NavLink to="/" end>Watch next</NavLink>
         <NavLink to="/library">Library</NavLink>
         <NavLink to="/lists">Lists</NavLink>
+        <NavLink to="/friends">Friends</NavLink>
         <NavLink to="/profile">Profile</NavLink>
       </nav>
       <form
@@ -171,6 +173,7 @@ export function App() {
             <Route path="/library/watchlist" element={<LibraryPage tab="watchlist" />} />
             <Route path="/lists" element={<ListsPage />} />
             <Route path="/lists/:id" element={<ListDetailPage />} />
+            <Route path="/friends" element={<FriendsPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/settings/import" element={<ImportPage />} />
