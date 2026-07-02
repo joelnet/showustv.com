@@ -596,8 +596,9 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   cursor: pointer;
   text-align: left;
 }
-.season-toggle svg { transition: transform 0.15s; color: var(--muted); }
-.season-toggle[aria-expanded="true"] svg { transform: rotate(90deg); }
+.season-toggle > svg { transition: transform 0.15s; color: var(--muted); }
+.season-toggle[aria-expanded="true"] > svg { transform: rotate(90deg); }
+.season-done { display: inline-flex; color: var(--green); }
 .season-count { margin-left: auto; }
 
 .episode-list { list-style: none; margin: 0; padding: 0 14px 10px; }

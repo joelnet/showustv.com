@@ -298,6 +298,11 @@ export function ShowPage() {
                   >
                     <IconChevron size={14} />
                     <span className="season-name">{season.name ?? `Season ${season.number}`}</span>
+                    {seasonDone && (
+                      <span className="season-done" title="All aired episodes watched">
+                        <IconCheck size={13} />
+                      </span>
+                    )}
                     <span className="mono season-count">
                       {watchedCount}/{aired.length}
                     </span>
