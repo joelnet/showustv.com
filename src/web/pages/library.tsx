@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { useApi } from "../hooks";
 import { useAuth } from "../app";
@@ -12,6 +13,22 @@ const STATE_SECTIONS: [string, string][] = [
   ["stopped", "Stopped"],
 ];
 
+type ShowSort = "last_watched" | "alphabetical";
+const SORT_KEY = "library-show-sort";
+
+// Last watched: most recent first; never-watched shows sink to the bottom.
+// Alphabetical is the tiebreak (and the whole order for "alphabetical").
+function showComparator(sort: ShowSort) {
+  return (a: LibShow, b: LibShow): number => {
+    if (sort === "last_watched" && a.last_watched_at !== b.last_watched_at) {
+      if (a.last_watched_at == null) return 1;
+      if (b.last_watched_at == null) return -1;
+      return a.last_watched_at > b.last_watched_at ? -1 : 1;
+    }
+    return a.title.localeCompare(b.title);
+  };
+}
+
 interface LibShow {
   id: number;
   title: string;
@@ -20,6 +37,7 @@ interface LibShow {
   watched: number;
   aired: number;
   total: number;
+  last_watched_at: string | null;
 }
 interface LibMovie {
   id: number;
@@ -43,10 +61,18 @@ interface FavoriteItem {
 
 export function LibraryPage({ tab }: { tab: "shows" | "movies" | "watchlist" }) {
   const { user } = useAuth();
+  const [sort, setSort] = useState<ShowSort>(() =>
+    localStorage.getItem(SORT_KEY) === "alphabetical" ? "alphabetical" : "last_watched"
+  );
   const lib = useApi<{ shows: LibShow[]; movies: LibMovie[]; favorites: FavoriteItem[] }>(
     tab !== "watchlist" ? "/library" : null
   );
   const wl = useApi<{ shows: WatchlistItem[]; movies: WatchlistItem[] }>(tab === "watchlist" ? "/watchlist" : null);
+
+  function changeSort(value: ShowSort) {
+    setSort(value);
+    localStorage.setItem(SORT_KEY, value);
+  }
 
   return (
     <div>
@@ -79,8 +105,19 @@ export function LibraryPage({ tab }: { tab: "shows" | "movies" | "watchlist" }) 
               </div>
             </section>
           )}
+          {lib.data!.shows.length > 0 && (
+            <div className="sort-bar">
+              <label>
+                Sort
+                <select value={sort} onChange={(e) => changeSort(e.target.value as ShowSort)}>
+                  <option value="last_watched">Last watched</option>
+                  <option value="alphabetical">Alphabetical (A–Z)</option>
+                </select>
+              </label>
+            </div>
+          )}
           {STATE_SECTIONS.map(([key, label]) => {
-            const shows = lib.data!.shows.filter((s) => s.derivedState === key);
+            const shows = lib.data!.shows.filter((s) => s.derivedState === key).sort(showComparator(sort));
             if (!shows.length) return null;
             return (
               <section key={key}>

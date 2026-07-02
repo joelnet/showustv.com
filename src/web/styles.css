@@ -184,6 +184,10 @@ a:hover { text-decoration: underline; }
 .section-title::before { content: ""; width: 14px; height: 2px; background: var(--amber); }
 .section-link { font-family: var(--font-body); font-weight: 500; text-transform: none; letter-spacing: 0; font-size: 13px; }
 
+.sort-bar { display: flex; justify-content: flex-end; margin: 20px 0 -12px; }
+.sort-bar label { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.sort-bar select { padding: 5px 10px; font-size: 13px; }
+
 .crumb { display: inline-block; color: var(--muted); margin-bottom: 12px; font-size: 14px; }
 
 .slate {

@@ -126,7 +126,11 @@ library.get("/library", async (c) => {
             AND e.air_date IS NOT NULL AND e.air_date <= ?2) AS aired,
          (SELECT COUNT(*) FROM episodes e WHERE e.show_id = us.show_id AND e.season_number > 0) AS total,
          (SELECT COUNT(*) FROM user_episodes ue JOIN episodes e ON e.id = ue.episode_id
-            WHERE ue.user_id = us.user_id AND e.show_id = us.show_id AND e.season_number > 0) AS watched
+            WHERE ue.user_id = us.user_id AND e.show_id = us.show_id AND e.season_number > 0) AS watched,
+         (SELECT MAX(CASE WHEN ue.last_rewatched_at > ue.watched_at
+                          THEN ue.last_rewatched_at ELSE ue.watched_at END)
+            FROM user_episodes ue JOIN episodes e ON e.id = ue.episode_id
+            WHERE ue.user_id = us.user_id AND e.show_id = us.show_id) AS last_watched_at
        FROM user_shows us JOIN shows s ON s.tmdb_id = us.show_id
        WHERE us.user_id = ?1 AND us.state != 'watch_later'
        ORDER BY s.title`
