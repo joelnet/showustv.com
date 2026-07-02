@@ -4,6 +4,7 @@ import { api } from "./api";
 import { Spinner, Wordmark } from "./components/ui";
 import { ConfirmProvider } from "./components/dialog";
 import { IconPlay, IconSearch, IconLibrary, IconList, IconGear } from "./components/icons";
+import { Landing } from "./pages/landing";
 import { Login } from "./pages/login";
 import { WatchNext } from "./pages/watchnext";
 import { SearchPage } from "./pages/search";
@@ -108,6 +109,9 @@ export function App() {
       <BrowserRouter>
         <ConfirmProvider>
         <Routes>
+          {/* Logged-out visitors get the marketing page at "/"; signed-in users fall
+              through to the Shell route below and land on Watch Next as before. */}
+          {!user && <Route path="/" element={<Landing />} />}
           <Route path="/login" element={<Login />} />
           <Route path="/u/:username/lists/:id" element={<PublicListPage />} />
           <Route element={<Shell />}>

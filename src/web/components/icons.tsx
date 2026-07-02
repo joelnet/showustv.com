@@ -18,6 +18,8 @@ import {
   faArrowUp,
   faArrowDown,
   faChevronLeft,
+  faCalendarDays,
+  faStar,
 } from "@fortawesome/free-solid-svg-icons";
 import { faHeart as faHeartOutline } from "@fortawesome/free-regular-svg-icons";
 
@@ -42,3 +44,5 @@ export const IconEye = wrap(faEye);
 export const IconEyeSlash = wrap(faEyeSlash);
 export const IconArrowUp = wrap(faArrowUp);
 export const IconArrowDown = wrap(faArrowDown);
+export const IconCalendar = wrap(faCalendarDays);
+export const IconStar = wrap(faStar);

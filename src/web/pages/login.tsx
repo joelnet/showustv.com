@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { post } from "../api";
 import { useAuth, type User } from "../app";
 import { SmpteBars, Wordmark } from "../components/ui";
@@ -7,7 +7,11 @@ import { SmpteBars, Wordmark } from "../components/ui";
 export function Login() {
   const { user, setUser } = useAuth();
   const navigate = useNavigate();
-  const [mode, setMode] = useState<"login" | "register">("login");
+  // The landing page links to /login?mode=register for its sign-up CTAs.
+  const [params] = useSearchParams();
+  const [mode, setMode] = useState<"login" | "register">(
+    params.get("mode") === "register" ? "register" : "login"
+  );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
