@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { post, put } from "../api";
 import { useAuth } from "../app";
+import { useInstallPrompt } from "../pwa";
+import { InstallAppButton } from "../components/install";
 
 export function SettingsPage() {
   const { user, setUser } = useAuth();
@@ -9,6 +11,7 @@ export function SettingsPage() {
   const [tz, setTz] = useState(user!.tz);
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
+  const install = useInstallPrompt();
 
   const zones: string[] = (Intl as any).supportedValuesOf?.("timeZone") ?? [user!.tz, "UTC"];
 
@@ -53,6 +56,17 @@ export function SettingsPage() {
       <Link className="btn btn-ghost" to="/settings/import">
         Import from TV Time
       </Link>
+
+      {install.available && (
+        <>
+          <hr className="settings-rule" />
+          <h2 className="settings-subtitle">Install app</h2>
+          <p className="settings-hint">
+            Put Show Us TV on your home screen — it opens full screen, like a native app.
+          </p>
+          <InstallAppButton buttonClass="btn btn-ghost" />
+        </>
+      )}
 
       <hr className="settings-rule" />
       <button

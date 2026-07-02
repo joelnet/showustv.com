@@ -2,6 +2,7 @@
 // Static and client-side only; every claim maps to a shipped feature.
 import { Link } from "react-router-dom";
 import { SmpteBars, Wordmark } from "../components/ui";
+import { InstallAppButton } from "../components/install";
 import {
   IconPlay,
   IconCheck,
@@ -89,6 +90,7 @@ export function Landing() {
               Sign in
             </Link>
           </div>
+          <InstallAppButton buttonClass="btn btn-ghost" />
           <SmpteBars />
         </section>
 

@@ -60,6 +60,10 @@ a:hover { text-decoration: underline; }
   align-items: center;
   gap: 22px;
   padding: 10px 20px;
+  /* viewport-fit=cover lets content draw under the notch when installed */
+  padding-top: calc(10px + env(safe-area-inset-top));
+  padding-left: calc(20px + env(safe-area-inset-left));
+  padding-right: calc(20px + env(safe-area-inset-right));
   border-bottom: 1px solid var(--line);
   background: rgba(15, 18, 24, 0.92);
   position: sticky;
@@ -281,10 +285,17 @@ input, select {
   font: inherit;
   border-radius: 8px;
   padding: 8px 12px;
+  max-width: 100%; /* long <select> options (timezones) must not widen the page */
 }
 input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px; border-color: transparent; }
 
 .error-note { color: var(--red); font-size: 14px; }
+
+/* ---------- Install app (PWA) ---------- */
+
+.install-app { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.install-hint { color: var(--muted); font-size: 13px; margin: 0; }
+.landing-hero .install-app { align-items: center; margin-top: 14px; }
 
 /* ---------- Dialog ---------- */
 
@@ -458,8 +469,9 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   font-weight: 700;
   font-size: 14px;
   color: var(--muted);
+  overflow: hidden;
 }
-.poster-card-meta { display: flex; flex-direction: column; gap: 1px; }
+.poster-card-meta { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .poster-card-title { font-weight: 600; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .poster-card-sub { color: var(--muted); font-size: 12px; }
 
@@ -692,7 +704,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 /* ---------- Lists ---------- */
 
 .list-create { display: flex; gap: 10px; margin-bottom: 22px; }
-.list-create input { flex: 1; max-width: 340px; }
+.list-create input { flex: 1; max-width: 340px; min-width: 0; }
 
 .lists-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
 .list-card {
@@ -748,7 +760,8 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   padding: 8px 12px;
 }
 .list-items .poster-card { flex-direction: row; align-items: center; flex: 1; }
-.list-items .poster-card img, .list-items .poster-fallback { width: 42px; aspect-ratio: 2/3; }
+.list-items .poster-card img, .list-items .poster-fallback { width: 42px; aspect-ratio: 2/3; flex-shrink: 0; }
+.list-items .poster-fallback { font-size: 9px; padding: 3px; }
 .list-pos { width: 22px; text-align: right; }
 .list-item-actions { display: flex; gap: 6px; }
 .list-item-actions .btn-ghost { padding: 5px 10px; }
@@ -817,6 +830,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   max-height: 260px;
   overflow-y: auto;
   font-size: 13px;
+  overflow-wrap: anywhere; /* archive file names have no break points */
 }
 .import-dim { color: var(--muted); }
 .import-actions { display: flex; gap: 10px; }
@@ -979,22 +993,54 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 @media (max-width: 719px) {
   .header-nav, .header-search { display: none; }
   .header { gap: 12px; }
-  .header-gear { margin-left: auto; }
+  /* Icon alone is ~20px — pad the touch area without moving the icon. */
+  .header-gear { padding: 12px; margin: -12px -12px -12px auto; }
   .tabbar { display: grid; }
   .main { padding-bottom: 90px; }
   .footer { margin-bottom: 62px; }
+
+  /* Thumb-sized touch targets (aim ≥ 40px). */
+  .btn { padding: 10px 16px; }
+  .btn-lg { padding: 12px 26px; }
+  .link-btn { padding: 8px 6px; }
+  .tabs a { padding: 11px 14px; }
+  .check-btn { width: 38px; height: 38px; }
+  .heart-btn { width: 42px; height: 42px; }
+  .score-dot { width: 29px; height: 36px; } /* 10 across a 360px screen */
+  .score-picker { flex-wrap: wrap; }
+  .emoji-btn { width: 36px; height: 36px; }
+
+  /* iOS Safari zooms into focused controls with fonts under 16px. */
+  input, select { font-size: 16px; }
+  .sort-bar select, .add-to-list { font-size: 16px; }
 
   .wn-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px 10px; }
 
   .show-hero-inner { flex-direction: column; align-items: flex-start; gap: 14px; }
   .show-poster { width: 104px; }
   .show-hero-text h1 { font-size: 25px; }
+  /* Bar on its own line; the fixed 180px bar + labels overflow narrow screens. */
+  .show-progress { flex-wrap: wrap; gap: 8px 12px; }
+  .show-progress .progress { flex: 1 1 100%; width: auto; }
   .episode-head, .movie-head { flex-direction: column; }
   .episode-still { width: 100%; max-width: none; }
+  .episode-slate-row { flex-wrap: wrap; }
   .episode-date { display: none; }
 
   .agenda-show { white-space: normal; }
   .agenda li { flex-wrap: wrap; gap: 6px 10px; }
+
+  /* Stats fit two-up instead of a tall single column. */
+  .profile-stats { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+
+  /* List rows: tighter chrome so titles keep readable width next to the
+     reorder/remove buttons. */
+  .list-items li { gap: 8px; padding: 8px 10px; }
+  .list-pos { width: 16px; }
+  .list-item-actions { gap: 4px; }
+  .list-item-actions .btn-ghost { padding: 9px 10px; min-width: 40px; min-height: 40px; }
+
+  .import-actions { flex-wrap: wrap; }
 
   .landing-hero { padding-top: 40px; }
   .landing-cta-row .btn-lg { flex: 1 1 100%; justify-content: center; }
