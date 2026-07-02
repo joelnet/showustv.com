@@ -1,0 +1,34 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "showustv",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2026-06-01",
+
+  "observability": { "enabled": true },
+
+  // SPA + API from one Worker: static assets answer everything except /api/*.
+  "assets": {
+    "directory": "./dist/client",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+
+  // Nightly air-date refresh for followed returning shows. Crons are UTC;
+  // 06:00Z lands overnight in US timezones after TMDB same-day schedule updates.
+  "triggers": { "crons": ["0 6 * * *"] },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "showustv",
+      "database_id": "REPLACE_AFTER_wrangler_d1_create",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  "vars": {
+    "TMDB_API_BASE": "https://api.themoviedb.org/3",
+    "TMDB_IMG_BASE": "https://image.tmdb.org/t/p"
+  }
+  // Secrets (wrangler secret put): TMDB_TOKEN (v4 read token or v3 key), SESSION_SECRET
+}

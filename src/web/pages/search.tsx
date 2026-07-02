@@ -1,0 +1,85 @@
+import { useSearchParams } from "react-router-dom";
+import { useApi } from "../hooks";
+import { PosterCard, Spinner, Empty, ErrorNote } from "../components/ui";
+import { IconSearch } from "../components/icons";
+
+interface Result {
+  type: "show" | "movie";
+  id: number;
+  title: string;
+  year: string | null;
+  poster: string | null;
+}
+
+export function SearchPage() {
+  const [params, setParams] = useSearchParams();
+  const q = params.get("q") ?? "";
+  const search = useApi<{ results: Result[] }>(q ? `/search?q=${encodeURIComponent(q)}` : null);
+  const trending = useApi<{ shows: Result[]; movies: Result[] }>(!q ? "/trending" : null);
+
+  return (
+    <div>
+      <h1 className="page-title">Search</h1>
+      <form
+        className="search-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const next = (new FormData(e.currentTarget).get("q") as string).trim();
+          setParams(next ? { q: next } : {});
+        }}
+      >
+        <IconSearch size={18} />
+        <input
+          name="q"
+          type="search"
+          defaultValue={q}
+          placeholder="Search shows & movies"
+          aria-label="Search shows and movies"
+          autoFocus
+        />
+        <button className="btn" type="submit">Search</button>
+      </form>
+
+      {q ? (
+        search.loading ? (
+          <Spinner />
+        ) : search.error ? (
+          <ErrorNote message={search.error} />
+        ) : search.data?.results.length ? (
+          <div className="poster-grid">
+            {search.data.results.map((r) => (
+              <PosterCard
+                key={`${r.type}-${r.id}`}
+                to={`/${r.type}/${r.id}`}
+                posterPath={r.poster}
+                title={r.title}
+                sub={[r.type === "show" ? "TV" : "Movie", r.year].filter(Boolean).join(" · ")}
+              />
+            ))}
+          </div>
+        ) : (
+          <Empty title={`Nothing found for “${q}”`} hint="Check the spelling or try another title." />
+        )
+      ) : trending.loading ? (
+        <Spinner />
+      ) : trending.data ? (
+        <>
+          <h2 className="section-title">Trending shows this week</h2>
+          <div className="poster-grid">
+            {trending.data.shows.map((r) => (
+              <PosterCard key={r.id} to={`/show/${r.id}`} posterPath={r.poster} title={r.title} sub={r.year} />
+            ))}
+          </div>
+          <h2 className="section-title">Trending movies</h2>
+          <div className="poster-grid">
+            {trending.data.movies.map((r) => (
+              <PosterCard key={r.id} to={`/movie/${r.id}`} posterPath={r.poster} title={r.title} sub={r.year} />
+            ))}
+          </div>
+        </>
+      ) : trending.error ? (
+        <ErrorNote message={trending.error} />
+      ) : null}
+    </div>
+  );
+}
