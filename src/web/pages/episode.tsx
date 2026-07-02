@@ -1,5 +1,5 @@
 import { Link, useParams } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useApi } from "../hooks";
 import { post, put, del } from "../api";
 import { useAuth } from "../app";
@@ -34,6 +34,11 @@ export function EpisodePage() {
   const { user } = useAuth();
   const { data, loading, error, reload } = useApi<EpisodePayload>(`/episodes/${id}`);
   const [busy, setBusy] = useState(false);
+  // Watched-state override while a change is queued offline — refetching
+  // would just serve the stale pre-change cache and visually revert it.
+  const [queuedState, setQueuedState] = useState<"watched" | "unwatched" | null>(null);
+
+  useEffect(() => setQueuedState(null), [data]); // fresh data supersedes the override
 
   if (loading) return <Spinner />;
   if (error) return <ErrorNote message={error} />;
@@ -41,12 +46,16 @@ export function EpisodePage() {
 
   const { episode: ep, user: mine } = data;
   const tz = user!.tz;
+  const watched = queuedState ? queuedState === "watched" : mine.watched;
 
-  const act = (fn: () => Promise<unknown>) => async () => {
+  const act = (fn: () => Promise<any>, queuedAs?: "watched" | "unwatched") => async () => {
     setBusy(true);
     try {
-      await fn();
-      reload();
+      const r = await fn();
+      // Queued offline: show the change locally; the post-sync revalidation
+      // brings the server truth.
+      if (r?.queued) setQueuedState(queuedAs ?? queuedState);
+      else reload();
     } finally {
       setBusy(false);
     }
@@ -69,22 +78,22 @@ export function EpisodePage() {
           {ep.overview && <p className="episode-overview">{ep.overview}</p>}
 
           <div className="episode-actions">
-            {mine.watched ? (
+            {watched ? (
               <>
-                <button className="btn btn-ghost" onClick={act(() => del(`/episodes/${ep.id}/watch`))} disabled={busy}>
+                <button className="btn btn-ghost" onClick={act(() => del(`/episodes/${ep.id}/watch`), "unwatched")} disabled={busy}>
                   Watched ✓ — undo
                 </button>
-                <button className="btn btn-ghost" onClick={act(() => post(`/episodes/${ep.id}/watch`))} disabled={busy}>
+                <button className="btn btn-ghost" onClick={act(() => post(`/episodes/${ep.id}/watch`), "watched")} disabled={busy}>
                   + Rewatch
                 </button>
               </>
             ) : (
-              <button className="btn" onClick={act(() => post(`/episodes/${ep.id}/watch`))} disabled={busy}>
+              <button className="btn" onClick={act(() => post(`/episodes/${ep.id}/watch`), "watched")} disabled={busy}>
                 <IconCheck size={16} /> Mark watched
               </button>
             )}
           </div>
-          {mine.watched && mine.watchedAt && (
+          {watched && mine.watchedAt && (
             <p className="watched-note mono">
               Watched {fmtDateTime(mine.watchedAt, tz)}
               {mine.playCount > 1 ? ` · ${mine.playCount} plays` : ""}

@@ -1,5 +1,5 @@
 import { useParams } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useApi } from "../hooks";
 import { post, put, del } from "../api";
 import { useAuth } from "../app";
@@ -33,6 +33,11 @@ export function MoviePage() {
   const { user } = useAuth();
   const { data, loading, error, reload } = useApi<MoviePayload>(`/movies/${id}`);
   const [busy, setBusy] = useState(false);
+  // Watched-state override while a change is queued offline — refetching
+  // would just serve the stale pre-change cache and visually revert it.
+  const [queuedState, setQueuedState] = useState<"watched" | "unwatched" | null>(null);
+
+  useEffect(() => setQueuedState(null), [data]); // fresh data supersedes the override
 
   if (loading) return <Spinner />;
   if (error) return <ErrorNote message={error} />;
@@ -40,12 +45,16 @@ export function MoviePage() {
 
   const { movie, user: mine, providers } = data;
   const tz = user!.tz;
+  const state = queuedState ? (queuedState === "watched" ? "watched" : null) : mine.state;
 
-  const act = (fn: () => Promise<unknown>) => async () => {
+  const act = (fn: () => Promise<any>, queuedAs?: "watched" | "unwatched") => async () => {
     setBusy(true);
     try {
-      await fn();
-      reload();
+      const r = await fn();
+      // Queued offline: show the change locally; the post-sync revalidation
+      // brings the server truth.
+      if (r?.queued) setQueuedState(queuedAs ?? queuedState);
+      else reload();
     } finally {
       setBusy(false);
     }
@@ -65,21 +74,21 @@ export function MoviePage() {
           {movie.overview && <p className="show-overview">{movie.overview}</p>}
 
           <div className="show-actions">
-            {mine.state === "watched" ? (
+            {state === "watched" ? (
               <>
-                <button className="btn btn-ghost" onClick={act(() => del(`/movies/${movie.id}/watch`))} disabled={busy}>
+                <button className="btn btn-ghost" onClick={act(() => del(`/movies/${movie.id}/watch`), "unwatched")} disabled={busy}>
                   Watched ✓ — undo
                 </button>
-                <button className="btn btn-ghost" onClick={act(() => post(`/movies/${movie.id}/watch`))} disabled={busy}>
+                <button className="btn btn-ghost" onClick={act(() => post(`/movies/${movie.id}/watch`), "watched")} disabled={busy}>
                   + Rewatch
                 </button>
               </>
             ) : (
               <>
-                <button className="btn" onClick={act(() => post(`/movies/${movie.id}/watch`))} disabled={busy}>
+                <button className="btn" onClick={act(() => post(`/movies/${movie.id}/watch`), "watched")} disabled={busy}>
                   <IconCheck size={16} /> Mark watched
                 </button>
-                {mine.state === "watchlist" ? (
+                {state === "watchlist" ? (
                   <button className="btn btn-ghost" onClick={act(() => del(`/movies/${movie.id}/watchlist`))} disabled={busy}>
                     On watchlist ✓ — remove
                   </button>
@@ -92,7 +101,7 @@ export function MoviePage() {
             )}
             <AddToList type="movie" id={movie.id} />
           </div>
-          {mine.state === "watched" && mine.watchedAt && (
+          {state === "watched" && mine.watchedAt && (
             <p className="watched-note mono">
               Watched {fmtDateTime(mine.watchedAt, tz)}
               {mine.playCount > 1 ? ` · ${mine.playCount} plays` : ""}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useApi } from "../hooks";
 import { post } from "../api";
@@ -80,12 +80,20 @@ export function WatchNext() {
     upcoming: UpcomingItem[];
   }>("/watch-next");
   const [marking, setMarking] = useState(false);
+  // Episodes whose watch is queued offline — hidden locally, since a
+  // refetch would just serve the stale pre-change cache and resurrect them.
+  const [hidden, setHidden] = useState<Set<number>>(new Set());
+
+  useEffect(() => setHidden(new Set()), [data]); // fresh data supersedes the overlay
 
   async function markWatched(episodeId: number) {
     setMarking(true);
     try {
-      await post(`/episodes/${episodeId}/watch`);
-      reload();
+      const r = await post(`/episodes/${episodeId}/watch`);
+      // Queued offline: hide the tile optimistically; the post-sync
+      // revalidation refetches the real list.
+      if (r?.queued) setHidden((h) => new Set(h).add(episodeId));
+      else reload();
     } finally {
       setMarking(false);
     }
@@ -93,8 +101,8 @@ export function WatchNext() {
 
   if (loading) return <Spinner />;
   if (error) return <ErrorNote message={error} />;
-  const current = data?.watchNext ?? [];
-  const stale = data?.stale ?? [];
+  const current = (data?.watchNext ?? []).filter((i) => !hidden.has(i.episode.id));
+  const stale = (data?.stale ?? []).filter((i) => !hidden.has(i.episode.id));
   const upcoming = data?.upcoming ?? [];
   const tz = user!.tz;
 

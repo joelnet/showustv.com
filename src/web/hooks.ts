@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./api";
+import { onRevalidate } from "./offline";
 
 interface ApiState<T> {
   data: T | null;
@@ -34,5 +35,10 @@ export function useApi<T = any>(path: string | null) {
   }, [path, tick]);
 
   const reload = useCallback(() => setTick((t) => t + 1), []);
+
+  // Refetch when connectivity returns or queued offline changes finish
+  // syncing — stale cache-served data on screen gets replaced silently.
+  useEffect(() => onRevalidate(reload), [reload]);
+
   return { ...state, reload };
 }

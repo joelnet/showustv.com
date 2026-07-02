@@ -1,3 +1,5 @@
+import { enqueue, hasPending, isQueueable, markReachable } from "./offline";
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
@@ -5,11 +7,36 @@ export class ApiError extends Error {
 }
 
 export async function api<T = any>(path: string, init?: RequestInit & { allow401?: boolean }): Promise<T> {
-  const res = await fetch("/api" + path, {
-    credentials: "same-origin",
-    headers: init?.body ? { "content-type": "application/json" } : undefined,
-    ...init,
-  });
+  const method = (init?.method ?? "GET").toUpperCase();
+  const body = typeof init?.body === "string" ? init.body : null;
+
+  // Watch/unwatch/favorite mutations survive offline: when the network is
+  // gone — or a queued backlog is still draining and order matters — record
+  // the op in the offline queue and answer as the server would, so pages
+  // apply their optimistic update and the change syncs later.
+  const queueable = isQueueable(method, path);
+  if (queueable && (!navigator.onLine || hasPending())) {
+    await enqueue(method, path, body);
+    return { ok: true, queued: true } as T;
+  }
+
+  let res: Response;
+  try {
+    res = await fetch("/api" + path, {
+      credentials: "same-origin",
+      headers: init?.body ? { "content-type": "application/json" } : undefined,
+      ...init,
+    });
+  } catch (e) {
+    if (queueable) {
+      await enqueue(method, path, body);
+      return { ok: true, queued: true } as T;
+    }
+    markReachable(false);
+    throw new ApiError(0, "You're offline");
+  }
+  // The service worker marks API responses it had to serve from cache.
+  markReachable(!res.headers.has("x-sw-fallback"));
   if (res.status === 401 && !init?.allow401 && !path.startsWith("/auth")) {
     window.location.assign("/login");
     throw new ApiError(401, "unauthorized");

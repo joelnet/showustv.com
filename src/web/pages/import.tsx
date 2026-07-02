@@ -6,6 +6,8 @@
 import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { post } from "../api";
+import { useOffline } from "../offline";
+import { Empty } from "../components/ui";
 import { parseTvTimeZip, MAX_ZIP_BYTES, type EpisodeMark, type MovieRec, type ParseResult } from "../tvtime";
 
 const RESOLVE_SHOW_BATCH = 40;
@@ -81,8 +83,20 @@ const plural = (n: number, word: string) => `${n.toLocaleString()} ${word}${n ==
 
 export function ImportPage() {
   const [stage, setStage] = useState<Stage>({ name: "pick" });
+  const { online } = useOffline();
   const fileRef = useRef<HTMLInputElement>(null);
   const importingRef = useRef(false);
+
+  // Import resolves every show/episode against TMDB — it genuinely needs
+  // the network, so don't let anyone start one offline.
+  if (!online && stage.name === "pick") {
+    return (
+      <div className="import-page">
+        <h1 className="page-title">Import from TV Time</h1>
+        <Empty title="You're offline" hint="Importing matches your export against TMDB, which needs a connection. Come back online and try again." />
+      </div>
+    );
+  }
 
   async function handleFile(file: File) {
     // Size gate BEFORE reading: pulling a multi-GB file into an ArrayBuffer

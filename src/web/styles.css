@@ -297,6 +297,20 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .install-hint { color: var(--muted); font-size: 13px; margin: 0; }
 .landing-hero .install-app { align-items: center; margin-top: 14px; }
 
+/* ---------- Offline / sync banner (PWA) ---------- */
+
+.net-banner {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.net-banner.is-offline { background: var(--surface-2); color: var(--muted); }
+.net-banner.is-syncing { background: var(--amber-soft); color: var(--amber); }
+.net-banner.is-synced { background: rgba(88, 201, 131, 0.12); color: var(--green); }
+.net-banner.is-failed { background: rgba(255, 77, 61, 0.12); color: var(--red); }
+
 /* ---------- Dialog ---------- */
 
 .dialog {

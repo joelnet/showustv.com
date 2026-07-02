@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { post, put } from "../api";
+import { clearQueue } from "../offline";
 import { useAuth } from "../app";
 import { useInstallPrompt } from "../pwa";
 import { InstallAppButton } from "../components/install";
@@ -72,6 +73,9 @@ export function SettingsPage() {
       <button
         className="btn btn-ghost"
         onClick={async () => {
+          // Unsynced offline changes belong to this session — they must not
+          // replay into whoever signs in next on this browser.
+          await clearQueue();
           await post("/auth/logout");
           setUser(null);
           navigate("/login");

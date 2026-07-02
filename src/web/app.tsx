@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, NavLink, Link, Outlet, Navigate, useNavigate } from "react-router-dom";
 import { api } from "./api";
+import { setOfflineUser, useOffline } from "./offline";
 import { Spinner, Wordmark } from "./components/ui";
 import { ConfirmProvider } from "./components/dialog";
 import { IconPlay, IconSearch, IconLibrary, IconList, IconGear, IconUser } from "./components/icons";
@@ -39,6 +40,7 @@ function Shell() {
   return (
     <div className="shell">
       <Header />
+      <NetBanner />
       <main className="main">
         <Outlet />
       </main>
@@ -84,6 +86,38 @@ function Header() {
   );
 }
 
+// Connectivity strip under the header: offline notice with the count of
+// queued changes, sync progress, and a brief synced/failed confirmation.
+function NetBanner() {
+  const { online, pending, syncing, result, dropped } = useOffline();
+  const n = (count: number, noun = "change") => `${count} ${noun}${count === 1 ? "" : "s"}`;
+  if (!online)
+    return (
+      <div className="net-banner is-offline" role="status">
+        Offline — showing saved data{pending > 0 && ` · ${n(pending)} waiting to sync`}
+      </div>
+    );
+  if (syncing || pending > 0)
+    return (
+      <div className="net-banner is-syncing" role="status">
+        Syncing {n(pending)}…
+      </div>
+    );
+  if (result === "failed")
+    return (
+      <div className="net-banner is-failed" role="status">
+        {n(dropped)} couldn&rsquo;t be synced and {dropped === 1 ? "was" : "were"} discarded
+      </div>
+    );
+  if (result === "synced")
+    return (
+      <div className="net-banner is-synced" role="status">
+        All changes synced ✓
+      </div>
+    );
+  return null;
+}
+
 function TabBar() {
   return (
     <nav className="tabbar" aria-label="Primary">
@@ -106,6 +140,12 @@ export function App() {
       .catch(() => {})
       .finally(() => setBooted(true));
   }, []);
+
+  // The offline queue is per-account: tell it who is signed in so queued
+  // ops never replay into a different user (and replay starts on boot).
+  useEffect(() => {
+    setOfflineUser(user?.id ?? null);
+  }, [user]);
 
   if (!booted) return <Spinner />;
 

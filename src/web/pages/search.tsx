@@ -1,5 +1,6 @@
 import { useSearchParams } from "react-router-dom";
 import { useApi } from "../hooks";
+import { useOffline } from "../offline";
 import { PosterCard, Spinner, Empty, ErrorNote } from "../components/ui";
 import { IconSearch } from "../components/icons";
 
@@ -13,9 +14,15 @@ interface Result {
 
 export function SearchPage() {
   const [params, setParams] = useSearchParams();
+  const { online } = useOffline();
   const q = params.get("q") ?? "";
   const search = useApi<{ results: Result[] }>(q ? `/search?q=${encodeURIComponent(q)}` : null);
   const trending = useApi<{ shows: Result[]; movies: Result[] }>(!q ? "/trending" : null);
+
+  // Search genuinely needs the network — a friendly note beats a broken error.
+  const offlineNote = (
+    <Empty title="You're offline" hint="Search needs a connection. Your library and lists still work offline." />
+  );
 
   return (
     <div>
@@ -44,7 +51,7 @@ export function SearchPage() {
         search.loading ? (
           <Spinner />
         ) : search.error ? (
-          <ErrorNote message={search.error} />
+          online ? <ErrorNote message={search.error} /> : offlineNote
         ) : search.data?.results.length ? (
           <div className="poster-grid">
             {search.data.results.map((r) => (
@@ -78,7 +85,7 @@ export function SearchPage() {
           </div>
         </>
       ) : trending.error ? (
-        <ErrorNote message={trending.error} />
+        online ? <ErrorNote message={trending.error} /> : offlineNote
       ) : null}
     </div>
   );
