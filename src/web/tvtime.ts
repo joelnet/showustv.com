@@ -37,6 +37,7 @@ export interface ShowGroup {
   name: string | null;
   followed: boolean;
   favorited: boolean; // starred in TV Time (user_tv_show_data / *_special_status)
+  archived: boolean; // "archived" in TV Time (special_status) — imported as a stopped show
   episodes: EpisodeMark[]; // identified by season/number — importable directly
   episodeIds: { tvdbId: number; watchedAt: string | null }[]; // need TVDB→TMDB episode lookup
 }
@@ -218,7 +219,7 @@ function groupFor(ctx: Ctx, tvdbId: number | null, name: string | null) {
   const key = tvdbId != null ? `tvdb:${tvdbId}` : `name:${normTitle(name!)}`;
   let g = ctx.groups.get(key);
   if (!g) {
-    g = { key, tvdbId, name, followed: false, favorited: false, episodes: [], episodeIds: [], epMap: new Map(), epIdMap: new Map() };
+    g = { key, tvdbId, name, followed: false, favorited: false, archived: false, episodes: [], episodeIds: [], epMap: new Map(), epIdMap: new Map() };
     ctx.groups.set(key, g);
   }
   if (g.name == null && name) g.name = name;
@@ -278,6 +279,14 @@ function handleFavoriteRow(ctx: Ctx, cols: Cols, row: string[]): boolean {
   const name = pick(cols, row, ALIASES.showName) ?? pick(cols, row, ALIASES.genericName);
   if (tvdbId == null && !name) return false;
   groupFor(ctx, tvdbId, name).favorited = true;
+  return true;
+}
+
+function handleArchivedRow(ctx: Ctx, cols: Cols, row: string[]): boolean {
+  const tvdbId = posInt(pick(cols, row, ALIASES.showTvdb));
+  const name = pick(cols, row, ALIASES.showName) ?? pick(cols, row, ALIASES.genericName);
+  if (tvdbId == null && !name) return false;
+  groupFor(ctx, tvdbId, name).archived = true;
   return true;
 }
 
@@ -426,19 +435,21 @@ export function parseTvTimeZip(data: Uint8Array): ParseResult {
         }
       } else if (kind === "favorites") {
         // Per-show flag rows: is_favorited / is_followed columns, or a
-        // status = 'favorite' marker. A row that flags neither is counted
-        // (e.g. status = 'archived') but not imported.
+        // status = 'favorite' / 'archived' marker. A row flagging none of
+        // those is counted but not imported.
         const fav = pick(cols, row, ["is_favorited"]);
         const status = (pick(cols, row, ["status"]) ?? "").toLowerCase();
         const foll = pick(cols, row, ["is_followed"]);
         const isFav = fav === "1" || fav === "true" || status.includes("favo"); // favorite / favourite
         const isFoll = foll === "1" || foll === "true";
-        if (!isFav && !isFoll) {
+        const isArchived = status.includes("archiv"); // archived → stopped watching
+        if (!isFav && !isFoll && !isArchived) {
           unsupportedRows++;
           continue;
         }
         if (isFav) ok = handleFavoriteRow(ctx, cols, row);
         if (isFoll) ok = handleFollowRow(ctx, cols, row) || ok;
+        if (isArchived) ok = handleArchivedRow(ctx, cols, row) || ok;
       } else if (kind === "episodes") {
         ok = handleEpisodeRow(ctx, cols, row);
       } else if (kind === "movies") {
@@ -458,6 +469,7 @@ export function parseTvTimeZip(data: Uint8Array): ParseResult {
     name: g.name,
     followed: g.followed,
     favorited: g.favorited,
+    archived: g.archived,
     episodes: [...g.epMap.values()].sort((a, b) => a.season - b.season || a.number - b.number),
     episodeIds: [...g.epIdMap.entries()].map(([tvdbId, watchedAt]) => ({ tvdbId, watchedAt })),
   }));

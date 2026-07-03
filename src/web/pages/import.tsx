@@ -16,6 +16,7 @@ const RESOLVE_MOVIE_BATCH = 20;
 const IMPORT_EPISODE_BATCH = 400;
 const IMPORT_MOVIE_BATCH = 20;
 const IMPORT_FAVORITE_BATCH = 100;
+const IMPORT_ARCHIVED_BATCH = 100;
 const IMPORT_CONCURRENCY = 2;
 
 interface Match {
@@ -32,6 +33,7 @@ interface ResolvedGroup {
   method: string | null;
   followed: boolean;
   favorited: boolean;
+  archived: boolean;
   episodes: EpisodeMark[];
   unresolvedIds: number; // TVDB episode ids TMDB couldn't place
 }
@@ -59,6 +61,7 @@ interface ImportOutcome {
   groups: GroupOutcome[];
   movies: { inserted: number; existing: number; failed: number };
   favorites: { added: number; existing: number; failed: number };
+  archived: { updated: number; failed: number };
 }
 
 type Stage =
@@ -213,6 +216,7 @@ export async function resolveAll(parsed: ParseResult, onProgress: (p: Progress) 
         method: res.method,
         followed: g.followed,
         favorited: g.favorited,
+        archived: g.archived,
         episodes: [],
         unresolvedIds: 0,
       });
@@ -258,6 +262,7 @@ export async function resolveAll(parsed: ParseResult, onProgress: (p: Progress) 
           method: "episode",
           followed: false,
           favorited: false,
+          archived: false,
           episodes: [],
           unresolvedIds: 0,
         };
@@ -294,10 +299,12 @@ export async function importAll(
   const importable = groups.filter((g) => g.match && (g.followed || g.episodes.length > 0));
   const movieRecs = movies.filter((m) => m.match);
   const favoriteIds = groups.filter((g) => g.match && g.favorited).map((g) => g.match!.tmdbId);
+  const archivedIds = groups.filter((g) => g.match && g.archived).map((g) => g.match!.tmdbId);
   const total =
     importable.length +
     Math.ceil(movieRecs.length / IMPORT_MOVIE_BATCH) +
-    Math.ceil(favoriteIds.length / IMPORT_FAVORITE_BATCH);
+    Math.ceil(favoriteIds.length / IMPORT_FAVORITE_BATCH) +
+    Math.ceil(archivedIds.length / IMPORT_ARCHIVED_BATCH);
   let done = 0;
 
   const outcomes: GroupOutcome[] = [];
@@ -358,7 +365,22 @@ export async function importAll(
     onProgress({ done: ++done, total, label: "Favorites" });
   }
 
-  return { groups: outcomes, movies: movieTotals, favorites: favoriteTotals };
+  // Archived shows last, so state = 'stopped' wins over the 'watching' the
+  // episode import set for any archived show that also had watch history.
+  const archivedTotals = { updated: 0, failed: 0 };
+  for (const batch of chunk(archivedIds, IMPORT_ARCHIVED_BATCH)) {
+    onProgress({ done, total, label: "Stopped shows" });
+    try {
+      const r = await post("/import/shows/archived", { shows: batch });
+      archivedTotals.updated += r.updated;
+      archivedTotals.failed += r.failed.length;
+    } catch {
+      archivedTotals.failed += batch.length;
+    }
+    onProgress({ done: ++done, total, label: "Stopped shows" });
+  }
+
+  return { groups: outcomes, movies: movieTotals, favorites: favoriteTotals, archived: archivedTotals };
 }
 
 // ---------- views ----------
@@ -404,11 +426,12 @@ function Preview({
   const episodeCount = matched.reduce((n, g) => n + g.episodes.length, 0);
   const followCount = matched.filter((g) => g.followed).length;
   const favoriteCount = groups.filter((g) => g.match && g.favorited).length;
+  const archivedCount = groups.filter((g) => g.match && g.archived).length;
   const matchedMovies = movies.filter((m) => m.match);
   const unmatchedMovies = movies.filter((m) => !m.match);
   const unresolvedEpisodes = groups.reduce((n, g) => n + g.unresolvedIds, 0) + looseUnresolved;
   const truncatedFiles = parsed.files.filter((f) => f.truncated);
-  const nothing = matched.length === 0 && matchedMovies.length === 0 && favoriteCount === 0;
+  const nothing = matched.length === 0 && matchedMovies.length === 0 && favoriteCount === 0 && archivedCount === 0;
   const [confirming, setConfirming] = useState(false);
 
   return (
@@ -421,6 +444,7 @@ function Preview({
           <ul>
             {followCount > 0 && <li>{plural(followCount, "show")} will be followed</li>}
             {favoriteCount > 0 && <li>{plural(favoriteCount, "show")} added to your favorites</li>}
+            {archivedCount > 0 && <li>{plural(archivedCount, "archived show")} marked as stopped watching</li>}
             {episodeCount > 0 && (
               <li>
                 {plural(episodeCount, "watched episode")} across {plural(matched.filter((g) => g.episodes.length > 0).length, "show")}, with their original watch dates
@@ -552,7 +576,7 @@ function Preview({
           }}
           disabled={nothing || confirming}
         >
-          Import {plural(followCount + episodeCount + matchedMovies.length + favoriteCount, "item")}
+          Import {plural(followCount + episodeCount + matchedMovies.length + favoriteCount + archivedCount, "item")}
         </button>
         <button className="btn btn-ghost" onClick={onCancel}>
           Cancel
@@ -590,10 +614,13 @@ function Summary({ outcome }: { outcome: ImportOutcome }) {
               {outcome.favorites.existing > 0 && `, ${outcome.favorites.existing} already there`}
             </li>
           )}
+          {outcome.archived.updated > 0 && (
+            <li>{plural(outcome.archived.updated, "archived show")} marked as stopped watching</li>
+          )}
         </ul>
       </section>
 
-      {(notFound > 0 || failed.length > 0 || m.failed > 0 || outcome.favorites.failed > 0) && (
+      {(notFound > 0 || failed.length > 0 || m.failed > 0 || outcome.favorites.failed > 0 || outcome.archived.failed > 0) && (
         <section className="import-block import-block-warn">
           <h2>Skipped</h2>
           <ul>
@@ -633,6 +660,7 @@ function Summary({ outcome }: { outcome: ImportOutcome }) {
             )}
             {m.failed > 0 && <li>{plural(m.failed, "movie")} failed to import</li>}
             {outcome.favorites.failed > 0 && <li>{plural(outcome.favorites.failed, "favorite")} failed to import</li>}
+            {outcome.archived.failed > 0 && <li>{plural(outcome.archived.failed, "archived show")} failed to import</li>}
           </ul>
         </section>
       )}

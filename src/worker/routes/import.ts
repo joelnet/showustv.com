@@ -316,6 +316,38 @@ importer.post("/favorites", async (c) => {
   return c.json({ ok: true, added, existing, failed });
 });
 
+// Import TV Time archived shows (issue #29). An archived show maps to our
+// "stopped" state ("Stopped Watching"). Runs after the per-show episode import
+// so it overrides the 'watching' state that importing watch history sets —
+// the export's archived flag is the user's final word on the show.
+importer.post("/shows/archived", async (c) => {
+  const rj = await readJson(c);
+  if (!rj) return c.json({ error: "payload too large" }, 413);
+  const raw = capArray(rj.body.shows, MAX_FAVORITES_PER_CALL);
+  if (!raw) return c.json({ error: `too many shows (max ${MAX_FAVORITES_PER_CALL} per call)` }, 400);
+  const ids = (raw as unknown[]).map(posInt).filter((n): n is number => n != null);
+  const uid = c.get("uid");
+
+  let updated = 0;
+  const failed: number[] = [];
+  for (const id of ids) {
+    try {
+      await ensureShow(c.env, id); // so the stopped show renders with a title/poster
+      await c.env.DB.prepare(
+        `INSERT INTO user_shows (user_id, show_id, state) VALUES (?1, ?2, 'stopped')
+         ON CONFLICT (user_id, show_id) DO UPDATE
+           SET state = 'stopped', last_state_change = strftime('%Y-%m-%dT%H:%M:%fZ','now')`
+      )
+        .bind(uid, id)
+        .run();
+      updated++;
+    } catch {
+      failed.push(id);
+    }
+  }
+  return c.json({ ok: true, updated, failed });
+});
+
 importer.post("/movies", async (c) => {
   const rj = await readJson(c);
   if (!rj) return c.json({ error: "payload too large" }, 413);
