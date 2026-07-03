@@ -18,6 +18,39 @@ admin.use("*", async (c: Context<AppEnv>, next: Next) => {
   c.res.headers.set("cache-control", "no-store");
 });
 
+// Account flags for the admin panel on profiles.
+admin.get("/users/:username", async (c) => {
+  const row = await c.env.DB.prepare(
+    "SELECT username, is_admin, shadow_banned, email_verified_at, created_at FROM users WHERE username = ?1 AND deleted_at IS NULL"
+  )
+    .bind(c.req.param("username"))
+    .first<{ username: string; is_admin: number; shadow_banned: number; email_verified_at: string | null; created_at: string }>();
+  if (!row) return c.json({ error: "not found" }, 404);
+  return c.json({
+    user: {
+      username: row.username,
+      isAdmin: !!row.is_admin,
+      shadowBanned: !!row.shadow_banned,
+      emailVerified: !!row.email_verified_at,
+      createdAt: row.created_at,
+    },
+  });
+});
+
+// Toggle shadow ban (issue #18). The mutation lands in activity_log via the
+// global middleware, so the ban/unban itself is audited.
+admin.put("/users/:username/shadow-ban", async (c) => {
+  const b = await c.req.json().catch(() => ({}));
+  if (typeof b.banned !== "boolean") return c.json({ error: "banned must be true or false" }, 400);
+  const { meta } = await c.env.DB.prepare(
+    "UPDATE users SET shadow_banned = ?2 WHERE username = ?1 AND deleted_at IS NULL"
+  )
+    .bind(c.req.param("username"), b.banned ? 1 : 0)
+    .run();
+  if (!meta.changes) return c.json({ error: "not found" }, 404);
+  return c.json({ ok: true, shadowBanned: b.banned });
+});
+
 // A user's recent audit trail (activity_log, issue #15) for troubleshooting.
 // Works for any account, public profile or not. Reading it is itself
 // recorded: the global middleware only logs mutations, so this GET inserts

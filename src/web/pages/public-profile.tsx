@@ -4,7 +4,7 @@
 // friend/unfriend affordance here.
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { api, post, del } from "../api";
+import { api, post, put, del } from "../api";
 import { useApi } from "../hooks";
 import { useAuth } from "../app";
 import { useConfirm } from "../components/dialog";
@@ -170,12 +170,26 @@ interface ActivityRow {
   status: number;
 }
 
-// Admin-only (issue #17): the user's recent audit trail from activity_log.
-// The server re-checks is_admin on every call; this render gate is UX only.
+// Admin-only (issues #17/#18): the user's recent audit trail from
+// activity_log, plus the shadow-ban toggle. The server re-checks is_admin
+// on every call; this render gate is UX only.
 function AdminTools({ username, tz }: { username: string; tz: string }) {
+  const confirm = useConfirm();
   const [rows, setRows] = useState<ActivityRow[] | null>(null);
+  const [banned, setBanned] = useState<boolean | null>(null); // null until flags load
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    setBanned(null);
+    api<{ user: { shadowBanned: boolean } }>(`/admin/users/${encodeURIComponent(username)}`)
+      .then((d) => live && setBanned(d.user.shadowBanned))
+      .catch(() => {}); // no toggle is fine (e.g. offline)
+    return () => {
+      live = false;
+    };
+  }, [username]);
 
   const load = async () => {
     setBusy(true);
@@ -190,8 +204,41 @@ function AdminTools({ username, tz }: { username: string; tz: string }) {
     }
   };
 
+  const toggleBan = async () => {
+    const next = !banned;
+    const yes = await confirm({
+      title: next ? `Shadow ban ${username}?` : `Lift ${username}'s shadow ban?`,
+      message: next
+        ? "Their comments become invisible to everyone else, but they'll keep seeing their own posts as if nothing happened. They are not notified."
+        : "Their comments become visible to everyone again.",
+      confirmLabel: next ? "Shadow ban" : "Lift ban",
+      danger: next,
+    });
+    if (!yes) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await put(`/admin/users/${encodeURIComponent(username)}/shadow-ban`, { banned: next });
+      setBanned(r.shadowBanned);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="admin-tools">
+      {banned != null && (
+        <button
+          className={`btn btn-ghost${banned ? " btn-danger" : ""}`}
+          disabled={busy}
+          title={banned ? "Shadow banned — comments hidden from everyone else" : "Comments visible normally"}
+          onClick={toggleBan}
+        >
+          {banned ? "Shadow banned — lift?" : "Shadow ban"}
+        </button>
+      )}
       {rows === null ? (
         <button className="btn btn-ghost" disabled={busy} onClick={load}>
           <IconEye size={15} /> View activity log

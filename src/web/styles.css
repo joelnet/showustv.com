@@ -1182,7 +1182,8 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 }
 
 /* Admin tools on profiles (issue #17). */
-.admin-tools { margin: 0 0 20px; }
+.admin-tools { margin: 0 0 20px; display: flex; gap: 8px; flex-wrap: wrap; flex-direction: column; align-items: flex-start; }
+.admin-tools > .btn { align-self: flex-start; }
 .admin-activity { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; }
 .admin-activity li { display: flex; gap: 12px; padding: 3px 8px; background: var(--surface); border-radius: 4px; flex-wrap: wrap; }
 .admin-activity-ts { color: var(--muted); }

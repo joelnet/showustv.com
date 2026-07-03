@@ -61,6 +61,7 @@ interface Row {
   deleted_at: string | null;
   username: string;
   user_deleted: string | null;
+  user_banned: number;
   ups: number;
   downs: number;
   my_vote: number;
@@ -69,7 +70,8 @@ interface Row {
 interface TreeNode {
   row: Row;
   children: TreeNode[];
-  visible: boolean; // false → pruned (deleted with no visible descendants)
+  ghost: boolean; // shadow-banned author, and the viewer isn't them (issue #18)
+  visible: boolean; // false → pruned (deleted/ghost with no visible descendants)
   size: number; // visible nodes in this subtree, self included
   score: number;
   best: number;
@@ -117,7 +119,7 @@ function cmp(sort: Sort) {
 async function loadTree(c: Context<AppEnv>, targetType: string, targetId: number) {
   const { results } = await c.env.DB.prepare(
     `SELECT c.id, c.parent_id, c.user_id, c.body, c.created_at, c.edited_at, c.deleted_at,
-            u.username, u.deleted_at AS user_deleted,
+            u.username, u.deleted_at AS user_deleted, u.shadow_banned AS user_banned,
             COALESCE(SUM(v.value = 1), 0) AS ups,
             COALESCE(SUM(v.value = -1), 0) AS downs,
             COALESCE(MAX(CASE WHEN v.user_id = ?1 THEN v.value END), 0) AS my_vote
@@ -134,8 +136,13 @@ async function loadTree(c: Context<AppEnv>, targetType: string, targetId: number
 
   const byId = new Map<number, TreeNode>();
   const roots: TreeNode[] = [];
+  const uid = c.get("uid");
   for (const row of results) {
-    byId.set(row.id, { row, children: [], visible: true, size: 0, score: 0, best: 0 });
+    // Shadow ban (issue #18): to everyone but their author, a banned user's
+    // comments take the deleted-comment path — placeholder or prune below.
+    // The author sees their own posts untouched, so nothing tips them off.
+    const ghost = !!row.user_banned && row.user_id !== uid;
+    byId.set(row.id, { row, ghost, children: [], visible: true, size: 0, score: 0, best: 0 });
   }
   for (const node of byId.values()) {
     const parent = node.row.parent_id != null ? byId.get(node.row.parent_id) : undefined;
@@ -151,7 +158,7 @@ async function loadTree(c: Context<AppEnv>, targetType: string, targetId: number
       size += ch.size;
     }
     n.children = n.children.filter((ch) => ch.visible);
-    n.visible = !n.row.deleted_at || size > 0;
+    n.visible = (!n.row.deleted_at && !n.ghost) || size > 0;
     n.size = n.visible ? size + 1 : 0;
     n.score = n.row.ups - n.row.downs;
     n.best = wilson(n.row.ups, n.row.downs);
@@ -184,7 +191,7 @@ function shapeLevel(
     }
     state.budget--;
     const n = sorted[i];
-    const deleted = !!n.row.deleted_at;
+    const deleted = !!n.row.deleted_at || n.ghost; // ghosts serialize as deleted
     const node: ApiNode = {
       id: n.row.id,
       user: deleted || n.row.user_deleted ? null : n.row.username,
@@ -259,10 +266,14 @@ comments.get("/:id/thread", async (c) => {
 comments.get("/:id/history", async (c) => {
   const id = Number(c.req.param("id"));
   if (!Number.isInteger(id) || id <= 0) return c.json({ error: "bad id" }, 400);
-  const cm = await c.env.DB.prepare("SELECT deleted_at FROM comments WHERE id = ?1")
+  const cm = await c.env.DB.prepare(
+    "SELECT c.deleted_at, c.user_id, u.shadow_banned FROM comments c JOIN users u ON u.id = c.user_id WHERE c.id = ?1"
+  )
     .bind(id)
-    .first<{ deleted_at: string | null }>();
+    .first<{ deleted_at: string | null; user_id: number; shadow_banned: number }>();
   if (!cm || cm.deleted_at) return c.json({ error: "not found" }, 404);
+  // A ghost's comment reads as [deleted] to others — its history must too.
+  if (cm.shadow_banned && cm.user_id !== c.get("uid")) return c.json({ error: "not found" }, 404);
   const { results } = await c.env.DB.prepare(
     "SELECT body, edited_at FROM comment_edits WHERE comment_id = ?1 ORDER BY id DESC"
   )
@@ -325,12 +336,18 @@ comments.post("/", async (c) => {
   if (!exists) return c.json({ error: `no such ${targetType}` }, 404);
 
   if (parentId != null) {
-    const parent = await c.env.DB.prepare("SELECT target_type, target_id, deleted_at FROM comments WHERE id = ?1")
+    const parent = await c.env.DB.prepare(
+      `SELECT c.target_type, c.target_id, c.deleted_at, c.user_id, u.shadow_banned
+       FROM comments c JOIN users u ON u.id = c.user_id WHERE c.id = ?1`
+    )
       .bind(parentId)
-      .first<{ target_type: string; target_id: number; deleted_at: string | null }>();
+      .first<{ target_type: string; target_id: number; deleted_at: string | null; user_id: number; shadow_banned: number }>();
     if (!parent || parent.target_type !== targetType || parent.target_id !== targetId)
       return c.json({ error: "no such comment" }, 404);
-    if (parent.deleted_at) return c.json({ error: "You can't reply to a deleted comment" }, 400);
+    // A ghost parent must be indistinguishable from a deleted one — same
+    // check, same message — or replying becomes a shadow-ban probe.
+    if (parent.deleted_at || (parent.shadow_banned && parent.user_id !== uid))
+      return c.json({ error: "You can't reply to a deleted comment" }, 400);
     // Walk ancestors to bound nesting — display handles depth gracefully,
     // but shaping recursion must not.
     const depth = await c.env.DB.prepare(
@@ -421,11 +438,16 @@ comments.put("/:id/vote", async (c) => {
   const value = Number(b.value);
   if (![-1, 0, 1].includes(value)) return c.json({ error: "vote must be -1, 0, or 1" }, 400);
 
-  const cm = await c.env.DB.prepare("SELECT deleted_at FROM comments WHERE id = ?1")
+  const cm = await c.env.DB.prepare(
+    "SELECT c.deleted_at, c.user_id, u.shadow_banned FROM comments c JOIN users u ON u.id = c.user_id WHERE c.id = ?1"
+  )
     .bind(id)
-    .first<{ deleted_at: string | null }>();
+    .first<{ deleted_at: string | null; user_id: number; shadow_banned: number }>();
   if (!cm) return c.json({ error: "not found" }, 404);
-  if (cm.deleted_at) return c.json({ error: "You can't vote on a deleted comment" }, 400);
+  // Ghosts refuse votes exactly like deleted comments (same message), so
+  // voting can't be used to probe for a shadow ban.
+  if (cm.deleted_at || (cm.shadow_banned && cm.user_id !== uid))
+    return c.json({ error: "You can't vote on a deleted comment" }, 400);
 
   if (value === 0) {
     await c.env.DB.prepare("DELETE FROM comment_votes WHERE comment_id = ?1 AND user_id = ?2").bind(id, uid).run();

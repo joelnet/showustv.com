@@ -14,10 +14,10 @@ export const pub = new Hono<AppEnv>();
 pub.get("/profile/:username", async (c) => {
   const username = c.req.param("username");
   const user = await c.env.DB.prepare(
-    "SELECT id, username FROM users WHERE username = ?1 AND profile_public = 1 AND deleted_at IS NULL"
+    "SELECT id, username, shadow_banned FROM users WHERE username = ?1 AND profile_public = 1 AND deleted_at IS NULL"
   )
     .bind(username)
-    .first<{ id: number; username: string }>();
+    .first<{ id: number; username: string; shadow_banned: number }>();
   if (!user) return c.json({ error: "not found" }, 404);
 
   const [statsR, listsR, postersR, commentsR] = await c.env.DB.batch([
@@ -64,7 +64,12 @@ pub.get("/profile/:username", async (c) => {
   // Comment bodies are a signed-in surface (thread pages sit behind auth,
   // and episode snippets are spoiler-prone) — anonymous visitors get the
   // conversation metadata only: title, episode slate, when.
-  const signedIn = !!(await readSession(c));
+  const viewer = await readSession(c);
+  const signedIn = !!viewer;
+  // Shadow ban (issue #18): the banned user still sees their own
+  // conversations here; everyone else sees none — same invisibility their
+  // comments get on thread pages, so the profile can't out the ban.
+  const hideComments = !!user.shadow_banned && viewer?.u !== user.id;
 
   const posters = new Map<number, string[]>();
   for (const r of postersR.results as any[]) {
@@ -76,7 +81,7 @@ pub.get("/profile/:username", async (c) => {
     username: user.username,
     stats: statsFromRow(statsR.results[0]),
     lists: (listsR.results as any[]).map((l) => ({ ...l, posters: posters.get(l.id) ?? [] })),
-    comments: (commentsR.results as any[]).map((r) => ({
+    comments: (hideComments ? [] : (commentsR.results as any[])).map((r) => ({
       // Snippet only — profiles tease the conversation, the thread holds it.
       body: signedIn ? (r.body.length > 240 ? r.body.slice(0, 239) + "…" : r.body) : null,
       createdAt: r.created_at,
