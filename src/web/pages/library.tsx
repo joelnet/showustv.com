@@ -6,12 +6,14 @@ import { fmtDateTime } from "../format";
 import { PosterCard, Progress, Spinner, Empty, ErrorNote } from "../components/ui";
 import { mediaPath } from "../paths";
 
+// Tab order: the four the issue names come first; Not started / Stopped follow
+// and only surface when non-empty. "stale" is the split-out slice of watching.
 const STATE_SECTIONS: [string, string][] = [
   ["watching", "Watching"],
   ["stale", "Haven’t watched for a while"],
-  ["not_started", "Not started yet"],
   ["up_to_date", "Up to date"],
   ["finished", "Finished"],
+  ["not_started", "Not started yet"],
   ["stopped", "Stopped"],
 ];
 
@@ -69,20 +71,89 @@ interface FavoriteItem {
   poster: string | null;
 }
 
-export function LibraryPage({ tab }: { tab: "shows" | "movies" | "watchlist" }) {
-  const { user } = useAuth();
+// The shows library: favorites strip, a status tab bar (Watching / Haven't
+// watched for a while / Up to date / Finished / Not started / Stopped — only
+// tabs that have shows appear), and the active tab's poster grid.
+function ShowsLibrary({ shows, favorites }: { shows: LibShow[]; favorites: FavoriteItem[] }) {
   const [sort, setSort] = useState<ShowSort>(() =>
     localStorage.getItem(SORT_KEY) === "alphabetical" ? "alphabetical" : "last_watched"
   );
-  const lib = useApi<{ shows: LibShow[]; movies: LibMovie[]; favorites: FavoriteItem[] }>(
-    tab !== "watchlist" ? "/library" : null
-  );
-  const wl = useApi<{ shows: WatchlistItem[]; movies: WatchlistItem[] }>(tab === "watchlist" ? "/watchlist" : null);
+  const [tab, setTab] = useState<string | null>(null);
 
   function changeSort(value: ShowSort) {
     setSort(value);
     localStorage.setItem(SORT_KEY, value);
   }
+
+  const counts = new Map<string, number>();
+  for (const s of shows) {
+    const b = showBucket(s);
+    counts.set(b, (counts.get(b) ?? 0) + 1);
+  }
+  const tabs = STATE_SECTIONS.filter(([key]) => counts.has(key));
+  // Keep the chosen tab while it still holds shows; otherwise fall to the first.
+  const activeKey = tab && counts.has(tab) ? tab : tabs[0]?.[0];
+  const activeShows = shows.filter((s) => showBucket(s) === activeKey).sort(showComparator(sort));
+
+  return (
+    <>
+      {favorites.length > 0 && (
+        <section>
+          <h2 className="section-title">
+            Favorites
+            <Link to={`/lists/${favorites[0].list_id}`} className="section-link">View list</Link>
+          </h2>
+          <div className="poster-grid">
+            {favorites.map((f) => (
+              <PosterCard key={`${f.type}-${f.id}`} to={`/${f.type}/${f.id}`} posterPath={f.poster} title={f.title} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {tabs.length > 0 && (
+        <>
+          <nav className="subtabs" aria-label="Show status">
+            {tabs.map(([key, label]) => (
+              <button
+                key={key}
+                className={key === activeKey ? "active" : ""}
+                aria-current={key === activeKey ? "true" : undefined}
+                onClick={() => setTab(key)}
+              >
+                {label} <span className="count">{counts.get(key)}</span>
+              </button>
+            ))}
+          </nav>
+          <div className="sort-bar">
+            <label>
+              Sort
+              <select value={sort} onChange={(e) => changeSort(e.target.value as ShowSort)}>
+                <option value="last_watched">Last watched</option>
+                <option value="alphabetical">Alphabetical (A–Z)</option>
+              </select>
+            </label>
+          </div>
+          <div className="poster-grid">
+            {activeShows.map((s) => (
+              <div key={s.id} className="lib-card">
+                <PosterCard to={mediaPath("show", s.id, s.title)} posterPath={s.poster} title={s.title} sub={`${s.watched}/${s.aired}`} />
+                <Progress watched={s.watched} total={s.aired} />
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
+export function LibraryPage({ tab }: { tab: "shows" | "movies" | "watchlist" }) {
+  const { user } = useAuth();
+  const lib = useApi<{ shows: LibShow[]; movies: LibMovie[]; favorites: FavoriteItem[] }>(
+    tab !== "watchlist" ? "/library" : null
+  );
+  const wl = useApi<{ shows: WatchlistItem[]; movies: WatchlistItem[] }>(tab === "watchlist" ? "/watchlist" : null);
 
   return (
     <div>
@@ -101,49 +172,7 @@ export function LibraryPage({ tab }: { tab: "shows" | "movies" | "watchlist" }) 
         ) : !lib.data?.shows.length && !lib.data?.favorites.length ? (
           <Empty title="No shows yet" hint="Follow a show from search and it shows up here." />
         ) : (
-          <>
-          {lib.data!.favorites.length > 0 && (
-            <section>
-              <h2 className="section-title">
-                Favorites
-                <Link to={`/lists/${lib.data!.favorites[0].list_id}`} className="section-link">View list</Link>
-              </h2>
-              <div className="poster-grid">
-                {lib.data!.favorites.map((f) => (
-                  <PosterCard key={`${f.type}-${f.id}`} to={`/${f.type}/${f.id}`} posterPath={f.poster} title={f.title} />
-                ))}
-              </div>
-            </section>
-          )}
-          {lib.data!.shows.length > 0 && (
-            <div className="sort-bar">
-              <label>
-                Sort
-                <select value={sort} onChange={(e) => changeSort(e.target.value as ShowSort)}>
-                  <option value="last_watched">Last watched</option>
-                  <option value="alphabetical">Alphabetical (A–Z)</option>
-                </select>
-              </label>
-            </div>
-          )}
-          {STATE_SECTIONS.map(([key, label]) => {
-            const shows = lib.data!.shows.filter((s) => showBucket(s) === key).sort(showComparator(sort));
-            if (!shows.length) return null;
-            return (
-              <section key={key}>
-                <h2 className="section-title">{label}</h2>
-                <div className="poster-grid">
-                  {shows.map((s) => (
-                    <div key={s.id} className="lib-card">
-                      <PosterCard to={mediaPath("show", s.id, s.title)} posterPath={s.poster} title={s.title} sub={`${s.watched}/${s.aired}`} />
-                      <Progress watched={s.watched} total={s.aired} />
-                    </div>
-                  ))}
-                </div>
-              </section>
-            );
-          })}
-          </>
+          <ShowsLibrary shows={lib.data!.shows} favorites={lib.data!.favorites} />
         ))}
 
       {tab === "movies" &&
