@@ -86,13 +86,20 @@ a:hover { text-decoration: underline; }
 }
 
 .wordmark-bug {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
   background: var(--amber);
   color: var(--amber-ink);
   border-radius: 5px;
-  padding: 0 5px;
+  padding: 1px 5px;
   margin: 0 1px;
   font-style: italic;
+  vertical-align: middle;
+}
+.wordmark-tv {
+  width: 1.45em;
+  height: 1.2em;
+  display: block;
 }
 
 .header-nav { display: flex; gap: 4px; }

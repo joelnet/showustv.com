@@ -34,7 +34,23 @@ export function SmpteBars() {
 export function Wordmark() {
   return (
     <span className="wordmark">
-      SHOW US <span className="wordmark-bug">TV</span>
+      SHOW US{" "}
+      <span className="wordmark-bug" role="img" aria-label="TV">
+        <svg className="wordmark-tv" viewBox="0 -1 36 31" aria-hidden="true" focusable="false">
+          {/* antennae */}
+          <line x1="12" y1="7" x2="7" y2="1" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+          <line x1="24" y1="7" x2="29" y2="1" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+          {/* TV body */}
+          <rect x="3" y="7" width="30" height="20" rx="3" ry="3" fill="currentColor" />
+          {/* screen cutout */}
+          <rect x="6.5" y="10" width="23" height="13" rx="2" ry="2" fill="var(--amber)" />
+          {/* screen shine */}
+          <rect x="8" y="11.5" width="6" height="3" rx="1" fill="var(--amber-ink)" opacity="0.18" />
+          {/* feet */}
+          <rect x="11" y="27" width="4" height="2.5" rx="1" fill="currentColor" />
+          <rect x="21" y="27" width="4" height="2.5" rx="1" fill="currentColor" />
+        </svg>
+      </span>
     </span>
   );
 }
