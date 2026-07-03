@@ -12,6 +12,7 @@ import { lists } from "./routes/lists";
 import { profile } from "./routes/profile";
 import { social } from "./routes/social";
 import { comments } from "./routes/comments";
+import { admin } from "./routes/admin";
 import { importer } from "./routes/import";
 
 const app = new Hono<AppEnv>().basePath("/api");
@@ -61,6 +62,7 @@ app.route("/lists", lists);
 app.route("/profile", profile);
 app.route("/social", social);
 app.route("/comments", comments);
+app.route("/admin", admin);
 app.route("/import", importer);
 
 app.notFound((c) => c.json({ error: "not found" }, 404));

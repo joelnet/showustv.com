@@ -27,7 +27,7 @@ auth.post("/register", async (c) => {
       .first<{ id: number }>();
     await issueSession(c, row!.id, tz);
     c.set("uid", row!.id); // attribute this request in the activity log
-    return c.json({ user: { id: row!.id, username, tz, emailVerified: false } });
+    return c.json({ user: { id: row!.id, username, tz, emailVerified: false, isAdmin: false } });
   } catch (e: any) {
     if (String(e.message).includes("UNIQUE")) return c.json({ error: "Username is taken" }, 409);
     throw e;
@@ -40,17 +40,32 @@ auth.post("/login", async (c) => {
   const password = String(body.password ?? "");
 
   const user = await c.env.DB.prepare(
-    "SELECT id, username, pw_hash, tz, email_verified_at FROM users WHERE username = ?1 AND deleted_at IS NULL"
+    "SELECT id, username, pw_hash, tz, email_verified_at, is_admin FROM users WHERE username = ?1 AND deleted_at IS NULL"
   )
     .bind(username)
-    .first<{ id: number; username: string; pw_hash: string; tz: string; email_verified_at: string | null }>();
+    .first<{
+      id: number;
+      username: string;
+      pw_hash: string;
+      tz: string;
+      email_verified_at: string | null;
+      is_admin: number;
+    }>();
 
   if (!user || !(await verifyPassword(password, user.pw_hash))) {
     return c.json({ error: "Wrong username or password" }, 401);
   }
   await issueSession(c, user.id, user.tz);
   c.set("uid", user.id); // attribute this request in the activity log
-  return c.json({ user: { id: user.id, username: user.username, tz: user.tz, emailVerified: !!user.email_verified_at } });
+  return c.json({
+    user: {
+      id: user.id,
+      username: user.username,
+      tz: user.tz,
+      emailVerified: !!user.email_verified_at,
+      isAdmin: !!user.is_admin,
+    },
+  });
 });
 
 auth.post("/logout", async (c) => {
@@ -64,12 +79,14 @@ auth.post("/logout", async (c) => {
 
 auth.get("/me", requireAuth, async (c) => {
   const user = await c.env.DB.prepare(
-    "SELECT id, username, tz, (email_verified_at IS NOT NULL) AS verified FROM users WHERE id = ?1"
+    "SELECT id, username, tz, (email_verified_at IS NOT NULL) AS verified, is_admin FROM users WHERE id = ?1"
   )
     .bind(c.get("uid"))
-    .first<{ id: number; username: string; tz: string; verified: number }>();
+    .first<{ id: number; username: string; tz: string; verified: number; is_admin: number }>();
   if (!user) return c.json({ error: "unauthorized" }, 401);
-  return c.json({ user: { id: user.id, username: user.username, tz: user.tz, emailVerified: !!user.verified } });
+  return c.json({
+    user: { id: user.id, username: user.username, tz: user.tz, emailVerified: !!user.verified, isAdmin: !!user.is_admin },
+  });
 });
 
 // Consume a verification token. POST only: the emailed link lands on the

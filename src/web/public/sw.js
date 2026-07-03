@@ -106,6 +106,10 @@ self.addEventListener("fetch", (event) => {
       // logout above) wipes the whole API cache, so nothing personal
       // survives the end of a session.
       if (url.pathname.startsWith("/api/auth/") && url.pathname !== "/api/auth/me") return;
+      // Admin responses (other users' audit trails) must never persist in
+      // Cache Storage, and an offline replay would dodge the server's
+      // admin-view audit row — straight to the network, no cache.
+      if (url.pathname.startsWith("/api/admin/")) return;
       event.respondWith(apiNetworkFirst(req));
     } else if (req.mode === "navigate") {
       event.respondWith(shellNetworkFirst(req));

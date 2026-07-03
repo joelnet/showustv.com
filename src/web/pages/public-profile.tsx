@@ -12,8 +12,9 @@ import { poster } from "../img";
 import { mediaPath, type MediaType } from "../paths";
 import { fmtAgo } from "../format";
 import { Spinner, Wordmark, SmpteBars, ErrorNote, Slate } from "../components/ui";
-import { IconList, IconCheck, IconPlus } from "../components/icons";
+import { IconList, IconCheck, IconPlus, IconEye } from "../components/icons";
 import { StatsGrid, type WatchStats } from "./profile";
+import { fmtDateTime } from "../format";
 
 interface ProfileComment {
   body: string | null; // null for anonymous visitors — metadata only
@@ -161,6 +162,68 @@ function FriendActions({ username }: { username: string }) {
   );
 }
 
+interface ActivityRow {
+  ts: string;
+  method: string;
+  route: string;
+  path: string;
+  status: number;
+}
+
+// Admin-only (issue #17): the user's recent audit trail from activity_log.
+// The server re-checks is_admin on every call; this render gate is UX only.
+function AdminTools({ username, tz }: { username: string; tz: string }) {
+  const [rows, setRows] = useState<ActivityRow[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await api<{ activity: ActivityRow[] }>(`/admin/users/${encodeURIComponent(username)}/activity`);
+      setRows(r.activity);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="admin-tools">
+      {rows === null ? (
+        <button className="btn btn-ghost" disabled={busy} onClick={load}>
+          <IconEye size={15} /> View activity log
+        </button>
+      ) : (
+        <>
+          <h2 className="section-title">Activity log — admin view</h2>
+          {rows.length === 0 ? (
+            <p className="admin-empty">No recorded activity.</p>
+          ) : (
+            <ul className="admin-activity mono">
+              {rows.map((r, i) => (
+                <li key={i}>
+                  <span className="admin-activity-ts">{fmtDateTime(r.ts, tz)}</span>
+                  <span className={`admin-activity-status${r.status >= 400 ? " is-err" : ""}`}>{r.status}</span>
+                  <span>
+                    {r.method} {r.path}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <button className="btn btn-ghost" onClick={() => setRows(null)}>
+            Hide activity log
+          </button>
+        </>
+      )}
+      {error && <ErrorNote message={error} />}
+    </div>
+  );
+}
+
 export function PublicProfilePage() {
   const { username } = useParams();
   const { user } = useAuth();
@@ -187,6 +250,7 @@ export function PublicProfilePage() {
             <h1 className="page-title">{data.username}</h1>
             <p className="public-byline">Watching TV on Show Us TV</p>
             {user && <FriendActions username={data.username} />}
+            {user?.isAdmin && <AdminTools username={data.username} tz={user.tz} />}
             <StatsGrid stats={data.stats} />
             <ProfileComments comments={data.comments} />
             {data.lists.length > 0 && (

@@ -28,6 +28,7 @@ export interface User {
   username: string;
   tz: string;
   emailVerified: boolean;
+  isAdmin: boolean;
 }
 
 const AuthCtx = createContext<{ user: User | null; setUser: (u: User | null) => void }>({
