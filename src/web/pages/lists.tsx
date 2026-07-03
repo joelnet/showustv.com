@@ -5,7 +5,7 @@ import { api, post, put, del } from "../api";
 import { poster } from "../img";
 import { useAuth } from "../app";
 import { Spinner, Empty, ErrorNote, PosterCard } from "../components/ui";
-import { mediaPath } from "../paths";
+import { mediaPath, publicListPath } from "../paths";
 import {
   IconPlus,
   IconTrash,
@@ -99,7 +99,7 @@ export function ListDetailPage() {
   const confirm = useConfirm();
   const { user } = useAuth();
   const { data, loading, error, reload } = useApi<{
-    list: { id: number; name: string; kind: "custom" | "favorites"; is_shared: number };
+    list: { id: number; name: string; kind: "custom" | "favorites"; is_shared: number; profile_position: number | null };
     items: ListItem[];
   }>(`/lists/${id}`);
   const [busy, setBusy] = useState(false);
@@ -118,6 +118,25 @@ export function ListDetailPage() {
       setBusy(false);
     }
   };
+
+  // Making a pinned list private removes it from the profile (issue #33), so
+  // warn first. The server clears the pin either way; this just surfaces it.
+  async function toggleVisibility() {
+    const goingPrivate = !!data!.list.is_shared;
+    if (goingPrivate && data!.list.profile_position != null) {
+      const ok = await confirm({
+        title: `Make “${data!.list.name}” private?`,
+        message: "This list is pinned to your profile. Making it private will remove it from your profile.",
+        confirmLabel: "Make private",
+        cancelLabel: "Keep public",
+        danger: true,
+      });
+      if (!ok) return;
+    }
+    await act(() => put(`/lists/${id}/visibility`, { public: !data!.list.is_shared }))();
+  }
+
+  const publicUrl = `${window.location.origin}${publicListPath(user!.username, data.list.id, data.list.name)}`;
 
   async function move(index: number, delta: number) {
     const items = [...data!.items];
@@ -145,7 +164,7 @@ export function ListDetailPage() {
             disabled={busy}
             aria-pressed={!!data.list.is_shared}
             title={data.list.is_shared ? "Public — anyone with the link can view" : "Private — only you can view"}
-            onClick={act(() => put(`/lists/${id}/visibility`, { public: !data.list.is_shared }))}
+            onClick={toggleVisibility}
           >
             {data.list.is_shared ? <IconEye size={15} /> : <IconEyeSlash size={15} />}
             {data.list.is_shared ? "Public" : "Private"}
@@ -173,11 +192,11 @@ export function ListDetailPage() {
       {!!data.list.is_shared && (
         <p className="share-note">
           Anyone with this link can view:{" "}
-          <a href={`/u/${user!.username}/lists/${id}`}>{`${window.location.origin}/u/${user!.username}/lists/${id}`}</a>{" "}
+          <a href={publicUrl}>{publicUrl}</a>{" "}
           <button
             className="link-btn"
             onClick={async () => {
-              await navigator.clipboard.writeText(`${window.location.origin}/u/${user!.username}/lists/${id}`);
+              await navigator.clipboard.writeText(publicUrl);
               setCopied(true);
               setTimeout(() => setCopied(false), 2000);
             }}

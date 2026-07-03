@@ -1,9 +1,10 @@
 // Public, read-only list view — reachable without an account at
 // /u/:username/lists/:id when the owner has made the list public.
-import { Link, useParams } from "react-router-dom";
+import { useEffect } from "react";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useApi } from "../hooks";
 import { Spinner, PosterCard, Wordmark, SmpteBars } from "../components/ui";
-import { mediaPath } from "../paths";
+import { mediaPath, idFromParam, publicListPath } from "../paths";
 
 interface PublicList {
   list: { id: number; name: string; username: string };
@@ -11,8 +12,19 @@ interface PublicList {
 }
 
 export function PublicListPage() {
-  const { username, id } = useParams();
+  const { username } = useParams();
+  const id = idFromParam(useParams().id); // tolerate the "2-favorites" slug suffix
+  const location = useLocation();
+  const navigate = useNavigate();
   const { data, loading, error } = useApi<PublicList>(`/public/lists/${encodeURIComponent(username!)}/${id}`);
+
+  // Canonicalize the address bar to the slugged URL once the name is known,
+  // matching the show/movie detail pages.
+  useEffect(() => {
+    if (!data) return;
+    const canonical = publicListPath(data.list.username, data.list.id, data.list.name);
+    if (location.pathname !== canonical) navigate(canonical + location.search, { replace: true });
+  }, [data, location.pathname, location.search, navigate]);
 
   return (
     <div className="public-page">

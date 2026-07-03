@@ -21,6 +21,13 @@ export function mediaPath(type: MediaType, id: number, title?: string | null): s
   return `/${type}/${id}${slug && `-${slug}`}`;
 }
 
+// A public list's shareable URL: /u/joelnet/lists/2-favorites. Like media
+// paths, only the numeric prefix identifies the list; the slug is advisory.
+export function publicListPath(username: string, id: number, name?: string | null): string {
+  const slug = name ? slugify(name) : "";
+  return `/u/${username}/lists/${id}${slug && `-${slug}`}`;
+}
+
 // The :id route param may carry a slug suffix ("1405-dexter"); the leading
 // digits are the id. Keep it a string — it goes straight into API paths.
 export function idFromParam(param: string | undefined): string {

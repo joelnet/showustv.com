@@ -54,7 +54,7 @@ lists.get("/:id", async (c) => {
   const id = Number(c.req.param("id"));
   if (!(await ownList(c, id))) return c.json({ error: "not found" }, 404);
   const [metaR, itemsR] = await c.env.DB.batch([
-    c.env.DB.prepare("SELECT id, name, kind, is_shared FROM custom_lists WHERE id = ?1").bind(id),
+    c.env.DB.prepare("SELECT id, name, kind, is_shared, profile_position FROM custom_lists WHERE id = ?1").bind(id),
     c.env.DB.prepare(
       `SELECT li.target_type AS type, li.target_id AS id, li.position,
               COALESCE(s.title, m.title) AS title, COALESCE(s.poster_url, m.poster_url) AS poster
@@ -82,7 +82,16 @@ lists.put("/:id/visibility", async (c) => {
   const body = await c.req.json().catch(() => ({}));
   if (typeof body.public !== "boolean") return c.json({ error: "bad request" }, 400);
   if (!(await ownList(c, id))) return c.json({ error: "not found" }, 404);
-  await c.env.DB.prepare("UPDATE custom_lists SET is_shared = ?2 WHERE id = ?1").bind(id, body.public ? 1 : 0).run();
+  // Making a list private also unpins it from the profile (issue #33): a
+  // private list can never appear there, so the two states stay consistent
+  // even if the client forgets to warn.
+  await c.env.DB.prepare(
+    body.public
+      ? "UPDATE custom_lists SET is_shared = 1 WHERE id = ?1"
+      : "UPDATE custom_lists SET is_shared = 0, profile_position = NULL WHERE id = ?1"
+  )
+    .bind(id)
+    .run();
   return c.json({ ok: true });
 });
 

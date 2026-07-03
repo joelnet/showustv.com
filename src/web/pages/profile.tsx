@@ -8,6 +8,7 @@ import { post, put, del } from "../api";
 import { watchTimeStr, fmtDateTime } from "../format";
 import { ACHIEVEMENTS } from "../../shared/achievements";
 import { useAuth } from "../app";
+import { useConfirm } from "../components/dialog";
 import { Spinner, Empty, ErrorNote } from "../components/ui";
 import {
   IconHeart,
@@ -239,6 +240,7 @@ export function StatsGrid({ stats }: { stats: WatchStats }) {
 
 export function ProfilePage() {
   const { user } = useAuth();
+  const confirm = useConfirm();
   const { data, loading, error, reload } = useApi<ProfileData>("/profile");
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -256,6 +258,33 @@ export function ProfilePage() {
       setBusy(false);
     }
   };
+
+  // Pinning a private list to the profile offers to publish it — a private
+  // list stays hidden on the public profile otherwise (issue #33). Declining
+  // still pins it (shown with a "private — hidden" note); dismissing aborts.
+  async function addListToProfile(id: number) {
+    const list = data!.otherLists.find((l) => l.id === id);
+    if (!list) return;
+    let makePublic = false;
+    if (!list.is_shared) {
+      const res = await confirm({
+        title: `Add “${list.name}” to your profile`,
+        message: "This list is private, so it won’t show on your public profile. Make it public now?",
+        confirmLabel: "Make public",
+        cancelLabel: "Keep private",
+      });
+      if (res === null) return; // dismissed
+      makePublic = res;
+    }
+    setBusy(true);
+    try {
+      if (makePublic) await put(`/lists/${id}/visibility`, { public: true });
+      await post("/profile/lists", { id });
+      reload();
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function move(index: number, delta: number) {
     const ids = data!.lists.map((l) => l.id);
@@ -366,7 +395,7 @@ export function ProfilePage() {
           disabled={busy}
           onChange={(e) => {
             const id = Number(e.target.value);
-            if (id) act(() => post("/profile/lists", { id }))();
+            if (id) addListToProfile(id);
           }}
         >
           <option value="">Add a list to your profile…</option>

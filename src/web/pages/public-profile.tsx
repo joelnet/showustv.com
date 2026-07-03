@@ -9,7 +9,7 @@ import { useApi } from "../hooks";
 import { useAuth } from "../app";
 import { useConfirm } from "../components/dialog";
 import { poster } from "../img";
-import { mediaPath, type MediaType } from "../paths";
+import { mediaPath, publicListPath, type MediaType } from "../paths";
 import { fmtAgo } from "../format";
 import { Spinner, Wordmark, SmpteBars, ErrorNote, Slate } from "../components/ui";
 import { IconList, IconCheck, IconPlus, IconEye } from "../components/icons";
@@ -331,7 +331,7 @@ export function PublicProfilePage() {
                 <h2 className="section-title">Lists</h2>
                 <div className="lists-grid">
                   {data.lists.map((l) => (
-                    <Link key={l.id} to={`/u/${username}/lists/${l.id}`} className="list-card">
+                    <Link key={l.id} to={publicListPath(username!, l.id, l.name)} className="list-card">
                       <div className="list-collage">
                         {l.posters.length ? (
                           l.posters.map((p, i) => <img key={i} src={poster(p, "w154")!} alt="" loading="lazy" />)
