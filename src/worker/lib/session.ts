@@ -49,7 +49,9 @@ export function clearSession(c: Context<AppEnv>): void {
   deleteCookie(c, COOKIE, { path: "/" });
 }
 
-async function readSession(c: Context<AppEnv>): Promise<SessionPayload | null> {
+// Exported for best-effort attribution on public routes (e.g. logout's
+// activity-log row) — routes needing enforcement use requireAuth.
+export async function readSession(c: Context<AppEnv>): Promise<SessionPayload | null> {
   const token = getCookie(c, COOKIE);
   if (!token) return null;
   const [body, sig] = token.split(".");

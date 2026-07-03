@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../env";
 import { hashPassword, verifyPassword } from "../lib/password";
-import { issueSession, clearSession, requireAuth } from "../lib/session";
+import { issueSession, clearSession, readSession, requireAuth } from "../lib/session";
 import { isValidTz, nowIso } from "../lib/dates";
 import { sha256Hex } from "../lib/email";
 
@@ -26,6 +26,7 @@ auth.post("/register", async (c) => {
       .bind(username, pwHash, tz)
       .first<{ id: number }>();
     await issueSession(c, row!.id, tz);
+    c.set("uid", row!.id); // attribute this request in the activity log
     return c.json({ user: { id: row!.id, username, tz, emailVerified: false } });
   } catch (e: any) {
     if (String(e.message).includes("UNIQUE")) return c.json({ error: "Username is taken" }, 409);
@@ -48,10 +49,15 @@ auth.post("/login", async (c) => {
     return c.json({ error: "Wrong username or password" }, 401);
   }
   await issueSession(c, user.id, user.tz);
+  c.set("uid", user.id); // attribute this request in the activity log
   return c.json({ user: { id: user.id, username: user.username, tz: user.tz, emailVerified: !!user.email_verified_at } });
 });
 
-auth.post("/logout", (c) => {
+auth.post("/logout", async (c) => {
+  // Best-effort attribution for the activity log; logout must still work
+  // with an invalid or expired cookie, so no requireAuth here.
+  const session = await readSession(c);
+  if (session) c.set("uid", session.u);
   clearSession(c);
   return c.json({ ok: true });
 });
@@ -83,6 +89,7 @@ auth.post("/verify-email", async (c) => {
     .bind(await sha256Hex(token))
     .first<{ user_id: number; email: string; expires_at: string }>();
   if (!row) return status("invalid");
+  c.set("uid", row.user_id); // attribute this request in the activity log
   await c.env.DB.prepare("DELETE FROM email_verifications WHERE user_id = ?1").bind(row.user_id).run();
   if (row.expires_at < nowIso()) return status("expired");
 

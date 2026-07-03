@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import type { Context } from "hono";
 import type { AppEnv, Env } from "./env";
 import { requireAuth } from "./lib/session";
 import { TmdbError, ensureShow, ensureMovie } from "./lib/tmdb";
@@ -14,6 +15,34 @@ import { comments } from "./routes/comments";
 import { importer } from "./routes/import";
 
 const app = new Hono<AppEnv>().basePath("/api");
+
+// Admin audit log (issue #15): every mutating request — success or failure,
+// authed or not — lands in activity_log, so troubleshooting can replay what
+// a user did. One middleware instead of per-route calls means new endpoints
+// are covered the day they're added. waitUntil keeps the insert off the
+// response path; bodies are never logged (passwords, comment text, emails).
+app.use("*", async (c, next) => {
+  let threw = false;
+  try {
+    await next();
+  } catch (e) {
+    threw = true;
+    logMutation(c, 500);
+    throw e; // app.onError still shapes the client response
+  } finally {
+    if (!threw) logMutation(c, c.res.status);
+  }
+});
+
+function logMutation(c: Context<AppEnv>, status: number): void {
+  const method = c.req.method;
+  if (method === "GET" || method === "HEAD" || method === "OPTIONS") return;
+  const insert = c.env.DB.prepare("INSERT INTO activity_log (user_id, method, route, path, status) VALUES (?1,?2,?3,?4,?5)")
+    .bind(c.get("uid") ?? null, method, c.req.routePath ?? "", new URL(c.req.url).pathname, status)
+    .run()
+    .catch((e) => console.error("activity_log insert failed", e));
+  c.executionCtx.waitUntil(insert);
+}
 
 app.get("/healthz", async (c) => {
   await c.env.DB.prepare("SELECT 1").first();
@@ -49,6 +78,15 @@ app.onError((err, c) => {
 // Nightly (06:00 UTC): re-sync followed shows that are still airing so new
 // episodes and air-date changes land before US mornings. Bounded per run.
 async function scheduled(_event: ScheduledEvent, env: Env, _ctx: ExecutionContext): Promise<void> {
+  // Audit-log retention first — 90 days is plenty for troubleshooting, and
+  // running before the sync work means a TMDB outage can't skip it.
+  try {
+    const logBefore = new Date(Date.now() - 90 * 24 * 3600 * 1000).toISOString();
+    await env.DB.prepare("DELETE FROM activity_log WHERE ts < ?1").bind(logBefore).run();
+  } catch (e) {
+    console.error("cron: activity_log prune failed", e);
+  }
+
   const staleBefore = new Date(Date.now() - 20 * 3600 * 1000).toISOString();
   const { results } = await env.DB.prepare(
     `SELECT s.tmdb_id FROM shows s
