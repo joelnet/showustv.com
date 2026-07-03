@@ -997,6 +997,50 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .btn-lg { font-size: 15.5px; padding: 12px 26px; border-radius: 10px; }
 .landing-hero .smpte { margin: 44px auto 0; max-width: 420px; }
 
+/* Product screenshot, framed like an app window. */
+.hero-shot {
+  margin: 44px auto 0;
+  max-width: 620px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  overflow: hidden;
+  box-shadow: 0 30px 70px -28px rgba(0, 0, 0, 0.75);
+}
+.hero-shot-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-2);
+}
+.hero-shot-dots { display: inline-flex; gap: 6px; }
+.hero-shot-dots i { width: 10px; height: 10px; border-radius: 50%; opacity: 0.9; }
+.hero-shot-url {
+  margin: 0 auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--bg);
+  border-radius: 6px;
+  padding: 3px 14px;
+  /* balance the dots so the faux URL stays centered */
+  transform: translateX(-23px);
+}
+.hero-shot-frame { position: relative; max-height: 470px; overflow: hidden; }
+.hero-shot-frame img { display: block; width: 100%; height: auto; }
+.hero-shot-frame::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 90px;
+  background: linear-gradient(to bottom, transparent, var(--bg));
+  pointer-events: none;
+}
+
 .landing-section { margin-top: 44px; }
 .landing-section .section-title { justify-content: center; }
 .landing-section .section-title::after { content: ""; width: 14px; height: 2px; background: var(--amber); }

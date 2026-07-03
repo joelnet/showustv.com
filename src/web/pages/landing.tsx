@@ -91,6 +91,25 @@ export function Landing() {
             </Link>
           </div>
           <InstallAppButton buttonClass="btn btn-ghost" />
+          <figure className="hero-shot">
+            <div className="hero-shot-bar" aria-hidden="true">
+              <span className="hero-shot-dots">
+                <i style={{ background: "var(--red)" }} />
+                <i style={{ background: "var(--amber)" }} />
+                <i style={{ background: "var(--green)" }} />
+              </span>
+              <span className="hero-shot-url">showustv.com/library</span>
+            </div>
+            <div className="hero-shot-frame">
+              <img
+                src="/screenshot-library.webp"
+                width={1086}
+                height={1038}
+                decoding="async"
+                alt="The Show Us TV library — a grid of followed shows with cover art and watch-progress bars."
+              />
+            </div>
+          </figure>
           <SmpteBars />
         </section>
 
