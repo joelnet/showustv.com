@@ -1105,6 +1105,37 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .landing-section .section-title { justify-content: center; }
 .landing-section .section-title::after { content: ""; width: 14px; height: 2px; background: var(--amber); }
 
+/* Feature showcase (issue #32): alternating copy + framed live-UI preview. */
+.showcase { display: flex; flex-direction: column; gap: 26px; margin-top: 26px; }
+.showcase-row { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; align-items: center; }
+.showcase-row:nth-child(even) .showcase-copy { order: 2; } /* alternate the shot side */
+.showcase-copy h3 { font-family: var(--font-display); font-weight: 700; font-size: 19px; letter-spacing: -0.01em; margin: 0 0 8px; }
+.showcase-copy p { color: var(--muted); font-size: 14.5px; line-height: 1.6; margin: 0; }
+.showcase-shot { margin: 0; max-width: 100%; }
+.showcase-shot-body { padding: 12px; background: var(--bg); }
+/* minmax(0,1fr) lets the two tiles share the narrow frame evenly instead of a
+   nowrap title forcing one wider (and clipping past the frame edge). */
+.showcase-shot .wn-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.showcase-shot .wn-tile { padding: 8px; gap: 6px; }
+.showcase-shot .wn-tile-ep span { color: var(--text); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.showcase-shot .agenda li { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; gap: 8px; }
+.showcase-shot .agenda-date { width: auto; flex: none; }
+.showcase-shot .agenda-ep { flex: 1 1 0; min-width: 0; }
+/* Abstract poster stand-ins for the previews — no external art needed. */
+.mock-poster {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  background: linear-gradient(150deg, var(--surface-2) 0%, var(--surface) 60%, var(--bg) 100%);
+  display: block;
+}
+.wn-tile-poster .mock-poster { border-radius: 7px; }
+@media (max-width: 720px) {
+  .showcase-row { grid-template-columns: 1fr; gap: 16px; }
+  .showcase-row:nth-child(even) .showcase-copy { order: 0; } /* copy always leads when stacked */
+}
+
 .feature-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));

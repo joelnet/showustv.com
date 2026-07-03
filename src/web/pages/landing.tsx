@@ -2,7 +2,7 @@
 // Static and client-side only; every claim maps to a shipped feature.
 import { Link } from "react-router-dom";
 import { useAuth } from "../app";
-import { SmpteBars, Wordmark } from "../components/ui";
+import { SmpteBars, Wordmark, Slate } from "../components/ui";
 import { InstallAppButton } from "../components/install";
 import {
   IconPlay,
@@ -59,6 +59,115 @@ const STEPS = [
   {
     title: "Watch and check off",
     body: "Mark episodes as you go. Watch Next keeps your place in every show, every season.",
+  },
+];
+
+// ---------- Feature showcase (issue #24 → #32) ----------
+// Framed, on-brand previews built from the app's own components/CSS rather
+// than static images, so they stay pixel-crisp and never drift from the
+// product. Content is representative sample data, not a live capture.
+
+function Shot({ url, children }: { url: string; children: React.ReactNode }) {
+  return (
+    <figure className="hero-shot showcase-shot">
+      <div className="hero-shot-bar" aria-hidden="true">
+        <span className="hero-shot-dots">
+          <i style={{ background: "var(--red)" }} />
+          <i style={{ background: "var(--amber)" }} />
+          <i style={{ background: "var(--green)" }} />
+        </span>
+        <span className="hero-shot-url">{url}</span>
+      </div>
+      <div className="showcase-shot-body">{children}</div>
+    </figure>
+  );
+}
+
+function MockTile({ title, season, number, ep, date, left }: { title: string; season: number; number: number; ep: string; date: string; left: number }) {
+  return (
+    <article className="wn-tile">
+      <div className="wn-tile-poster">
+        <span className="mock-poster" aria-hidden="true" />
+        <span className="pill wn-tile-count">{left} left</span>
+      </div>
+      <div className="wn-tile-body">
+        <span className="wn-tile-show">{title}</span>
+        <div className="wn-tile-ep">
+          <Slate season={season} number={number} />
+          <span>{ep}</span>
+        </div>
+        <span className="wn-tile-date mono">{date}</span>
+      </div>
+      <span className="btn btn-mark wn-tile-btn">
+        <IconCheck size={14} /> <span>Watched</span>
+      </span>
+    </article>
+  );
+}
+
+function MockList({ name, count }: { name: string; count: number }) {
+  return (
+    <div className="list-card">
+      <div className="list-collage">
+        {Array.from({ length: 4 }, (_, i) => (
+          <span key={i} className="mock-poster" aria-hidden="true" />
+        ))}
+      </div>
+      <span className="list-name">{name}</span>
+      <span className="mono list-count">{count} titles</span>
+    </div>
+  );
+}
+
+const SHOWCASE = [
+  {
+    title: "Your Watch Next queue",
+    body: "Open the app and every show you follow is already lined up to its exact next episode, with a running count of what's left. No more “wait, where was I?”",
+    url: "showustv.com",
+    shot: (
+      <div className="wn-grid">
+        <MockTile title="The Bear" season={3} number={1} ep="Tomorrow" date="Jun 27" left={4} />
+        <MockTile title="Severance" season={2} number={3} ep="Woe's Hollow" date="Jun 21" left={2} />
+      </div>
+    ),
+  },
+  {
+    title: "Upcoming, on your radar",
+    body: "See what's airing next across everything you follow, soonest first — so premieres and finales never slip past you.",
+    url: "showustv.com",
+    shot: (
+      <ul className="agenda">
+        <li>
+          <span className="mono agenda-date">Jul 7</span>
+          <span className="agenda-show">Foundation</span>
+          <Slate season={3} number={4} />
+          <span className="agenda-ep">Season's End</span>
+        </li>
+        <li>
+          <span className="mono agenda-date">Jul 10</span>
+          <span className="agenda-show">The Sandman</span>
+          <Slate season={2} number={6} />
+          <span className="agenda-ep">Lost Hearts</span>
+        </li>
+        <li>
+          <span className="mono agenda-date">Jul 14</span>
+          <span className="agenda-show">Wednesday</span>
+          <Slate season={2} number={1} />
+          <span className="agenda-ep">Return to Nevermore</span>
+        </li>
+      </ul>
+    ),
+  },
+  {
+    title: "Lists worth sharing",
+    body: "Group shows and movies into lists — “Comfort rewatches”, “Watch with Sam” — then flip any of them public and share a link. No account needed to view.",
+    url: "showustv.com/u/you/lists",
+    shot: (
+      <div className="lists-grid">
+        <MockList name="Comfort rewatches" count={12} />
+        <MockList name="Watch with Sam" count={7} />
+      </div>
+    ),
   },
 ];
 
@@ -135,6 +244,23 @@ export function Landing() {
                 </span>
                 <h3>{f.title}</h3>
                 <p>{f.body}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="landing-section" aria-labelledby="landing-showcase-title">
+          <h2 className="section-title" id="landing-showcase-title">
+            See it in action
+          </h2>
+          <div className="showcase">
+            {SHOWCASE.map((s) => (
+              <article className="showcase-row" key={s.title}>
+                <div className="showcase-copy">
+                  <h3>{s.title}</h3>
+                  <p>{s.body}</p>
+                </div>
+                <Shot url={s.url}>{s.shot}</Shot>
               </article>
             ))}
           </div>
