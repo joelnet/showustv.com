@@ -8,7 +8,8 @@
     "dev": "npm run build && wrangler dev",
     "deploy": "npm run build && wrangler deploy",
     "db:migrate:local": "wrangler d1 migrations apply showustv --local",
-    "db:migrate:remote": "wrangler d1 migrations apply showustv --remote"
+    "db:migrate:remote": "wrangler d1 migrations apply showustv --remote",
+    "admin": "node scripts/admin.mjs"
   },
   "dependencies": {
     "@fortawesome/fontawesome-svg-core": "^7.3.0",

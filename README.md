@@ -90,6 +90,26 @@ npm run deploy
 
 `TMDB_API_BASE` and `TMDB_IMG_BASE` are plain vars already set in `wrangler.jsonc`.
 
+## Admin CLI
+
+`scripts/admin.mjs` is a scriptable admin tool that talks straight to D1 via
+`wrangler d1 execute` — no running server, no auth. It defaults to the **local**
+database; pass `--remote` for production. Every command supports `--json`.
+
+```sh
+npm run admin -- help                       # all commands
+npm run admin -- waitlist                    # who's waiting to be let in
+npm run admin -- approve someone@example.com # admit them (can sign in at once)
+npm run admin -- activity --errors --limit 20
+npm run admin -- stats
+npm run admin -- site open --remote          # open the whole site (prod)
+```
+
+Covers the wait list (`waitlist`/`approve`/`approve-all`), the audit log
+(`activity`), account lookup and flags (`users`/`user`/`admin`/`ban`), the
+open/closed switch (`site`), instance `stats`, and a read-only `sql` escape
+hatch. (Note the `--` so npm passes flags through to the tool.)
+
 ## Architecture notes
 
 - **One Worker for everything.** Static assets from `dist/client` answer all requests with SPA fallback (`not_found_handling: "single-page-application"`); only `/api/*` runs the Worker first (`run_worker_first`). The Hono app is mounted at `/api` and returns JSON 404s for unknown API paths.
