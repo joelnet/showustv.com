@@ -7,6 +7,7 @@ import { useAuth } from "../app";
 import { still } from "../img";
 import { fmtAirDate, fmtDateTime, runtimeStr } from "../format";
 import { Slate, Spinner, ErrorNote, ScorePicker, EmojiPicker } from "../components/ui";
+import { Comments } from "../components/comments";
 import { IconCheck } from "../components/icons";
 
 interface EpisodePayload {
@@ -123,6 +124,7 @@ export function EpisodePage() {
           </div>
         </div>
       </div>
+      <Comments targetType="episode" targetId={ep.id} />
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { useAuth } from "../app";
 import { poster, backdrop, providerLogo } from "../img";
 import { fmtAirDate } from "../format";
 import { Slate, Spinner, ErrorNote, Progress, CheckButton, ScorePicker } from "../components/ui";
+import { Comments } from "../components/comments";
 import { IconCheck, IconPlus, IconChevron, IconBookmark, IconHeart, IconHeartOutline } from "../components/icons";
 import { useConfirm } from "../components/dialog";
 import { AddToList } from "./lists";
@@ -393,6 +394,7 @@ export function ShowPage() {
           })}
       </section>
 
+      <Comments targetType="show" targetId={show.id} />
     </div>
   );
 }

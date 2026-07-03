@@ -1116,3 +1116,87 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation-duration: 0.01ms !important; }
 }
+
+/* ---------- Comments (reddit-style threads) ---------- */
+
+.comments { margin-top: 40px; }
+
+.comments-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+.comments-head h2 { margin: 0; font-family: var(--font-display); font-size: 20px; }
+.comments-count { font-size: 13px; }
+
+.comments-sort { display: flex; gap: 4px; margin-left: auto; }
+.sort-tab {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--muted);
+  font: 500 13px var(--font-body);
+  padding: 3px 10px;
+  cursor: pointer;
+}
+.sort-tab.is-on { border-color: var(--line); background: var(--surface-2); color: var(--text); }
+
+.comment-composer textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 72px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  font: inherit;
+}
+.composer-foot { display: flex; align-items: center; gap: 12px; margin-top: 6px; min-height: 24px; }
+.composer-err { color: var(--red); font-size: 13px; }
+.composer-actions { margin-left: auto; display: flex; gap: 8px; }
+
+.comment-list { margin-top: 20px; display: flex; flex-direction: column; gap: 16px; }
+.comments-empty { color: var(--muted); margin-top: 20px; }
+
+.comment { display: flex; gap: 6px; }
+.comment.is-collapsed { align-items: baseline; gap: 8px; padding: 2px 0 2px 26px; }
+
+/* Vote gutter — amber up like the ON AIR palette, cyan down. */
+.comment-vote { display: flex; flex-direction: column; align-items: center; gap: 3px; padding-top: 2px; }
+.vote-btn { background: none; border: none; padding: 0 4px; cursor: pointer; color: var(--muted); line-height: 1; }
+.vote-btn:hover { color: var(--text); }
+.vote-btn:disabled { opacity: 0.35; cursor: default; }
+.vote-btn.up.is-on { color: var(--amber); }
+.vote-btn.down.is-on { color: var(--cyan); }
+
+.comment-main { flex: 1; min-width: 0; }
+.comment-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.collapse-btn { background: none; border: none; padding: 0; cursor: pointer; color: var(--muted); }
+.collapse-btn:hover { color: var(--text); }
+.comment-user { font-weight: 600; font-size: 14px; }
+.comment-user.is-deleted { color: var(--muted); font-style: italic; font-weight: 400; }
+.comment-score, .comment-time { font-size: 12.5px; }
+
+.comment-body { margin: 4px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.comment-body.is-deleted { color: var(--muted); font-style: italic; }
+
+.comment-actions { display: flex; align-items: baseline; gap: 4px; }
+.comment-actions .link-btn { color: var(--muted); font-size: 13px; padding: 2px 6px; }
+.comment-actions .link-btn:hover { color: var(--text); }
+.comment-err { color: var(--red); font-size: 13px; }
+
+/* Reddit thread line: children indent behind a rail that lights up when the
+   subtree is hovered, so eyes can follow deep threads back up. */
+.comment-children {
+  margin-top: 12px;
+  padding-left: 14px;
+  border-left: 2px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.comment-children:hover { border-left-color: var(--muted); }
+
+.thread-stub { align-self: flex-start; font-size: 13px; }
+
+@media (max-width: 640px) {
+  .comment-children { padding-left: 9px; }
+  .comments-head { flex-wrap: wrap; }
+}

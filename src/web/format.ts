@@ -35,6 +35,22 @@ export function fmtDateTime(iso: string, tz: string): string {
   });
 }
 
+// Reddit-style relative timestamps for comments. Coarse on purpose; pair
+// with a full fmtDateTime in the title attribute for the exact moment.
+export function fmtAgo(iso: string): string {
+  const s = Math.max(0, (Date.now() - Date.parse(iso)) / 1000);
+  if (s < 60) return "just now";
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  if (d < 30) return `${d}d ago`;
+  const mo = Math.floor(d / 30);
+  if (mo < 12) return `${mo}mo ago`;
+  return `${Math.floor(d / 365)}y ago`;
+}
+
 export function epCode(season: number, number: number): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `S${pad(season)}·E${pad(number)}`;
