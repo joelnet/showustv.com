@@ -1,6 +1,6 @@
 // One-shot generator for the PWA app icons in src/web/public/icons/.
 // The art is the wordmark's TV bug (see Wordmark in src/web/components/ui.tsx):
-// amber tile, dark TV with antennae, amber screen.
+// amber TV with antennae and white "TV" letters on the app's slate background.
 //
 // Run from the repo root: node scripts/generate-icons.mjs
 // Uses sharp (present transitively in node_modules) to rasterize the SVGs.
@@ -12,37 +12,39 @@ import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 
 const AMBER = "#ffae2e";
-const INK = "#1a1205";
+const SLATE = "#0f1218";
 
 const outDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "../src/web/public/icons");
 
-// The TV mark from the wordmark, in its native 36x30 coordinate space.
+// The TV mark from the wordmark, in its native 30-unit coordinate space
+// (content spans y 3..29). Letters are stroke-drawn (no font dependency
+// in librsvg).
 const tv = `
-    <line x1="12" y1="7" x2="7" y2="1" stroke="${INK}" stroke-width="2.2" stroke-linecap="round"/>
-    <line x1="24" y1="7" x2="29" y2="1" stroke="${INK}" stroke-width="2.2" stroke-linecap="round"/>
-    <rect x="3" y="7" width="30" height="20" rx="3" ry="3" fill="${INK}"/>
-    <rect x="6.5" y="10" width="23" height="13" rx="2" ry="2" fill="${AMBER}"/>
-    <rect x="8" y="11.5" width="6" height="3" rx="1" fill="${INK}" opacity="0.18"/>
-    <rect x="11" y="27" width="4" height="2.5" rx="1" fill="${INK}"/>
-    <rect x="21" y="27" width="4" height="2.5" rx="1" fill="${INK}"/>`;
+    <line x1="12.2" y1="10" x2="5.8" y2="4.2" stroke="${AMBER}" stroke-width="2.2" stroke-linecap="round"/>
+    <line x1="17.8" y1="10" x2="24.2" y2="4.2" stroke="${AMBER}" stroke-width="2.2" stroke-linecap="round"/>
+    <rect x="1.5" y="9" width="27" height="20" rx="4.5" ry="4.5" fill="${AMBER}"/>
+    <g transform="translate(3.37 0) skewX(-10)" stroke="#fff" stroke-width="2.7" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <path d="M6.8 14.4 H13.6 M10.2 14.4 V23.8"/>
+      <path d="M16.6 14.4 L19.6 23.8 L22.6 14.4"/>
+    </g>`;
 
 // scale: TV size within the 512 canvas. rounded: transparent rounded corners
 // (regular icons) vs full-bleed square (maskable / apple touch, where the
 // platform applies its own mask — art stays inside the safe zone).
 function iconSvg({ scale, rounded }) {
-  const x = 256 - 18 * scale; // art bbox center: (18, 15.25)
-  const y = 256 - 15.25 * scale;
+  const x = 256 - 15 * scale; // art bbox center: (15, 16)
+  const y = 256 - 16 * scale;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" ${rounded ? 'rx="106" ry="106"' : ""} fill="${AMBER}"/>
+  <rect width="512" height="512" ${rounded ? 'rx="106" ry="106"' : ""} fill="${SLATE}"/>
   <g transform="translate(${x} ${y}) scale(${scale})">${tv}
   </g>
 </svg>
 `;
 }
 
-const regular = iconSvg({ scale: 9, rounded: true });
-const maskable = iconSvg({ scale: 8, rounded: false }); // safe zone: r=205 circle
-const apple = iconSvg({ scale: 8.6, rounded: false }); // iOS rounds the square itself
+const regular = iconSvg({ scale: 12, rounded: true });
+const maskable = iconSvg({ scale: 10, rounded: false }); // safe zone: r=205 circle
+const apple = iconSvg({ scale: 11.5, rounded: false }); // iOS rounds the square itself
 
 async function png(svg, size, file) {
   await sharp(Buffer.from(svg)).resize(size, size).png().toFile(path.join(outDir, file));

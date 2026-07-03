@@ -88,18 +88,18 @@ a:hover { text-decoration: underline; }
 .wordmark-bug {
   display: inline-flex;
   align-items: center;
-  background: var(--amber);
-  color: var(--amber-ink);
-  border-radius: 5px;
-  padding: 1px 5px;
   margin: 0 1px;
-  font-style: italic;
   vertical-align: middle;
 }
 .wordmark-tv {
-  width: 1.45em;
-  height: 1.2em;
+  width: 1.3em;
+  height: 1.13em;
   display: block;
+  /* lift so the TV body brackets the caps like the reference art —
+     top edge a touch above cap height, bottom a touch below baseline —
+     with the antennae poking above the line. transform (not
+     vertical-align) so the line box doesn't grow. */
+  transform: translateY(-0.2em);
 }
 
 .header-nav { display: flex; gap: 4px; }

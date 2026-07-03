@@ -3,6 +3,7 @@ import { useApi } from "../hooks";
 import { useOffline } from "../offline";
 import { PosterCard, Spinner, Empty, ErrorNote } from "../components/ui";
 import { IconSearch } from "../components/icons";
+import { mediaPath } from "../paths";
 
 interface Result {
   type: "show" | "movie";
@@ -57,7 +58,7 @@ export function SearchPage() {
             {search.data.results.map((r) => (
               <PosterCard
                 key={`${r.type}-${r.id}`}
-                to={`/${r.type}/${r.id}`}
+                to={mediaPath(r.type, r.id, r.title)}
                 posterPath={r.poster}
                 title={r.title}
                 sub={[r.type === "show" ? "TV" : "Movie", r.year].filter(Boolean).join(" · ")}
@@ -74,13 +75,13 @@ export function SearchPage() {
           <h2 className="section-title">Trending shows this week</h2>
           <div className="poster-grid">
             {trending.data.shows.map((r) => (
-              <PosterCard key={r.id} to={`/show/${r.id}`} posterPath={r.poster} title={r.title} sub={r.year} />
+              <PosterCard key={r.id} to={mediaPath("show", r.id, r.title)} posterPath={r.poster} title={r.title} sub={r.year} />
             ))}
           </div>
           <h2 className="section-title">Trending movies</h2>
           <div className="poster-grid">
             {trending.data.movies.map((r) => (
-              <PosterCard key={r.id} to={`/movie/${r.id}`} posterPath={r.poster} title={r.title} sub={r.year} />
+              <PosterCard key={r.id} to={mediaPath("movie", r.id, r.title)} posterPath={r.poster} title={r.title} sub={r.year} />
             ))}
           </div>
         </>

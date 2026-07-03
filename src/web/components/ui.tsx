@@ -36,19 +36,24 @@ export function Wordmark() {
     <span className="wordmark">
       SHOW US{" "}
       <span className="wordmark-bug" role="img" aria-label="TV">
-        <svg className="wordmark-tv" viewBox="0 -1 36 31" aria-hidden="true" focusable="false">
+        <svg className="wordmark-tv" viewBox="0 3 30 26" aria-hidden="true" focusable="false">
           {/* antennae */}
-          <line x1="12" y1="7" x2="7" y2="1" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-          <line x1="24" y1="7" x2="29" y2="1" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+          <line x1="12.2" y1="10" x2="5.8" y2="4.2" stroke="var(--amber)" strokeWidth="2.2" strokeLinecap="round" />
+          <line x1="17.8" y1="10" x2="24.2" y2="4.2" stroke="var(--amber)" strokeWidth="2.2" strokeLinecap="round" />
           {/* TV body */}
-          <rect x="3" y="7" width="30" height="20" rx="3" ry="3" fill="currentColor" />
-          {/* screen cutout */}
-          <rect x="6.5" y="10" width="23" height="13" rx="2" ry="2" fill="var(--amber)" />
-          {/* screen shine */}
-          <rect x="8" y="11.5" width="6" height="3" rx="1" fill="var(--amber-ink)" opacity="0.18" />
-          {/* feet */}
-          <rect x="11" y="27" width="4" height="2.5" rx="1" fill="currentColor" />
-          <rect x="21" y="27" width="4" height="2.5" rx="1" fill="currentColor" />
+          <rect x="1.5" y="9" width="27" height="20" rx="4.5" ry="4.5" fill="var(--amber)" />
+          {/* "TV" letters, stroke-drawn and slanted to sit with the italic wordmark */}
+          <g
+            transform="translate(3.37 0) skewX(-10)"
+            stroke="#fff"
+            strokeWidth="2.7"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
+          >
+            <path d="M6.8 14.4 H13.6 M10.2 14.4 V23.8" />
+            <path d="M16.6 14.4 L19.6 23.8 L22.6 14.4" />
+          </g>
         </svg>
       </span>
     </span>

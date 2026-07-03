@@ -4,6 +4,7 @@ import { useApi } from "../hooks";
 import { useAuth } from "../app";
 import { fmtDateTime } from "../format";
 import { PosterCard, Progress, Spinner, Empty, ErrorNote } from "../components/ui";
+import { mediaPath } from "../paths";
 
 const STATE_SECTIONS: [string, string][] = [
   ["watching", "Watching"],
@@ -125,7 +126,7 @@ export function LibraryPage({ tab }: { tab: "shows" | "movies" | "watchlist" }) 
                 <div className="poster-grid">
                   {shows.map((s) => (
                     <div key={s.id} className="lib-card">
-                      <PosterCard to={`/show/${s.id}`} posterPath={s.poster} title={s.title} sub={`${s.watched}/${s.aired}`} />
+                      <PosterCard to={mediaPath("show", s.id, s.title)} posterPath={s.poster} title={s.title} sub={`${s.watched}/${s.aired}`} />
                       <Progress watched={s.watched} total={s.aired} />
                     </div>
                   ))}
@@ -148,7 +149,7 @@ export function LibraryPage({ tab }: { tab: "shows" | "movies" | "watchlist" }) 
             {lib.data.movies.map((m) => (
               <PosterCard
                 key={m.id}
-                to={`/movie/${m.id}`}
+                to={mediaPath("movie", m.id, m.title)}
                 posterPath={m.poster}
                 title={m.title}
                 sub={fmtDateTime(m.watched_at, user!.tz)}
@@ -171,7 +172,7 @@ export function LibraryPage({ tab }: { tab: "shows" | "movies" | "watchlist" }) 
                 <h2 className="section-title">Shows</h2>
                 <div className="poster-grid">
                   {wl.data!.shows.map((s) => (
-                    <PosterCard key={s.id} to={`/show/${s.id}`} posterPath={s.poster} title={s.title} />
+                    <PosterCard key={s.id} to={mediaPath("show", s.id, s.title)} posterPath={s.poster} title={s.title} />
                   ))}
                 </div>
               </section>
@@ -181,7 +182,7 @@ export function LibraryPage({ tab }: { tab: "shows" | "movies" | "watchlist" }) 
                 <h2 className="section-title">Movies</h2>
                 <div className="poster-grid">
                   {wl.data!.movies.map((m) => (
-                    <PosterCard key={m.id} to={`/movie/${m.id}`} posterPath={m.poster} title={m.title} />
+                    <PosterCard key={m.id} to={mediaPath("movie", m.id, m.title)} posterPath={m.poster} title={m.title} />
                   ))}
                 </div>
               </section>

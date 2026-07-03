@@ -3,6 +3,7 @@
 import { Link, useParams } from "react-router-dom";
 import { useApi } from "../hooks";
 import { Spinner, PosterCard, Wordmark, SmpteBars } from "../components/ui";
+import { mediaPath } from "../paths";
 
 interface PublicList {
   list: { id: number; name: string; username: string };
@@ -40,7 +41,7 @@ export function PublicListPage() {
               {data.items.map((it) => (
                 <PosterCard
                   key={`${it.type}-${it.id}`}
-                  to={`/${it.type}/${it.id}`}
+                  to={mediaPath(it.type, it.id, it.title)}
                   posterPath={it.poster}
                   title={it.title}
                   sub={it.type === "show" ? "TV" : "Movie"}

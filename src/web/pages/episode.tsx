@@ -1,6 +1,7 @@
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { useApi } from "../hooks";
+import { mediaPath, idFromParam } from "../paths";
 import { post, put, del } from "../api";
 import { useAuth } from "../app";
 import { still } from "../img";
@@ -30,8 +31,10 @@ interface EpisodePayload {
 }
 
 export function EpisodePage() {
-  const { id } = useParams();
+  const id = idFromParam(useParams().id);
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   const { data, loading, error, reload } = useApi<EpisodePayload>(`/episodes/${id}`);
   const [busy, setBusy] = useState(false);
   // Watched-state override while a change is queued offline — refetching
@@ -39,6 +42,14 @@ export function EpisodePage() {
   const [queuedState, setQueuedState] = useState<"watched" | "unwatched" | null>(null);
 
   useEffect(() => setQueuedState(null), [data]); // fresh data supersedes the override
+
+  // Canonicalize the address bar to the slugged URL (issue #11) so bare or
+  // stale-slug links become shareable SEO-friendly ones once the title loads.
+  useEffect(() => {
+    if (!data) return;
+    const canonical = mediaPath("episode", data.episode.id, data.episode.title);
+    if (location.pathname !== canonical) navigate(canonical + location.search, { replace: true });
+  }, [data, location, navigate]);
 
   if (loading) return <Spinner />;
   if (error) return <ErrorNote message={error} />;
@@ -63,7 +74,7 @@ export function EpisodePage() {
 
   return (
     <div className="episode-page">
-      <Link to={`/show/${ep.showId}`} className="crumb">
+      <Link to={mediaPath("show", ep.showId, ep.showTitle)} className="crumb">
         ‹ {ep.showTitle}
       </Link>
       <div className="episode-head">

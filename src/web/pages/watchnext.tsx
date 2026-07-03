@@ -7,6 +7,7 @@ import { poster } from "../img";
 import { fmtAirDate } from "../format";
 import { Slate, Spinner, Empty, ErrorNote } from "../components/ui";
 import { IconCheck } from "../components/icons";
+import { mediaPath } from "../paths";
 
 interface UpcomingItem {
   episodeId: number;
@@ -48,15 +49,15 @@ function Tile({
   const src = poster(item.show.poster);
   return (
     <article className="wn-tile">
-      <Link to={`/show/${item.show.id}`} className="wn-tile-poster">
+      <Link to={mediaPath("show", item.show.id, item.show.title)} className="wn-tile-poster">
         {src ? <img src={src} alt="" loading="lazy" /> : <div className="poster-fallback">{item.show.title}</div>}
         <span className="pill wn-tile-count">{item.unwatchedCount} left</span>
       </Link>
       <div className="wn-tile-body">
-        <Link to={`/show/${item.show.id}`} className="wn-tile-show">{item.show.title}</Link>
+        <Link to={mediaPath("show", item.show.id, item.show.title)} className="wn-tile-show">{item.show.title}</Link>
         <div className="wn-tile-ep">
           <Slate season={item.episode.season} number={item.episode.number} />
-          <Link to={`/episode/${item.episode.id}`}>{item.episode.title ?? `Episode ${item.episode.number}`}</Link>
+          <Link to={mediaPath("episode", item.episode.id, item.episode.title)}>{item.episode.title ?? `Episode ${item.episode.number}`}</Link>
         </div>
         <span className="wn-tile-date mono">{fmtAirDate(item.episode.airDate, tz)}</span>
       </div>
@@ -132,9 +133,9 @@ export function WatchNext() {
                 {upcoming.map((u) => (
                   <li key={u.episodeId}>
                     <span className="mono agenda-date">{fmtAirDate(u.airDate, tz)}</span>
-                    <Link to={`/show/${u.showId}`} className="agenda-show">{u.showTitle}</Link>
+                    <Link to={mediaPath("show", u.showId, u.showTitle)} className="agenda-show">{u.showTitle}</Link>
                     <Slate season={u.season} number={u.number} />
-                    <Link to={`/episode/${u.episodeId}`} className="agenda-ep">
+                    <Link to={mediaPath("episode", u.episodeId, u.title)} className="agenda-ep">
                       {u.title ?? `Episode ${u.number}`}
                     </Link>
                   </li>

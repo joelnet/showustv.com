@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api, post, put, del } from "../api";
+import { mediaPath, idFromParam } from "../paths";
 import { useApi } from "../hooks";
 import { useAuth } from "../app";
 import { poster, backdrop, providerLogo } from "../img";
@@ -94,13 +95,23 @@ function AlsoWatching({ showId }: { showId: string }) {
 }
 
 export function ShowPage() {
-  const { id } = useParams();
+  const id = idFromParam(useParams().id);
   const { user } = useAuth();
   const confirm = useConfirm();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [data, setData] = useState<ShowPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [openSeason, setOpenSeason] = useState<number | null>(null);
+
+  // Canonicalize the address bar to the slugged URL (issue #11) so bare or
+  // stale-slug links become shareable SEO-friendly ones once the title loads.
+  useEffect(() => {
+    if (!data) return;
+    const canonical = mediaPath("show", data.show.id, data.show.title);
+    if (location.pathname !== canonical) navigate(canonical + location.search, { replace: true });
+  }, [data, location, navigate]);
 
   useEffect(() => {
     let live = true;
@@ -277,7 +288,7 @@ export function ShowPage() {
 
       {show.overview && <p className="show-overview">{show.overview}</p>}
 
-      <AlsoWatching showId={id!} />
+      <AlsoWatching showId={id} />
 
       <div className="rating-row">
         <ScorePicker
@@ -359,7 +370,7 @@ export function ShowPage() {
                     {season.episodes.map((e) => (
                       <li key={e.id} className={`episode-row${e.watched ? " is-watched" : ""}${e.aired ? "" : " is-future"}`}>
                         <Slate season={e.season_number} number={e.number} />
-                        <Link to={`/episode/${e.id}`} className="episode-title">
+                        <Link to={mediaPath("episode", e.id, e.title)} className="episode-title">
                           {e.title ?? `Episode ${e.number}`}
                         </Link>
                         <span className="episode-date mono">{fmtAirDate(e.air_date, tz)}</span>
@@ -381,6 +392,7 @@ export function ShowPage() {
             );
           })}
       </section>
+
     </div>
   );
 }

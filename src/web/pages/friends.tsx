@@ -13,6 +13,7 @@ import { useConfirm } from "../components/dialog";
 import { poster } from "../img";
 import { fmtDateTime } from "../format";
 import { Spinner, Empty, ErrorNote } from "../components/ui";
+import { mediaPath } from "../paths";
 import { IconCheck, IconPlus, IconTrash } from "../components/icons";
 
 interface FriendsData {
@@ -89,7 +90,7 @@ export function ActivityFeed() {
                 {a.username}
               </Link>{" "}
               {activityPhrase(a)}{" "}
-              <Link to={`/${a.target_type === "show" ? "show" : "movie"}/${a.target_id}`}>{a.title}</Link>
+              <Link to={mediaPath(a.target_type === "show" ? "show" : "movie", a.target_id, a.title)}>{a.title}</Link>
             </span>
             <span className="mono activity-when">{fmtDateTime(a.ts, tz)}</span>
           </li>

@@ -5,6 +5,7 @@ import { api, post, put, del } from "../api";
 import { poster } from "../img";
 import { useAuth } from "../app";
 import { Spinner, Empty, ErrorNote, PosterCard } from "../components/ui";
+import { mediaPath } from "../paths";
 import {
   IconPlus,
   IconTrash,
@@ -193,7 +194,7 @@ export function ListDetailPage() {
           {data.items.map((it, i) => (
             <li key={`${it.type}-${it.id}`}>
               <span className="mono list-pos">{i + 1}</span>
-              <PosterCard to={`/${it.type}/${it.id}`} posterPath={it.poster} title={it.title} sub={it.type === "show" ? "TV" : "Movie"} />
+              <PosterCard to={mediaPath(it.type, it.id, it.title)} posterPath={it.poster} title={it.title} sub={it.type === "show" ? "TV" : "Movie"} />
               <div className="list-item-actions">
                 <button className="btn btn-ghost" disabled={busy || i === 0} onClick={() => move(i, -1)} aria-label="Move up">
                   <IconArrowUp size={14} />
