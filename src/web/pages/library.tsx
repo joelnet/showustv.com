@@ -8,11 +8,19 @@ import { mediaPath } from "../paths";
 
 const STATE_SECTIONS: [string, string][] = [
   ["watching", "Watching"],
+  ["stale", "Haven’t watched for a while"],
   ["not_started", "Not started yet"],
   ["up_to_date", "Up to date"],
   ["finished", "Finished"],
   ["stopped", "Stopped"],
 ];
+
+// A watching show with no recent activity (the server's `stale` flag) splits
+// out of "Watching" into its own bucket; every other state maps 1:1.
+function showBucket(s: LibShow): string {
+  if (s.derivedState === "watching") return s.stale ? "stale" : "watching";
+  return s.derivedState;
+}
 
 type ShowSort = "last_watched" | "alphabetical";
 const SORT_KEY = "library-show-sort";
@@ -35,6 +43,7 @@ interface LibShow {
   title: string;
   poster: string | null;
   derivedState: string;
+  stale: boolean;
   watched: number;
   aired: number;
   total: number;
@@ -118,7 +127,7 @@ export function LibraryPage({ tab }: { tab: "shows" | "movies" | "watchlist" }) 
             </div>
           )}
           {STATE_SECTIONS.map(([key, label]) => {
-            const shows = lib.data!.shows.filter((s) => s.derivedState === key).sort(showComparator(sort));
+            const shows = lib.data!.shows.filter((s) => showBucket(s) === key).sort(showComparator(sort));
             if (!shows.length) return null;
             return (
               <section key={key}>

@@ -15,6 +15,14 @@ export function todayInTz(tz: string): string {
   }
 }
 
+// The calendar date `days` before today in the user's tz, as 'YYYY-MM-DD'.
+// Used as the cutoff for "recent activity" windows; whole-day arithmetic in
+// UTC is precise enough for a multi-week window.
+export function daysAgoInTz(tz: string, days: number): string {
+  const t = Date.parse(todayInTz(tz) + "T00:00:00Z");
+  return new Date(t - days * 86400000).toISOString().slice(0, 10);
+}
+
 export function isValidTz(tz: string): boolean {
   try {
     new Intl.DateTimeFormat("en-US", { timeZone: tz });

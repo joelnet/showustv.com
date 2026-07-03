@@ -2,8 +2,8 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import type { AppEnv } from "../env";
 import { ensureShow, ensureMovie } from "../lib/tmdb";
-import { nowIso, todayInTz } from "../lib/dates";
-import { STORED_SHOW_STATES, type DerivedShowState } from "../../shared/constants";
+import { nowIso, todayInTz, daysAgoInTz } from "../lib/dates";
+import { RECENT_WINDOW_DAYS, STORED_SHOW_STATES, type DerivedShowState } from "../../shared/constants";
 
 export const library = new Hono<AppEnv>();
 
@@ -29,10 +29,14 @@ function deriveState(row: { state: string; watched: number; aired: number; total
 
 // ---------- Home: Watch Next ----------
 
-// Shows whose last activity (most recent of: last watched episode, follow
-// date) is older than this split into the "Haven't watched for a while"
-// bucket instead of the main queue.
-const STALE_MS = 183 * 24 * 3600 * 1000; // ~6 months
+// A show is "recently active" — and belongs in the main Watch Next queue
+// rather than the "Haven't watched for a while" bucket — when it was watched
+// or had an episode air on/after this cutoff date. `since` is 'YYYY-MM-DD';
+// last_watched is an ISO datetime and last_aired a date, both of which compare
+// correctly against it as strings.
+function recentlyActive(lastWatched: string | null, lastAired: string | null, since: string): boolean {
+  return (lastWatched != null && lastWatched >= since) || (lastAired != null && lastAired >= since);
+}
 
 library.get("/watch-next", async (c) => {
   const uid = c.get("uid");
@@ -51,6 +55,10 @@ library.get("/watch-next", async (c) => {
      SELECT c.id AS episode_id, c.show_id, c.season_number, c.number, c.title AS episode_title,
             c.air_date, c.runtime_min, c.overview, c.still_url, c.unwatched_aired,
             s.title AS show_title, s.poster_url, s.backdrop_url,
+            lw.last_watched,
+            (SELECT MAX(e3.air_date) FROM episodes e3
+               WHERE e3.show_id = c.show_id AND e3.season_number > 0
+                 AND e3.air_date IS NOT NULL AND e3.air_date <= ?2) AS last_aired,
             CASE WHEN lw.last_watched IS NULL OR lw.last_watched < us.added_at
                  THEN us.added_at ELSE lw.last_watched END AS last_activity
      FROM cand c
@@ -67,7 +75,9 @@ library.get("/watch-next", async (c) => {
     .bind(uid, today)
     .all();
 
-  const staleBefore = new Date(Date.now() - STALE_MS).toISOString();
+  // Recent window: watched or aired within RECENT_WINDOW_DAYS. Everything else
+  // that's still being watched falls to "Haven't watched for a while".
+  const recentSince = daysAgoInTz(c.get("tz"), RECENT_WINDOW_DAYS);
   const toItem = (r: any) => ({
     show: { id: r.show_id, title: r.show_title, poster: r.poster_url, backdrop: r.backdrop_url },
     episode: {
@@ -99,8 +109,8 @@ library.get("/watch-next", async (c) => {
 
   const rows = results as any[];
   return c.json({
-    watchNext: rows.filter((r) => r.last_activity >= staleBefore).map(toItem),
-    stale: rows.filter((r) => r.last_activity < staleBefore).map(toItem),
+    watchNext: rows.filter((r) => recentlyActive(r.last_watched, r.last_aired, recentSince)).map(toItem),
+    stale: rows.filter((r) => !recentlyActive(r.last_watched, r.last_aired, recentSince)).map(toItem),
     upcoming: (upcoming as any[]).map((r) => ({
       episodeId: r.episode_id,
       showId: r.show_id,
@@ -130,7 +140,9 @@ library.get("/library", async (c) => {
          (SELECT MAX(CASE WHEN ue.last_rewatched_at > ue.watched_at
                           THEN ue.last_rewatched_at ELSE ue.watched_at END)
             FROM user_episodes ue JOIN episodes e ON e.id = ue.episode_id
-            WHERE ue.user_id = us.user_id AND e.show_id = us.show_id) AS last_watched_at
+            WHERE ue.user_id = us.user_id AND e.show_id = us.show_id) AS last_watched_at,
+         (SELECT MAX(e.air_date) FROM episodes e WHERE e.show_id = us.show_id AND e.season_number > 0
+            AND e.air_date IS NOT NULL AND e.air_date <= ?2) AS last_aired
        FROM user_shows us JOIN shows s ON s.tmdb_id = us.show_id
        WHERE us.user_id = ?1 AND us.state != 'watch_later'
        ORDER BY s.title`
@@ -153,8 +165,19 @@ library.get("/library", async (c) => {
     ).bind(uid),
   ]);
 
+  // A show still being watched but with no watch/air activity in the recent
+  // window is "stale" — the library surfaces it under "Haven't watched for a
+  // while". Only meaningful for the watching state; other states aren't behind.
+  const recentSince = daysAgoInTz(c.get("tz"), RECENT_WINDOW_DAYS);
   return c.json({
-    shows: (showsR.results as any[]).map((r) => ({ ...r, derivedState: deriveState(r) })),
+    shows: (showsR.results as any[]).map((r) => {
+      const derivedState = deriveState(r);
+      return {
+        ...r,
+        derivedState,
+        stale: derivedState === "watching" && !recentlyActive(r.last_watched_at, r.last_aired, recentSince),
+      };
+    }),
     movies: moviesR.results,
     favorites: favoritesR.results,
   });

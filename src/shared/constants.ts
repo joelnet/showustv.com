@@ -12,6 +12,12 @@ export const COMMENT_MAX_LEN = 2000;
 export const COMMENT_URL_RE =
   /https?:\/\/|www\.|\b[a-z0-9-]+\.(?:com|net|org|io|co|tv|me|gg|ly|app|dev|xyz|info|site|online|to)(?=\/|\b)/i;
 
+// A followed show counts as "recently active" while it was watched — or had an
+// episode air — within this many days. Recently-active shows fill Watch Next
+// and the library's "Watching" tab; the rest drop to "Haven't watched for a
+// while". Tune this one number to widen or tighten both lists at once.
+export const RECENT_WINDOW_DAYS = 90;
+
 // States stored in user_shows.state. up_to_date/finished/not_started are
 // derived from watch data at read time, never written.
 export const STORED_SHOW_STATES = ["watching", "stopped", "watch_later"] as const;
