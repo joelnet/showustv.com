@@ -5,6 +5,7 @@
 // keeps a local copy so votes, replies, deletes, and stub expansions splice
 // in without refetching (a refetch would also lose collapse state).
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { api, post, put, del } from "../api";
 import { useApi } from "../hooks";
 import { useAuth } from "../app";
@@ -71,6 +72,8 @@ function hiddenCount(n: CommentNode): number {
 }
 
 export function Comments({ targetType, targetId }: { targetType: "episode" | "movie" | "show"; targetId: number }) {
+  const { user } = useAuth();
+  const verified = !!user?.emailVerified; // server enforces too (403)
   const [sort, setSort] = useState<Sort>("top");
   const { data, loading, error } = useApi<Listing>(`/comments/${targetType}/${targetId}?sort=${sort}`);
   const [thread, setThread] = useState<Listing | null>(null);
@@ -155,7 +158,13 @@ export function Comments({ targetType, targetId }: { targetType: "episode" | "mo
           ))}
         </div>
       </div>
-      <Composer placeholder="What did you think?" submitLabel="Comment" onSubmit={postTopLevel} />
+      {verified ? (
+        <Composer placeholder="What did you think?" submitLabel="Comment" onSubmit={postTopLevel} />
+      ) : (
+        <p className="comments-gate">
+          Verify your email to join the conversation — <Link to="/profile">go to your profile</Link>.
+        </p>
+      )}
       {error ? (
         <ErrorNote message={error} />
       ) : !thread ? (
@@ -180,6 +189,7 @@ export function Comments({ targetType, targetId }: { targetType: "episode" | "mo
 
 function CommentItem({ node: n, act }: { node: CommentNode; act: Act }) {
   const { user } = useAuth();
+  const verified = !!user?.emailVerified;
   const [collapsed, setCollapsed] = useState(false);
   const [replying, setReplying] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
@@ -216,7 +226,7 @@ function CommentItem({ node: n, act }: { node: CommentNode; act: Act }) {
           className={`vote-btn up${n.myVote === 1 ? " is-on" : ""}`}
           aria-pressed={n.myVote === 1}
           aria-label="Upvote"
-          disabled={n.deleted}
+          disabled={n.deleted || !verified}
           onClick={() => act.vote(n.id, n.myVote === 1 ? 0 : 1, n)}
         >
           <IconArrowUp size={13} />
@@ -226,7 +236,7 @@ function CommentItem({ node: n, act }: { node: CommentNode; act: Act }) {
           className={`vote-btn down${n.myVote === -1 ? " is-on" : ""}`}
           aria-pressed={n.myVote === -1}
           aria-label="Downvote"
-          disabled={n.deleted}
+          disabled={n.deleted || !verified}
           onClick={() => act.vote(n.id, n.myVote === -1 ? 0 : -1, n)}
         >
           <IconArrowDown size={13} />
@@ -243,7 +253,7 @@ function CommentItem({ node: n, act }: { node: CommentNode; act: Act }) {
         </div>
         <p className={`comment-body${n.deleted ? " is-deleted" : ""}`}>{n.deleted ? "[deleted]" : n.body}</p>
         <div className="comment-actions">
-          {!n.deleted && (
+          {!n.deleted && verified && (
             <button type="button" className="link-btn" onClick={() => setReplying((r) => !r)}>
               reply
             </button>

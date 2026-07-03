@@ -7,6 +7,7 @@ import { ConfirmProvider } from "./components/dialog";
 import { IconPlay, IconSearch, IconLibrary, IconList, IconGear, IconUser } from "./components/icons";
 import { Landing } from "./pages/landing";
 import { Login } from "./pages/login";
+import { VerifyEmailPage } from "./pages/verify-email";
 import { WatchNext } from "./pages/watchnext";
 import { SearchPage } from "./pages/search";
 import { ShowPage } from "./pages/show";
@@ -26,6 +27,7 @@ export interface User {
   id: number;
   username: string;
   tz: string;
+  emailVerified: boolean;
 }
 
 const AuthCtx = createContext<{ user: User | null; setUser: (u: User | null) => void }>({
@@ -160,6 +162,7 @@ export function App() {
               through to the Shell route below and land on Watch Next as before. */}
           {!user && <Route path="/" element={<Landing />} />}
           <Route path="/login" element={<Login />} />
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
           <Route path="/u/:username/lists/:id" element={<PublicListPage />} />
           <Route path="/u/:username" element={<PublicProfilePage />} />
           <Route element={<Shell />}>

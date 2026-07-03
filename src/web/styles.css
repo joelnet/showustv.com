@@ -1172,6 +1172,58 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 
 .comment-list { margin-top: 20px; display: flex; flex-direction: column; gap: 16px; }
 .comments-empty { color: var(--muted); margin-top: 20px; }
+.comments-gate {
+  background: var(--surface);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  color: var(--muted);
+  padding: 14px 16px;
+  margin: 0;
+}
+
+/* ---------- Email verification (profile) ---------- */
+
+.email-verify { margin: 26px 0; }
+.email-status { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; color: var(--muted); margin: 6px 0 10px; }
+.email-address { color: var(--text); font-weight: 500; }
+.email-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--green);
+  border: 1px solid var(--green);
+  border-radius: 999px;
+  padding: 1px 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.email-form { display: flex; gap: 8px; max-width: 420px; }
+.email-form input {
+  flex: 1;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  font: inherit;
+}
+.email-flag { color: var(--muted); }
+.email-flag.is-ok { color: var(--green); }
+
+/* Verification-link landing page (public route). */
+.verify-email-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 24px;
+  text-align: center;
+}
+.verify-email-page h1 { font-family: var(--font-display); margin: 0; }
+.email-note { color: var(--cyan); font-size: 13px; }
+.email-err { color: var(--red); font-size: 13px; }
 
 .comment { display: flex; gap: 6px; }
 .comment.is-collapsed { align-items: baseline; gap: 8px; padding: 2px 0 2px 26px; }

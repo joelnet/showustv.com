@@ -211,6 +211,16 @@ function shapeLevel(
 const badTarget = (targetType: string, targetId: number) =>
   !TARGET_TABLE[targetType] || !Number.isInteger(targetId) || targetId <= 0;
 
+// Commenting, voting, and deleting require a verified email (issue #13) —
+// reading (listings, load-more, thread) stays open to any signed-in user.
+async function verifiedEmail(c: Context<AppEnv>): Promise<boolean> {
+  const row = await c.env.DB.prepare("SELECT email_verified_at FROM users WHERE id = ?1")
+    .bind(c.get("uid"))
+    .first<{ email_verified_at: string | null }>();
+  return !!row?.email_verified_at;
+}
+const UNVERIFIED_MSG = "Verify your email to join the conversation";
+
 // ---------- Routes ----------
 // NB: /:id/thread is registered before /:type/:id so the literal segment wins.
 
@@ -268,6 +278,7 @@ comments.post("/more", async (c) => {
 // it in without refetching the thread.
 comments.post("/", async (c) => {
   const uid = c.get("uid");
+  if (!(await verifiedEmail(c))) return c.json({ error: UNVERIFIED_MSG }, 403);
   const b = await c.req.json().catch(() => ({}));
   const targetType = String(b.target_type ?? "");
   const targetId = Number(b.target_id);
@@ -347,6 +358,7 @@ comments.put("/:id/vote", async (c) => {
   const uid = c.get("uid");
   const id = Number(c.req.param("id"));
   if (!Number.isInteger(id) || id <= 0) return c.json({ error: "bad id" }, 400);
+  if (!(await verifiedEmail(c))) return c.json({ error: UNVERIFIED_MSG }, 403);
   const b = await c.req.json().catch(() => ({}));
   const value = Number(b.value);
   if (![-1, 0, 1].includes(value)) return c.json({ error: "vote must be -1, 0, or 1" }, 400);
@@ -380,6 +392,7 @@ comments.delete("/:id", async (c) => {
   const uid = c.get("uid");
   const id = Number(c.req.param("id"));
   if (!Number.isInteger(id) || id <= 0) return c.json({ error: "bad id" }, 400);
+  if (!(await verifiedEmail(c))) return c.json({ error: UNVERIFIED_MSG }, 403);
   const { meta } = await c.env.DB.prepare(
     "UPDATE comments SET deleted_at = ?3, body = '' WHERE id = ?1 AND user_id = ?2 AND deleted_at IS NULL"
   )

@@ -4,6 +4,9 @@ export interface Env {
   TMDB_IMG_BASE: string;
   TMDB_TOKEN: string;
   SESSION_SECRET: string;
+  RESEND_API_KEY?: string; // unset → email fails closed unless DEV_MAIL_LOG=1
+  MAIL_FROM?: string;
+  DEV_MAIL_LOG?: string; // "1" in .dev.vars only: log mail to console instead of sending
 }
 
 // Set by the auth middleware. tz rides in the session cookie so authenticated
