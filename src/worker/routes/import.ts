@@ -69,6 +69,27 @@ interface ShowMatch {
   poster: string | null;
 }
 
+// Exact (normalized) title match against TMDB /search/tv. Returns the first
+// exact hit; when a disambiguating `year` is supplied, an entry whose
+// first_air_date year matches wins, and an ambiguous set (several same-titled
+// shows, none matching the year) resolves to nothing rather than guessing.
+async function searchTvExact(
+  c: Context<AppEnv>,
+  query: string,
+  target: string,
+  year: number | null
+): Promise<ShowMatch | null> {
+  const res = await tmdb(c.env, "/search/tv", { query, include_adult: "false" }, 86400);
+  const exact = (res.results ?? [])
+    .slice(0, 10)
+    .filter((r: any) => normTitle(r.name ?? "") === target || normTitle(r.original_name ?? "") === target);
+  const hit =
+    year != null
+      ? exact.find((r: any) => (r.first_air_date ?? "").slice(0, 4) === String(year)) ?? (exact.length === 1 ? exact[0] : null)
+      : exact[0];
+  return hit ? { tmdbId: hit.id, title: hit.name, poster: hit.poster_path ?? null } : null;
+}
+
 async function resolveShow(
   c: Context<AppEnv>,
   item: { tvdbId?: unknown; name?: unknown }
@@ -92,12 +113,15 @@ async function resolveShow(
     // Name fallback: only accept an exact (normalized) title match — a wrong
     // auto-match silently corrupts a library, so anything fuzzier is reported
     // back as unmatched instead.
-    const res = await tmdb(c.env, "/search/tv", { query: name, include_adult: "false" }, 86400);
-    const target = normTitle(name);
-    const hit = (res.results ?? [])
-      .slice(0, 10)
-      .find((r: any) => normTitle(r.name ?? "") === target || normTitle(r.original_name ?? "") === target);
-    if (hit) return { match: { tmdbId: hit.id, title: hit.name, poster: hit.poster_path ?? null }, method: "name" };
+    let match = await searchTvExact(c, name, normTitle(name), null);
+    // TV Time disambiguates some titles with a trailing "(YYYY)" that TMDB's
+    // own title omits ("Foundation (2021)" → "Foundation"); retry on the bare
+    // title, using the year to break ties between same-named shows.
+    if (!match) {
+      const ym = /^(.*?)\s*\((\d{4})\)$/.exec(name);
+      if (ym) match = await searchTvExact(c, ym[1].trim(), normTitle(ym[1]), Number(ym[2]));
+    }
+    if (match) return { match, method: "name" };
   }
 
   return { match: null, method: null };

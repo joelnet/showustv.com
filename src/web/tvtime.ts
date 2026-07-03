@@ -119,12 +119,12 @@ export const normTitle = (s: string) =>
   s.toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 
 const ALIASES = {
-  showTvdb: ["tv_show_id", "show_id", "series_id", "tvdb_id", "tvdb_series_id", "show_tvdb_id"],
+  showTvdb: ["tv_show_id", "show_id", "series_id", "s_id", "tvdb_id", "tvdb_series_id", "show_tvdb_id"],
   showName: ["tv_show_name", "show_name", "series_name", "series_title", "show_title"],
   season: ["episode_season_number", "season_number", "season"],
   epNumber: ["episode_number", "episode_num", "number"],
   epCode: ["episode", "episode_code"], // may hold "S01E05"
-  epTvdb: ["episode_id", "tvdb_episode_id", "episode_tvdb_id"],
+  epTvdb: ["episode_id", "ep_id", "tvdb_episode_id", "episode_tvdb_id"],
   watchedAt: ["watched_at", "watch_date", "date_watched", "first_watched_at", "created_at", "created", "updated_at"],
   movieName: ["movie_name", "movie_title", "film_name"],
   releaseYear: ["release_year", "year"],
