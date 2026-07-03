@@ -1121,16 +1121,9 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .showcase-shot .agenda li { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; gap: 8px; }
 .showcase-shot .agenda-date { width: auto; flex: none; }
 .showcase-shot .agenda-ep { flex: 1 1 0; min-width: 0; }
-/* Abstract poster stand-ins for the previews — no external art needed. */
-.mock-poster {
-  width: 100%;
-  aspect-ratio: 2 / 3;
-  border-radius: 7px;
-  border: 1px solid var(--line);
-  background: linear-gradient(150deg, var(--surface-2) 0%, var(--surface) 60%, var(--bg) 100%);
-  display: block;
-}
-.wn-tile-poster .mock-poster { border-radius: 7px; }
+/* Neutral slate under posters while they load (no white flash / broken icon). */
+.showcase-shot .wn-tile-poster img,
+.showcase-shot .list-collage img { background: var(--surface-2); }
 @media (max-width: 720px) {
   .showcase-row { grid-template-columns: 1fr; gap: 16px; }
   .showcase-row:nth-child(even) .showcase-copy { order: 0; } /* copy always leads when stacked */

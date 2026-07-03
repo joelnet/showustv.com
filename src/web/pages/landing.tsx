@@ -2,6 +2,7 @@
 // Static and client-side only; every claim maps to a shipped feature.
 import { Link } from "react-router-dom";
 import { useAuth } from "../app";
+import { poster } from "../img";
 import { SmpteBars, Wordmark, Slate } from "../components/ui";
 import { InstallAppButton } from "../components/install";
 import {
@@ -63,9 +64,9 @@ const STEPS = [
 ];
 
 // ---------- Feature showcase (issue #24 → #32) ----------
-// Framed, on-brand previews built from the app's own components/CSS rather
-// than static images, so they stay pixel-crisp and never drift from the
-// product. Content is representative sample data, not a live capture.
+// Framed previews built from the app's own components + real TMDB poster art,
+// so they look exactly like the product and never drift from it. Episode/date
+// values are representative sample data, not a live capture.
 
 function Shot({ url, children }: { url: string; children: React.ReactNode }) {
   return (
@@ -83,11 +84,11 @@ function Shot({ url, children }: { url: string; children: React.ReactNode }) {
   );
 }
 
-function MockTile({ title, season, number, ep, date, left }: { title: string; season: number; number: number; ep: string; date: string; left: number }) {
+function MockTile({ posterPath, title, season, number, ep, date, left }: { posterPath: string; title: string; season: number; number: number; ep: string; date: string; left: number }) {
   return (
     <article className="wn-tile">
       <div className="wn-tile-poster">
-        <span className="mock-poster" aria-hidden="true" />
+        <img src={poster(posterPath, "w342")!} alt="" loading="lazy" />
         <span className="pill wn-tile-count">{left} left</span>
       </div>
       <div className="wn-tile-body">
@@ -105,12 +106,12 @@ function MockTile({ title, season, number, ep, date, left }: { title: string; se
   );
 }
 
-function MockList({ name, count }: { name: string; count: number }) {
+function MockList({ name, count, posters }: { name: string; count: number; posters: string[] }) {
   return (
     <div className="list-card">
       <div className="list-collage">
-        {Array.from({ length: 4 }, (_, i) => (
-          <span key={i} className="mock-poster" aria-hidden="true" />
+        {posters.map((p, i) => (
+          <img key={i} src={poster(p, "w154")!} alt="" loading="lazy" />
         ))}
       </div>
       <span className="list-name">{name}</span>
@@ -126,8 +127,8 @@ const SHOWCASE = [
     url: "showustv.com",
     shot: (
       <div className="wn-grid">
-        <MockTile title="The Bear" season={3} number={1} ep="Tomorrow" date="Jun 27" left={4} />
-        <MockTile title="Severance" season={2} number={3} ep="Woe's Hollow" date="Jun 21" left={2} />
+        <MockTile posterPath="/eKfVzzEazSIjJMrw9ADa2x8ksLz.jpg" title="The Bear" season={3} number={1} ep="Tomorrow" date="Jun 27" left={4} />
+        <MockTile posterPath="/pPHpeI2X1qEd1CS1SeyrdhZ4qnT.jpg" title="Severance" season={2} number={3} ep="Woe's Hollow" date="Jun 21" left={2} />
       </div>
     ),
   },
@@ -164,8 +165,26 @@ const SHOWCASE = [
     url: "showustv.com/u/you/lists",
     shot: (
       <div className="lists-grid">
-        <MockList name="Comfort rewatches" count={12} />
-        <MockList name="Watch with Sam" count={7} />
+        <MockList
+          name="Comfort rewatches"
+          count={12}
+          posters={[
+            "/7DJKHzAi83BmQrWLrYYOqcoKfhR.jpg", // The Office
+            "/5fhZdwP1DVJ0FyVH6vrFdHwpXIn.jpg", // Ted Lasso
+            "/27vEYsRKa3eAniwmoccOoluEXQ1.jpg", // Fleabag
+            "/zOVCqKUzjFKqa1eDMcOzvXwthY4.jpg", // The Grand Budapest Hotel
+          ]}
+        />
+        <MockList
+          name="Watch with Sam"
+          count={7}
+          posters={[
+            "/dmo6TYuuJgaYinXBPjrgG9mB5od.jpg", // The Last of Us
+            "/7O4iVfOMQmdCSxhOg1WnzG1AgYT.jpg", // Shōgun
+            "/abf8tHznhSvl9BAElD2cQeRr7do.jpg", // Arcane
+            "/gDzOcq0pfeCeqMBwKIJlSmQpjkZ.jpg", // Dune
+          ]}
+        />
       </div>
     ),
   },
