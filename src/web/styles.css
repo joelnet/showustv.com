@@ -877,7 +877,9 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 /* ---------- Settings / about ---------- */
 
 .settings { max-width: 460px; }
-.settings-user { color: var(--muted); }
+.settings-user { color: var(--muted); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.settings-user strong { color: var(--text); }
+.settings-user-note { color: var(--muted); }
 .settings-field { display: flex; flex-direction: column; gap: 6px; margin: 18px 0 14px; font-weight: 500; }
 .settings-hint { color: var(--muted); font-size: 12.5px; font-weight: 400; }
 .settings-rule { border: none; border-top: 1px solid var(--line); margin: 26px 0; }
@@ -1334,6 +1336,19 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 }
 .email-flag { color: var(--muted); }
 .email-flag.is-ok { color: var(--green); }
+
+/* Username rename on the profile (issue #23). */
+.username-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 2px 0 6px; }
+.username-form input {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  font: inherit;
+  max-width: 220px;
+}
+.login-hint { color: var(--muted); font-size: 12.5px; margin: -4px 0 0; }
 
 /* Verification-link landing page (public route). */
 .verify-email-page {

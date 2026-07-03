@@ -137,6 +137,87 @@ function EmailVerification({ data, reload }: { data: ProfileData; reload: () => 
   );
 }
 
+// Rename the auto-assigned handle (issue #23). Sign-up gives a random
+// username; this lets the user change it, updating the auth context so the
+// rest of the app (share links, etc.) reflects it immediately.
+function UsernameEditor({ username, isPublic, reload }: { username: string; isPublic: boolean; reload: () => void }) {
+  const { user, setUser } = useAuth();
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(username);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const next = value.trim();
+    if (next === username) {
+      setEditing(false);
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await put("/profile/username", { username: next });
+      if (user) setUser({ ...user, username: r.username });
+      setEditing(false);
+      reload();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Something went wrong");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <form className="username-form" onSubmit={save}>
+        <input
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          minLength={3}
+          maxLength={20}
+          pattern="[A-Za-z0-9_]+"
+          aria-label="Username"
+          autoFocus
+          required
+        />
+        <button type="submit" className="btn" disabled={busy}>
+          Save
+        </button>
+        <button
+          type="button"
+          className="btn btn-ghost"
+          disabled={busy}
+          onClick={() => {
+            setEditing(false);
+            setValue(username);
+            setErr(null);
+          }}
+        >
+          Cancel
+        </button>
+        {err && <span className="email-err">{err}</span>}
+      </form>
+    );
+  }
+
+  return (
+    <p className="settings-user">
+      <strong>{username}</strong>
+      <button
+        className="link-btn"
+        onClick={() => {
+          setValue(username);
+          setEditing(true);
+        }}
+      >
+        Edit
+      </button>
+      {!isPublic && <span className="settings-user-note"> · your profile is private — only you can see it</span>}
+    </p>
+  );
+}
+
 export function StatsGrid({ stats }: { stats: WatchStats }) {
   return (
     <div className="profile-stats">
@@ -207,10 +288,7 @@ export function ProfilePage() {
           </button>
         </div>
       </div>
-      <p className="settings-user">
-        <strong>{data.username}</strong>
-        {!data.isPublic && " · your profile is private — only you can see it"}
-      </p>
+      <UsernameEditor username={data.username} isPublic={data.isPublic} reload={reload} />
 
       {data.isPublic && (
         <p className="share-note">

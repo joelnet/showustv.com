@@ -10,6 +10,7 @@ import { nowIso } from "../lib/dates";
 export const profile = new Hono<AppEnv>();
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 const VERIFY_TTL_MS = 24 * 3600 * 1000;
 const RESEND_GAP_MS = 60_000;
 
@@ -117,6 +118,21 @@ profile.post("/email", async (c) => {
     return c.json({ error: "Couldn't send the verification email — try again later" }, 502);
   }
   return c.json({ ok: true });
+});
+
+// Change the auto-assigned handle (issue #23). Sign-up hands out a random
+// username; this is where a user renames it. Case-insensitively unique.
+profile.put("/username", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const username = String(body.username ?? "").trim();
+  if (!USERNAME_RE.test(username)) return c.json({ error: "Username must be 3–20 letters, digits, or _" }, 400);
+  try {
+    await c.env.DB.prepare("UPDATE users SET username = ?2 WHERE id = ?1").bind(c.get("uid"), username).run();
+  } catch (e: any) {
+    if (String(e.message).includes("UNIQUE")) return c.json({ error: "That username is taken" }, 409);
+    throw e;
+  }
+  return c.json({ ok: true, username });
 });
 
 profile.put("/visibility", async (c) => {

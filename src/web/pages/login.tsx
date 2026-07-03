@@ -25,11 +25,13 @@ export function Login() {
     setError(null);
     setBusy(true);
     const fd = new FormData(e.currentTarget);
-    const body: Record<string, string> = {
-      username: fd.get("username") as string,
-      password: fd.get("password") as string,
-    };
-    if (mode === "register") body.tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const body: Record<string, string> = { password: fd.get("password") as string };
+    if (mode === "register") {
+      body.email = fd.get("email") as string;
+      body.tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    } else {
+      body.login = fd.get("login") as string;
+    }
     try {
       const d = await post(`/auth/${mode}`, body);
       setUser(d.user as User);
@@ -48,10 +50,17 @@ export function Login() {
         <SmpteBars />
         <p className="login-tag">Keep track of every show and movie you watch.</p>
         <form onSubmit={submit}>
-          <label>
-            Username
-            <input name="username" autoComplete="username" required minLength={3} maxLength={20} pattern="[A-Za-z0-9_]+" />
-          </label>
+          {mode === "register" ? (
+            <label>
+              Email
+              <input name="email" type="email" autoComplete="email" required maxLength={254} />
+            </label>
+          ) : (
+            <label>
+              Email or username
+              <input name="login" autoComplete="username" required />
+            </label>
+          )}
           <label>
             Password
             <input
@@ -62,6 +71,9 @@ export function Login() {
               minLength={8}
             />
           </label>
+          {mode === "register" && (
+            <p className="login-hint">You&rsquo;ll get a random username you can change anytime on your profile.</p>
+          )}
           {error && <p className="error-note">{error}</p>}
           <button className="btn" type="submit" disabled={busy}>
             {mode === "login" ? "Sign in" : "Create account"}

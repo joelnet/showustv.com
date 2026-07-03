@@ -49,7 +49,7 @@ const FEATURES = [
 const STEPS = [
   {
     title: "Create an account",
-    body: "A username and a password. That's the whole form.",
+    body: "An email and a password. That's the whole form — we'll hand you a username you can change later.",
   },
   {
     title: "Find your shows",

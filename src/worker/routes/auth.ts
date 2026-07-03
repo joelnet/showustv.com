@@ -7,42 +7,69 @@ import { sha256Hex } from "../lib/email";
 
 export const auth = new Hono<AppEnv>();
 
-const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Sign-up asks only for an email (issue #23); the account gets a random,
+// human-friendly handle it can rename later on the profile page. Kept short
+// enough (<= 20 chars) to satisfy the username rules with room for the number.
+const HANDLE_ADJ = ["late","prime","static","neon","velvet","golden","rerun","binge","pixel","analog","noir","retro","turbo","lucid","hazy","cosmic","stellar","primetime"];
+const HANDLE_NOUN = ["viewer","binger","pilot","finale","marathon","channel","screen","reel","slate","cameo","encore","sitcom","drama","spoiler","rerun","couch"];
+
+function randomHandle(): string {
+  const buf = new Uint32Array(3);
+  crypto.getRandomValues(buf);
+  const a = HANDLE_ADJ[buf[0] % HANDLE_ADJ.length];
+  const n = HANDLE_NOUN[buf[1] % HANDLE_NOUN.length];
+  return `${a}${n}${buf[2] % 10000}`.slice(0, 20);
+}
 
 auth.post("/register", async (c) => {
   const body = await c.req.json().catch(() => ({}));
-  const username = String(body.username ?? "").trim();
+  const email = String(body.email ?? "").trim().toLowerCase();
   const password = String(body.password ?? "");
   const tz = isValidTz(String(body.tz ?? "")) ? String(body.tz) : "UTC";
 
-  if (!USERNAME_RE.test(username)) return c.json({ error: "Username must be 3–20 letters, digits, or _" }, 400);
+  if (!EMAIL_RE.test(email) || email.length > 254)
+    return c.json({ error: "That doesn't look like an email address" }, 400);
   if (password.length < 8) return c.json({ error: "Password must be at least 8 characters" }, 400);
 
+  const taken = await c.env.DB.prepare("SELECT 1 FROM users WHERE email = ?1").bind(email).first();
+  if (taken) return c.json({ error: "That email is already in use" }, 409);
+
   const pwHash = await hashPassword(password);
-  try {
-    const row = await c.env.DB.prepare(
-      "INSERT INTO users (username, pw_hash, tz) VALUES (?1, ?2, ?3) RETURNING id"
-    )
-      .bind(username, pwHash, tz)
-      .first<{ id: number }>();
-    await issueSession(c, row!.id, tz);
-    c.set("uid", row!.id); // attribute this request in the activity log
-    return c.json({ user: { id: row!.id, username, tz, emailVerified: false, isAdmin: false } });
-  } catch (e: any) {
-    if (String(e.message).includes("UNIQUE")) return c.json({ error: "Username is taken" }, 409);
-    throw e;
+  // Sign-up stores the email straight away (unverified) — it's the login. The
+  // random handle can collide, so retry a few times before giving up.
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const username = randomHandle();
+    try {
+      const row = await c.env.DB.prepare(
+        "INSERT INTO users (username, email, pw_hash, tz) VALUES (?1, ?2, ?3, ?4) RETURNING id"
+      )
+        .bind(username, email, pwHash, tz)
+        .first<{ id: number }>();
+      await issueSession(c, row!.id, tz);
+      c.set("uid", row!.id); // attribute this request in the activity log
+      return c.json({ user: { id: row!.id, username, tz, emailVerified: false, isAdmin: false } });
+    } catch (e: any) {
+      const msg = String(e.message);
+      if (msg.includes("users.email")) return c.json({ error: "That email is already in use" }, 409);
+      if (msg.includes("users.username")) continue; // handle clash — pick another and retry
+      throw e;
+    }
   }
+  return c.json({ error: "Couldn't create your account — please try again" }, 500);
 });
 
 auth.post("/login", async (c) => {
   const body = await c.req.json().catch(() => ({}));
-  const username = String(body.username ?? "").trim();
+  // Accept the email (the new login) or the username (existing accounts).
+  const login = String(body.login ?? body.email ?? body.username ?? "").trim();
   const password = String(body.password ?? "");
 
   const user = await c.env.DB.prepare(
-    "SELECT id, username, pw_hash, tz, email_verified_at, is_admin FROM users WHERE username = ?1 AND deleted_at IS NULL"
+    "SELECT id, username, pw_hash, tz, email_verified_at, is_admin FROM users WHERE (email = ?1 OR username = ?1) AND deleted_at IS NULL"
   )
-    .bind(username)
+    .bind(login)
     .first<{
       id: number;
       username: string;
@@ -53,7 +80,7 @@ auth.post("/login", async (c) => {
     }>();
 
   if (!user || !(await verifyPassword(password, user.pw_hash))) {
-    return c.json({ error: "Wrong username or password" }, 401);
+    return c.json({ error: "Wrong email or password" }, 401);
   }
   await issueSession(c, user.id, user.tz);
   c.set("uid", user.id); // attribute this request in the activity log
