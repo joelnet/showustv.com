@@ -15,6 +15,7 @@ const RESOLVE_EPISODE_BATCH = 40;
 const RESOLVE_MOVIE_BATCH = 20;
 const IMPORT_EPISODE_BATCH = 400;
 const IMPORT_MOVIE_BATCH = 20;
+const IMPORT_FAVORITE_BATCH = 100;
 const IMPORT_CONCURRENCY = 2;
 
 interface Match {
@@ -30,6 +31,7 @@ interface ResolvedGroup {
   match: Match | null;
   method: string | null;
   followed: boolean;
+  favorited: boolean;
   episodes: EpisodeMark[];
   unresolvedIds: number; // TVDB episode ids TMDB couldn't place
 }
@@ -56,6 +58,7 @@ interface GroupOutcome {
 interface ImportOutcome {
   groups: GroupOutcome[];
   movies: { inserted: number; existing: number; failed: number };
+  favorites: { added: number; existing: number; failed: number };
 }
 
 type Stage =
@@ -209,6 +212,7 @@ export async function resolveAll(parsed: ParseResult, onProgress: (p: Progress) 
         match: res.match,
         method: res.method,
         followed: g.followed,
+        favorited: g.favorited,
         episodes: [],
         unresolvedIds: 0,
       });
@@ -253,6 +257,7 @@ export async function resolveAll(parsed: ParseResult, onProgress: (p: Progress) 
           match: { tmdbId: hit.show, title: rec.origin?.name ?? `TMDB show #${hit.show}`, poster: null },
           method: "episode",
           followed: false,
+          favorited: false,
           episodes: [],
           unresolvedIds: 0,
         };
@@ -288,7 +293,11 @@ export async function importAll(
 ): Promise<ImportOutcome> {
   const importable = groups.filter((g) => g.match && (g.followed || g.episodes.length > 0));
   const movieRecs = movies.filter((m) => m.match);
-  const total = importable.length + Math.ceil(movieRecs.length / IMPORT_MOVIE_BATCH);
+  const favoriteIds = groups.filter((g) => g.match && g.favorited).map((g) => g.match!.tmdbId);
+  const total =
+    importable.length +
+    Math.ceil(movieRecs.length / IMPORT_MOVIE_BATCH) +
+    Math.ceil(favoriteIds.length / IMPORT_FAVORITE_BATCH);
   let done = 0;
 
   const outcomes: GroupOutcome[] = [];
@@ -335,7 +344,21 @@ export async function importAll(
     onProgress({ done: ++done, total, label: "Movies" });
   }
 
-  return { groups: outcomes, movies: movieTotals };
+  const favoriteTotals = { added: 0, existing: 0, failed: 0 };
+  for (const batch of chunk(favoriteIds, IMPORT_FAVORITE_BATCH)) {
+    onProgress({ done, total, label: "Favorites" });
+    try {
+      const r = await post("/import/favorites", { shows: batch });
+      favoriteTotals.added += r.added;
+      favoriteTotals.existing += r.existing;
+      favoriteTotals.failed += r.failed.length;
+    } catch {
+      favoriteTotals.failed += batch.length;
+    }
+    onProgress({ done: ++done, total, label: "Favorites" });
+  }
+
+  return { groups: outcomes, movies: movieTotals, favorites: favoriteTotals };
 }
 
 // ---------- views ----------
@@ -380,11 +403,12 @@ function Preview({
   const unmatched = groups.filter((g) => !g.match);
   const episodeCount = matched.reduce((n, g) => n + g.episodes.length, 0);
   const followCount = matched.filter((g) => g.followed).length;
+  const favoriteCount = groups.filter((g) => g.match && g.favorited).length;
   const matchedMovies = movies.filter((m) => m.match);
   const unmatchedMovies = movies.filter((m) => !m.match);
   const unresolvedEpisodes = groups.reduce((n, g) => n + g.unresolvedIds, 0) + looseUnresolved;
   const truncatedFiles = parsed.files.filter((f) => f.truncated);
-  const nothing = matched.length === 0 && matchedMovies.length === 0;
+  const nothing = matched.length === 0 && matchedMovies.length === 0 && favoriteCount === 0;
   const [confirming, setConfirming] = useState(false);
 
   return (
@@ -396,6 +420,7 @@ function Preview({
         ) : (
           <ul>
             {followCount > 0 && <li>{plural(followCount, "show")} will be followed</li>}
+            {favoriteCount > 0 && <li>{plural(favoriteCount, "show")} added to your favorites</li>}
             {episodeCount > 0 && (
               <li>
                 {plural(episodeCount, "watched episode")} across {plural(matched.filter((g) => g.episodes.length > 0).length, "show")}, with their original watch dates
@@ -499,7 +524,7 @@ function Preview({
             )}
             {parsed.unsupportedRows > 0 && (
               <li>
-                {plural(parsed.unsupportedRows, "row")} of other record types (ratings, reactions, favorites, …)
+                {plural(parsed.unsupportedRows, "row")} of other record types (ratings, reactions, …)
                 aren&rsquo;t importable
               </li>
             )}
@@ -527,7 +552,7 @@ function Preview({
           }}
           disabled={nothing || confirming}
         >
-          Import {plural(followCount + episodeCount + matchedMovies.length, "item")}
+          Import {plural(followCount + episodeCount + matchedMovies.length + favoriteCount, "item")}
         </button>
         <button className="btn btn-ghost" onClick={onCancel}>
           Cancel
@@ -559,10 +584,16 @@ function Summary({ outcome }: { outcome: ImportOutcome }) {
               {m.existing > 0 && `, ${m.existing} already tracked`}
             </li>
           )}
+          {(outcome.favorites.added > 0 || outcome.favorites.existing > 0) && (
+            <li>
+              {plural(outcome.favorites.added, "show")} added to favorites
+              {outcome.favorites.existing > 0 && `, ${outcome.favorites.existing} already there`}
+            </li>
+          )}
         </ul>
       </section>
 
-      {(notFound > 0 || failed.length > 0 || m.failed > 0) && (
+      {(notFound > 0 || failed.length > 0 || m.failed > 0 || outcome.favorites.failed > 0) && (
         <section className="import-block import-block-warn">
           <h2>Skipped</h2>
           <ul>
@@ -601,6 +632,7 @@ function Summary({ outcome }: { outcome: ImportOutcome }) {
               </li>
             )}
             {m.failed > 0 && <li>{plural(m.failed, "movie")} failed to import</li>}
+            {outcome.favorites.failed > 0 && <li>{plural(outcome.favorites.failed, "favorite")} failed to import</li>}
           </ul>
         </section>
       )}

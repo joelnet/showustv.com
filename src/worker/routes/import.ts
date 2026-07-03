@@ -21,6 +21,7 @@ const MAX_RESOLVE_MOVIES = 25;
 const MAX_RESOLVE_EPISODES = 50;
 const MAX_EPISODES_PER_CALL = 500;
 const MAX_MOVIES_PER_CALL = 25;
+const MAX_FAVORITES_PER_CALL = 100;
 const MAX_BODY_BYTES = 256 * 1024;
 const MAX_NAME_CHARS = 250;
 
@@ -267,6 +268,52 @@ importer.post("/shows/:id/episodes", async (c) => {
     existing: matched - inserted,
     notFound,
   });
+});
+
+// Import TV Time favorites (issue #21). Favorites are a system-kind list,
+// created once here so the concurrent per-show import can't race two into
+// existence. Adds are idempotent — re-running never duplicates an entry.
+importer.post("/favorites", async (c) => {
+  const rj = await readJson(c);
+  if (!rj) return c.json({ error: "payload too large" }, 413);
+  const raw = capArray(rj.body.shows, MAX_FAVORITES_PER_CALL);
+  if (!raw) return c.json({ error: `too many favorites (max ${MAX_FAVORITES_PER_CALL} per call)` }, 400);
+  const ids = (raw as unknown[]).map(posInt).filter((n): n is number => n != null);
+  const uid = c.get("uid");
+
+  const existingList = await c.env.DB.prepare(
+    "SELECT id FROM custom_lists WHERE user_id = ?1 AND kind = 'favorites'"
+  )
+    .bind(uid)
+    .first<{ id: number }>();
+  const listId =
+    existingList?.id ??
+    (await c.env.DB.prepare(
+      "INSERT INTO custom_lists (user_id, name, kind) VALUES (?1, 'Favorites', 'favorites') RETURNING id"
+    )
+      .bind(uid)
+      .first<{ id: number }>())!.id;
+
+  let added = 0;
+  let existing = 0;
+  const failed: number[] = [];
+  for (const id of ids) {
+    try {
+      await ensureShow(c.env, id); // so the favorite renders with a title/poster
+      const res = await c.env.DB.prepare(
+        `INSERT INTO custom_list_items (list_id, target_type, target_id, position)
+         SELECT ?1, 'show', ?2, COALESCE(MAX(position) + 1, 0) FROM custom_list_items WHERE list_id = ?1
+         ON CONFLICT (list_id, target_type, target_id) DO NOTHING`
+      )
+        .bind(listId, id)
+        .run();
+      if ((res.meta.changes ?? 0) > 0) added++;
+      else existing++;
+    } catch {
+      failed.push(id);
+    }
+  }
+  return c.json({ ok: true, added, existing, failed });
 });
 
 importer.post("/movies", async (c) => {

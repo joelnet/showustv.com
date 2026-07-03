@@ -36,6 +36,7 @@ export interface ShowGroup {
   tvdbId: number | null;
   name: string | null;
   followed: boolean;
+  favorited: boolean; // starred in TV Time (user_tv_show_data / *_special_status)
   episodes: EpisodeMark[]; // identified by season/number — importable directly
   episodeIds: { tvdbId: number; watchedAt: string | null }[]; // need TVDB→TMDB episode lookup
 }
@@ -49,7 +50,7 @@ export interface MovieRec {
 
 export interface FileReport {
   name: string;
-  kind: "episodes" | "follows" | "movies" | "mixed";
+  kind: "episodes" | "follows" | "movies" | "mixed" | "favorites";
   rows: number;
   used: number;
   unsupported: number; // rows of non-watch record types (ratings, favorites, …)
@@ -191,7 +192,6 @@ const UNSUPPORTED: [RegExp, string][] = [
   [/comment/, "Comments can't be imported"],
   [/reaction|emotion|feeling|mood/, "Episode reactions can't be imported"],
   [/rating|rate/, "Ratings can't be imported"],
-  [/favorite|favourite/, "Favorites import isn't supported yet"],
   [/friend|follower|^follow(ing|ers)?$|social|relationship|contact/, "Social connections can't be imported"],
   [/quiz|badge|poll|vote|notification|banner|reminder/, "App activity data isn't imported"],
   [/^(user|profile|account|preference|settings|device|session|login|auth)/, "Account and profile data isn't imported"],
@@ -218,7 +218,7 @@ function groupFor(ctx: Ctx, tvdbId: number | null, name: string | null) {
   const key = tvdbId != null ? `tvdb:${tvdbId}` : `name:${normTitle(name!)}`;
   let g = ctx.groups.get(key);
   if (!g) {
-    g = { key, tvdbId, name, followed: false, episodes: [], episodeIds: [], epMap: new Map(), epIdMap: new Map() };
+    g = { key, tvdbId, name, followed: false, favorited: false, episodes: [], episodeIds: [], epMap: new Map(), epIdMap: new Map() };
     ctx.groups.set(key, g);
   }
   if (g.name == null && name) g.name = name;
@@ -270,6 +270,14 @@ function handleFollowRow(ctx: Ctx, cols: Cols, row: string[]): boolean {
   const name = pick(cols, row, ALIASES.showName) ?? pick(cols, row, ALIASES.genericName);
   if (tvdbId == null && !name) return false;
   groupFor(ctx, tvdbId, name).followed = true;
+  return true;
+}
+
+function handleFavoriteRow(ctx: Ctx, cols: Cols, row: string[]): boolean {
+  const tvdbId = posInt(pick(cols, row, ALIASES.showTvdb));
+  const name = pick(cols, row, ALIASES.showName) ?? pick(cols, row, ALIASES.genericName);
+  if (tvdbId == null && !name) return false;
+  groupFor(ctx, tvdbId, name).favorited = true;
   return true;
 }
 
@@ -331,7 +339,11 @@ export function parseTvTimeZip(data: Uint8Array): ParseResult {
   for (const name of names.sort()) {
     const base = normHeader((name.split("/").pop() ?? name).replace(/\.(csv|txt)$/i, ""));
 
-    const unsupported = UNSUPPORTED.find(([re]) => re.test(base));
+    // Favorites live in user_*/status files the account-data filter below
+    // would otherwise skip (issue #21) — let those through to column
+    // classification, which confirms the favorite shape before using them.
+    const looksFavorites = /favou?rite|special_status|tv_show_data/.test(base);
+    const unsupported = looksFavorites ? undefined : UNSUPPORTED.find(([re]) => re.test(base));
     if (unsupported) {
       unrecognized.push({ name, reason: unsupported[1] });
       continue;
@@ -359,9 +371,16 @@ export function parseTvTimeZip(data: Uint8Array): ParseResult {
     const hasMovieShape = has(ALIASES.movieName) || /movie|film/.test(base);
     const hasShowShape = has(ALIASES.showTvdb) || has(ALIASES.showName);
     const hasEntityType = has(ALIASES.entityType);
+    // Show-level favorite flags: an explicit is_favorited column, or the
+    // per-show special-status file (user_show_special_status: status =
+    // 'favorite'). The status heuristic is scoped to that file by name — a
+    // generic show CSV can carry a lifecycle `status` (Ended/Running) and must
+    // still classify as follows, not favorites.
+    const hasFavoriteShape = cols.has("is_favorited") || (cols.has("status") && /special_status|favou?rite/.test(base));
 
     let kind: FileReport["kind"];
-    if (hasEntityType && (hasEpisodeShape || hasMovieShape)) kind = "mixed";
+    if (hasFavoriteShape) kind = "favorites";
+    else if (hasEntityType && (hasEpisodeShape || hasMovieShape)) kind = "mixed";
     else if (hasEpisodeShape && hasShowShape) kind = "episodes";
     else if (hasEpisodeShape) kind = "episodes"; // episode ids only — resolvable per-id
     else if (hasMovieShape) kind = "movies";
@@ -405,6 +424,21 @@ export function parseTvTimeZip(data: Uint8Array): ParseResult {
           unsupportedRows++; // no positive watch action — don't guess
           continue;
         }
+      } else if (kind === "favorites") {
+        // Per-show flag rows: is_favorited / is_followed columns, or a
+        // status = 'favorite' marker. A row that flags neither is counted
+        // (e.g. status = 'archived') but not imported.
+        const fav = pick(cols, row, ["is_favorited"]);
+        const status = (pick(cols, row, ["status"]) ?? "").toLowerCase();
+        const foll = pick(cols, row, ["is_followed"]);
+        const isFav = fav === "1" || fav === "true" || status.includes("favo"); // favorite / favourite
+        const isFoll = foll === "1" || foll === "true";
+        if (!isFav && !isFoll) {
+          unsupportedRows++;
+          continue;
+        }
+        if (isFav) ok = handleFavoriteRow(ctx, cols, row);
+        if (isFoll) ok = handleFollowRow(ctx, cols, row) || ok;
       } else if (kind === "episodes") {
         ok = handleEpisodeRow(ctx, cols, row);
       } else if (kind === "movies") {
@@ -423,6 +457,7 @@ export function parseTvTimeZip(data: Uint8Array): ParseResult {
     tvdbId: g.tvdbId,
     name: g.name,
     followed: g.followed,
+    favorited: g.favorited,
     episodes: [...g.epMap.values()].sort((a, b) => a.season - b.season || a.number - b.number),
     episodeIds: [...g.epIdMap.entries()].map(([tvdbId, watchedAt]) => ({ tvdbId, watchedAt })),
   }));
