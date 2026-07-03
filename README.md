@@ -90,6 +90,23 @@ npm run deploy
 
 `TMDB_API_BASE` and `TMDB_IMG_BASE` are plain vars already set in `wrangler.jsonc`.
 
+### CI/CD (GitHub Actions)
+
+`.github/workflows/deploy.yml` typechecks and builds on pull requests and pushes
+to `main` (feature branches are covered by their PR), and on a merge to `main` it
+applies remote D1 migrations and runs `wrangler deploy`.
+
+One-time setup — add repository secrets (Settings → Secrets and variables →
+Actions):
+
+- `CLOUDFLARE_API_TOKEN` — a token with **Workers Scripts: Edit**, **D1: Edit**,
+  and **Workers Routes: Edit** on the account.
+- `CLOUDFLARE_ACCOUNT_ID` — optional; only needed if the token spans multiple
+  accounts.
+
+App secrets (`TMDB_TOKEN`, `SESSION_SECRET`) stay out of CI — set them once with
+`wrangler secret put`; they persist across deploys.
+
 ## Admin CLI
 
 `scripts/admin.mjs` is a scriptable admin tool that talks straight to D1 via
