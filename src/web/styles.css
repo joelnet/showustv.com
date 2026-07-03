@@ -1247,6 +1247,19 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .comment-body { margin: 4px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .comment-body.is-deleted { color: var(--muted); font-style: italic; }
 
+.edited-marker { color: var(--muted); font-size: 12px; padding: 0; }
+.comment-history {
+  border-left: 2px solid var(--amber-soft);
+  background: var(--surface);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  padding: 8px 12px;
+  margin: 4px 0 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.comment-history-item { margin: 0; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+
 .comment-actions { display: flex; align-items: baseline; gap: 4px; }
 .comment-actions .link-btn { color: var(--muted); font-size: 13px; padding: 2px 6px; }
 .comment-actions .link-btn:hover { color: var(--text); }

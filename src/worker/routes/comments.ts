@@ -57,6 +57,7 @@ interface Row {
   user_id: number;
   body: string;
   created_at: string;
+  edited_at: string | null;
   deleted_at: string | null;
   username: string;
   user_deleted: string | null;
@@ -87,6 +88,7 @@ interface ApiNode {
   score: number;
   myVote: number;
   createdAt: string;
+  editedAt: string | null;
   deleted: boolean;
   children: ApiNode[];
   more: MoreStub | null; // direct children that didn't fit the budget
@@ -114,7 +116,7 @@ function cmp(sort: Sort) {
 // One query for the whole target, then tree-build + prune in memory.
 async function loadTree(c: Context<AppEnv>, targetType: string, targetId: number) {
   const { results } = await c.env.DB.prepare(
-    `SELECT c.id, c.parent_id, c.user_id, c.body, c.created_at, c.deleted_at,
+    `SELECT c.id, c.parent_id, c.user_id, c.body, c.created_at, c.edited_at, c.deleted_at,
             u.username, u.deleted_at AS user_deleted,
             COALESCE(SUM(v.value = 1), 0) AS ups,
             COALESCE(SUM(v.value = -1), 0) AS downs,
@@ -191,6 +193,7 @@ function shapeLevel(
       score: n.score,
       myVote: n.row.my_vote,
       createdAt: n.row.created_at,
+      editedAt: deleted ? null : n.row.edited_at,
       deleted,
       children: [],
       more: null,
@@ -221,6 +224,15 @@ async function verifiedEmail(c: Context<AppEnv>): Promise<boolean> {
 }
 const UNVERIFIED_MSG = "Verify your email to join the conversation";
 
+// Shared by create and edit — a URL ban that only applied at post time
+// would be trivially bypassed by editing one in afterwards.
+function bodyError(body: string): string | null {
+  if (!body) return "Comment can't be empty";
+  if (body.length > COMMENT_MAX_LEN) return `Keep it under ${COMMENT_MAX_LEN} characters`;
+  if (COMMENT_URL_RE.test(body)) return "Links aren't allowed in comments";
+  return null;
+}
+
 // ---------- Routes ----------
 // NB: /:id/thread is registered before /:type/:id so the literal segment wins.
 
@@ -239,6 +251,24 @@ comments.get("/:id/thread", async (c) => {
   const sort = parseSort(c.req.query("sort"));
   const { list, more } = shapeLevel(c.get("uid"), node.children, 0, { budget: PAGE_BUDGET }, sort);
   return c.json({ comments: list, more });
+});
+
+// Edit history: the versions a comment's body replaced, newest first.
+// Public to any signed-in reader — visible history keeps edits honest.
+// Deleted comments 404 (their history is wiped on delete).
+comments.get("/:id/history", async (c) => {
+  const id = Number(c.req.param("id"));
+  if (!Number.isInteger(id) || id <= 0) return c.json({ error: "bad id" }, 400);
+  const cm = await c.env.DB.prepare("SELECT deleted_at FROM comments WHERE id = ?1")
+    .bind(id)
+    .first<{ deleted_at: string | null }>();
+  if (!cm || cm.deleted_at) return c.json({ error: "not found" }, 404);
+  const { results } = await c.env.DB.prepare(
+    "SELECT body, edited_at FROM comment_edits WHERE comment_id = ?1 ORDER BY id DESC"
+  )
+    .bind(id)
+    .all<{ body: string; edited_at: string }>();
+  return c.json({ versions: results.map((r) => ({ body: r.body, editedAt: r.edited_at })) });
 });
 
 // Full listing for a target. `count` is every visible comment (placeholders
@@ -287,9 +317,8 @@ comments.post("/", async (c) => {
 
   if (badTarget(targetType, targetId)) return c.json({ error: "bad target" }, 400);
   if (parentId != null && (!Number.isInteger(parentId) || parentId <= 0)) return c.json({ error: "bad parent" }, 400);
-  if (!body) return c.json({ error: "Comment can't be empty" }, 400);
-  if (body.length > COMMENT_MAX_LEN) return c.json({ error: `Keep it under ${COMMENT_MAX_LEN} characters` }, 400);
-  if (COMMENT_URL_RE.test(body)) return c.json({ error: "Links aren't allowed in comments" }, 400);
+  const bodyErr = bodyError(body);
+  if (bodyErr) return c.json({ error: bodyErr }, 400);
 
   const t = TARGET_TABLE[targetType];
   const exists = await c.env.DB.prepare(`SELECT 1 FROM ${t.table} WHERE ${t.pk} = ?1`).bind(targetId).first();
@@ -344,12 +373,41 @@ comments.post("/", async (c) => {
     score: 1,
     myVote: 1,
     createdAt: row!.created_at,
+    editedAt: null,
     deleted: false,
     children: [],
     more: null,
     deep: 0,
   };
   return c.json({ comment: node }, 201);
+});
+
+// Edit own comment (issue #14). Same validation as create — and the prior
+// body is snapshotted first, so the marker always has history behind it.
+comments.put("/:id", async (c) => {
+  const uid = c.get("uid");
+  const id = Number(c.req.param("id"));
+  if (!Number.isInteger(id) || id <= 0) return c.json({ error: "bad id" }, 400);
+  if (!(await verifiedEmail(c))) return c.json({ error: UNVERIFIED_MSG }, 403);
+  const b = await c.req.json().catch(() => ({}));
+  const body = String(b.body ?? "").trim();
+  const bodyErr = bodyError(body);
+  if (bodyErr) return c.json({ error: bodyErr }, 400);
+
+  const cm = await c.env.DB.prepare("SELECT user_id, body, edited_at, deleted_at FROM comments WHERE id = ?1")
+    .bind(id)
+    .first<{ user_id: number; body: string; edited_at: string | null; deleted_at: string | null }>();
+  if (!cm || cm.user_id !== uid) return c.json({ error: "not found" }, 404);
+  if (cm.deleted_at) return c.json({ error: "You can't edit a deleted comment" }, 400);
+  // No-op edits change nothing — a fresh editedAt here would pin an
+  // "edited" marker with no history behind it.
+  if (body === cm.body) return c.json({ body, editedAt: cm.edited_at });
+  const editedAt = nowIso();
+  await c.env.DB.batch([
+    c.env.DB.prepare("INSERT INTO comment_edits (comment_id, body, edited_at) VALUES (?1, ?2, ?3)").bind(id, cm.body, editedAt),
+    c.env.DB.prepare("UPDATE comments SET body = ?2, edited_at = ?3 WHERE id = ?1").bind(id, body, editedAt),
+  ]);
+  return c.json({ body, editedAt });
 });
 
 // Vote: 1 up, -1 down, 0 clears. Returns the authoritative score so the
@@ -398,6 +456,11 @@ comments.delete("/:id", async (c) => {
   )
     .bind(id, uid, nowIso())
     .run();
+  if (meta.changes) {
+    // Deletion takes the edit history with it — prior versions of a body
+    // the author wiped must not stay readable.
+    await c.env.DB.prepare("DELETE FROM comment_edits WHERE comment_id = ?1").bind(id).run();
+  }
   if (!meta.changes) {
     const mine = await c.env.DB.prepare("SELECT 1 FROM comments WHERE id = ?1 AND user_id = ?2").bind(id, uid).first();
     if (!mine) return c.json({ error: "not found" }, 404);

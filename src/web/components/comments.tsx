@@ -27,6 +27,7 @@ interface CommentNode {
   score: number;
   myVote: number;
   createdAt: string;
+  editedAt: string | null;
   deleted: boolean;
   children: CommentNode[];
   more: MoreStub | null;
@@ -49,6 +50,7 @@ const SORT_TABS: [Sort, string][] = [
 interface Act {
   vote: (id: number, value: number, prev: { myVote: number; score: number }) => void;
   reply: (parentId: number, body: string) => Promise<void>;
+  edit: (id: number, body: string) => Promise<void>;
   remove: (id: number) => Promise<void>;
   loadMore: (parentId: number | null, stub: MoreStub) => Promise<void>;
   continueThread: (id: number) => Promise<void>;
@@ -105,6 +107,10 @@ export function Comments({ targetType, targetId }: { targetType: "episode" | "mo
           comments: patchTree(t.comments, parentId, (n) => ({ ...n, children: [r.comment, ...n.children] })),
         };
       });
+    },
+    edit: async (id, body) => {
+      const r = await put(`/comments/${id}`, { body });
+      patch(id, (n) => ({ ...n, body: r.body, editedAt: r.editedAt }));
     },
     // Local mirror of the server's soft delete: the node becomes [deleted]
     // in place; the next full load prunes it if nothing hangs below.
@@ -192,8 +198,22 @@ function CommentItem({ node: n, act }: { node: CommentNode; act: Act }) {
   const verified = !!user?.emailVerified;
   const [collapsed, setCollapsed] = useState(false);
   const [replying, setReplying] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
   const [actErr, setActErr] = useState<string | null>(null);
+  // null = closed; [] while loading (renders nothing until versions land)
+  const [history, setHistory] = useState<{ body: string; editedAt: string }[] | null>(null);
+
+  const toggleHistory = async () => {
+    if (history) return setHistory(null);
+    setHistory([]);
+    try {
+      const r = await api<{ versions: { body: string; editedAt: string }[] }>(`/comments/${n.id}/history`);
+      setHistory(r.versions);
+    } catch {
+      setHistory(null);
+    }
+  };
 
   const author = n.user ?? "[deleted]";
   const points = `${n.score} ${n.score === 1 || n.score === -1 ? "point" : "points"}`;
@@ -250,12 +270,54 @@ function CommentItem({ node: n, act }: { node: CommentNode; act: Act }) {
           <span className={`comment-user${n.user ? "" : " is-deleted"}`}>{author}</span>
           <span className="comment-score mono">{points}</span>
           {when}
+          {n.editedAt && (
+            <button
+              type="button"
+              className="link-btn edited-marker mono"
+              title={fmtDateTime(n.editedAt, user!.tz)}
+              aria-expanded={!!history}
+              onClick={toggleHistory}
+            >
+              edited {fmtAgo(n.editedAt)}*
+            </button>
+          )}
         </div>
-        <p className={`comment-body${n.deleted ? " is-deleted" : ""}`}>{n.deleted ? "[deleted]" : n.body}</p>
+        {editing ? (
+          <Composer
+            placeholder="Edit your comment"
+            submitLabel="Save"
+            initial={n.body ?? ""}
+            autoFocus
+            onCancel={() => setEditing(false)}
+            onSubmit={async (body) => {
+              await act.edit(n.id, body);
+              setHistory(null); // an open panel is stale now — reopen refetches
+            }}
+          />
+        ) : (
+          <p className={`comment-body${n.deleted ? " is-deleted" : ""}`}>{n.deleted ? "[deleted]" : n.body}</p>
+        )}
+        {history && history.length > 0 && (
+          <div className="comment-history">
+            {history.map((v, i) => (
+              <p key={i} className="comment-history-item">
+                <span className="mono" title={fmtDateTime(v.editedAt, user!.tz)}>
+                  until {fmtAgo(v.editedAt)}:
+                </span>{" "}
+                {v.body}
+              </p>
+            ))}
+          </div>
+        )}
         <div className="comment-actions">
           {!n.deleted && verified && (
             <button type="button" className="link-btn" onClick={() => setReplying((r) => !r)}>
               reply
+            </button>
+          )}
+          {n.mine && !editing && (
+            <button type="button" className="link-btn" onClick={() => setEditing(true)}>
+              edit
             </button>
           )}
           {n.mine &&
@@ -314,14 +376,16 @@ function Composer({
   onSubmit,
   onCancel,
   autoFocus,
+  initial,
 }: {
   placeholder: string;
   submitLabel: string;
   onSubmit: (body: string) => Promise<void>;
   onCancel?: () => void;
   autoFocus?: boolean;
+  initial?: string; // editing an existing comment starts from its body
 }) {
-  const [text, setText] = useState("");
+  const [text, setText] = useState(initial ?? "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const left = COMMENT_MAX_LEN - text.length;
