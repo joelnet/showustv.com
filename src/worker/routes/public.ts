@@ -3,6 +3,7 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../env";
 import { statsQuery, statsFromRow } from "../lib/stats";
+import { readSession } from "../lib/session";
 
 export const pub = new Hono<AppEnv>();
 
@@ -19,7 +20,7 @@ pub.get("/profile/:username", async (c) => {
     .first<{ id: number; username: string }>();
   if (!user) return c.json({ error: "not found" }, 404);
 
-  const [statsR, listsR, postersR] = await c.env.DB.batch([
+  const [statsR, listsR, postersR, commentsR] = await c.env.DB.batch([
     statsQuery(c.env.DB, user.id),
     c.env.DB.prepare(
       `SELECT l.id, l.name, COUNT(li.list_id) AS count
@@ -41,7 +42,29 @@ pub.get("/profile/:username", async (c) => {
          WHERE COALESCE(s.poster_url, m.poster_url) IS NOT NULL
        ) WHERE rn <= 4 ORDER BY list_id, rn`
     ).bind(user.id),
+    // Comment activity (issue #16): which shows this user is talking about.
+    // Episode comments surface their show's title — that's the conversation
+    // a visitor cares about. Deleted comments never appear, and rows whose
+    // catalog target vanished are dropped here, not client-side.
+    c.env.DB.prepare(
+      `SELECT c.id, c.body, c.created_at, c.target_type, c.target_id,
+              COALESCE(s.title, m.title, es.title) AS title,
+              e.season_number AS season, e.number AS episode, e.title AS episode_title
+       FROM comments c
+       LEFT JOIN shows s ON c.target_type = 'show' AND s.tmdb_id = c.target_id
+       LEFT JOIN movies m ON c.target_type = 'movie' AND m.tmdb_id = c.target_id
+       LEFT JOIN episodes e ON c.target_type = 'episode' AND e.id = c.target_id
+       LEFT JOIN shows es ON es.tmdb_id = e.show_id
+       WHERE c.user_id = ?1 AND c.deleted_at IS NULL
+         AND COALESCE(s.title, m.title, es.title) IS NOT NULL
+       ORDER BY c.created_at DESC LIMIT 15`
+    ).bind(user.id),
   ]);
+
+  // Comment bodies are a signed-in surface (thread pages sit behind auth,
+  // and episode snippets are spoiler-prone) — anonymous visitors get the
+  // conversation metadata only: title, episode slate, when.
+  const signedIn = !!(await readSession(c));
 
   const posters = new Map<number, string[]>();
   for (const r of postersR.results as any[]) {
@@ -53,6 +76,19 @@ pub.get("/profile/:username", async (c) => {
     username: user.username,
     stats: statsFromRow(statsR.results[0]),
     lists: (listsR.results as any[]).map((l) => ({ ...l, posters: posters.get(l.id) ?? [] })),
+    comments: (commentsR.results as any[]).map((r) => ({
+      // Snippet only — profiles tease the conversation, the thread holds it.
+      body: signedIn ? (r.body.length > 240 ? r.body.slice(0, 239) + "…" : r.body) : null,
+      createdAt: r.created_at,
+      target: {
+        type: r.target_type,
+        id: r.target_id,
+        title: r.title,
+        season: r.season,
+        episode: r.episode,
+        episodeTitle: r.episode_title,
+      },
+    })),
   });
 });
 

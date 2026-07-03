@@ -9,14 +9,59 @@ import { useApi } from "../hooks";
 import { useAuth } from "../app";
 import { useConfirm } from "../components/dialog";
 import { poster } from "../img";
-import { Spinner, Wordmark, SmpteBars, ErrorNote } from "../components/ui";
+import { mediaPath, type MediaType } from "../paths";
+import { fmtAgo } from "../format";
+import { Spinner, Wordmark, SmpteBars, ErrorNote, Slate } from "../components/ui";
 import { IconList, IconCheck, IconPlus } from "../components/icons";
 import { StatsGrid, type WatchStats } from "./profile";
+
+interface ProfileComment {
+  body: string | null; // null for anonymous visitors — metadata only
+  createdAt: string;
+  target: {
+    type: MediaType;
+    id: number;
+    title: string | null;
+    season: number | null;
+    episode: number | null;
+    episodeTitle: string | null;
+  };
+}
 
 interface PublicProfile {
   username: string;
   stats: WatchStats;
   lists: { id: number; name: string; count: number; posters: string[] }[];
+  comments: ProfileComment[];
+}
+
+// Recent comment activity (issue #16): what shows this user is talking
+// about, each row linking into the thread's page. Anonymous visitors see
+// metadata only (no bodies — the server withholds them).
+function ProfileComments({ comments }: { comments: ProfileComment[] }) {
+  if (!comments.length) return null;
+  return (
+    <>
+      <h2 className="section-title">Conversations</h2>
+      <ul className="profile-comments">
+        {comments.map((c, i) => (
+          <li key={i}>
+            {c.body != null && <p className="profile-comment-body">{c.body}</p>}
+            <p className="profile-comment-meta">
+              {c.body != null ? "on" : "commented on"}{" "}
+              <Link to={mediaPath(c.target.type, c.target.id, c.target.type === "episode" ? c.target.episodeTitle : c.target.title)}>
+                {c.target.title}
+              </Link>{" "}
+              {c.target.type === "episode" && c.target.season != null && c.target.episode != null && (
+                <Slate season={c.target.season} number={c.target.episode} />
+              )}
+              <span className="mono"> · {fmtAgo(c.createdAt)}</span>
+            </p>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
 }
 
 type Relation = "none" | "outgoing" | "incoming" | "friends" | "self";
@@ -143,6 +188,7 @@ export function PublicProfilePage() {
             <p className="public-byline">Watching TV on Show Us TV</p>
             {user && <FriendActions username={data.username} />}
             <StatsGrid stats={data.stats} />
+            <ProfileComments comments={data.comments} />
             {data.lists.length > 0 && (
               <>
                 <h2 className="section-title">Lists</h2>
