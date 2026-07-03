@@ -32,9 +32,10 @@ export interface User {
   isAdmin: boolean;
 }
 
-const AuthCtx = createContext<{ user: User | null; setUser: (u: User | null) => void }>({
+const AuthCtx = createContext<{ user: User | null; setUser: (u: User | null) => void; siteOpen: boolean }>({
   user: null,
   setUser: () => {},
+  siteOpen: true,
 });
 
 export const useAuth = () => useContext(AuthCtx);
@@ -138,13 +139,15 @@ function TabBar() {
 
 export function App() {
   const [user, setUser] = useState<User | null>(null);
+  // Assume open until told otherwise: on a failed config fetch the app behaves
+  // normally and the server still enforces the wait list.
+  const [siteOpen, setSiteOpen] = useState(true);
   const [booted, setBooted] = useState(false);
 
   useEffect(() => {
-    api<{ user: User }>("/auth/me", { allow401: true })
-      .then((d) => setUser(d.user))
-      .catch(() => {})
-      .finally(() => setBooted(true));
+    const me = api<{ user: User }>("/auth/me", { allow401: true }).then((d) => setUser(d.user)).catch(() => {});
+    const cfg = api<{ siteOpen: boolean }>("/auth/config").then((d) => setSiteOpen(d.siteOpen)).catch(() => {});
+    Promise.all([me, cfg]).finally(() => setBooted(true));
   }, []);
 
   // The offline queue is per-account: tell it who is signed in so queued
@@ -156,7 +159,7 @@ export function App() {
   if (!booted) return <Spinner />;
 
   return (
-    <AuthCtx.Provider value={{ user, setUser }}>
+    <AuthCtx.Provider value={{ user, setUser, siteOpen }}>
       <BrowserRouter>
         <ConfirmProvider>
         <Routes>

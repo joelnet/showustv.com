@@ -4,8 +4,16 @@ import { hashPassword, verifyPassword } from "../lib/password";
 import { issueSession, clearSession, readSession, requireAuth } from "../lib/session";
 import { isValidTz, nowIso } from "../lib/dates";
 import { sha256Hex } from "../lib/email";
+import { isSiteOpen } from "../lib/settings";
 
 export const auth = new Hono<AppEnv>();
+
+// Whether the site is open (issue #26). While closed, sign-up joins a wait
+// list and waitlisted accounts can't sign in. Public so the landing/login
+// pages can tailor their copy before anyone is authenticated.
+auth.get("/config", async (c) => {
+  return c.json({ siteOpen: await isSiteOpen(c.env) });
+});
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -36,6 +44,11 @@ auth.post("/register", async (c) => {
   const taken = await c.env.DB.prepare("SELECT 1 FROM users WHERE email = ?1").bind(email).first();
   if (taken) return c.json({ error: "That email is already in use" }, 409);
 
+  // While the site is closed, sign-up joins the wait list: the account is
+  // created but flagged, and no session is issued (they can't sign in yet).
+  const siteOpen = await isSiteOpen(c.env);
+  const waitlisted = siteOpen ? 0 : 1;
+
   const pwHash = await hashPassword(password);
   // Sign-up stores the email straight away (unverified) — it's the login. The
   // random handle can collide, so retry a few times before giving up.
@@ -43,12 +56,13 @@ auth.post("/register", async (c) => {
     const username = randomHandle();
     try {
       const row = await c.env.DB.prepare(
-        "INSERT INTO users (username, email, pw_hash, tz) VALUES (?1, ?2, ?3, ?4) RETURNING id"
+        "INSERT INTO users (username, email, pw_hash, tz, waitlisted) VALUES (?1, ?2, ?3, ?4, ?5) RETURNING id"
       )
-        .bind(username, email, pwHash, tz)
+        .bind(username, email, pwHash, tz, waitlisted)
         .first<{ id: number }>();
-      await issueSession(c, row!.id, tz);
       c.set("uid", row!.id); // attribute this request in the activity log
+      if (waitlisted) return c.json({ waitlisted: true });
+      await issueSession(c, row!.id, tz);
       return c.json({ user: { id: row!.id, username, tz, emailVerified: false, isAdmin: false } });
     } catch (e: any) {
       const msg = String(e.message);
@@ -67,7 +81,7 @@ auth.post("/login", async (c) => {
   const password = String(body.password ?? "");
 
   const user = await c.env.DB.prepare(
-    "SELECT id, username, pw_hash, tz, email_verified_at, is_admin FROM users WHERE (email = ?1 OR username = ?1) AND deleted_at IS NULL"
+    "SELECT id, username, pw_hash, tz, email_verified_at, is_admin, waitlisted FROM users WHERE (email = ?1 OR username = ?1) AND deleted_at IS NULL"
   )
     .bind(login)
     .first<{
@@ -77,10 +91,21 @@ auth.post("/login", async (c) => {
       tz: string;
       email_verified_at: string | null;
       is_admin: number;
+      waitlisted: number;
     }>();
 
   if (!user || !(await verifyPassword(password, user.pw_hash))) {
     return c.json({ error: "Wrong email or password" }, 401);
+  }
+
+  // Wait-listed accounts (created while the site was closed) can't sign in
+  // until it opens — check password first so this can't probe who's on the
+  // list. Admins have waitlisted = 0, so they're never locked out. This
+  // login-time gate is the only one needed: opening the site clears every
+  // waitlisted flag, so a waitlisted account can never hold a live session
+  // (it could never sign in to get one), even if the site is closed again.
+  if (user.waitlisted && !(await isSiteOpen(c.env))) {
+    return c.json({ error: "You're on the wait list — we'll email you when Show Us TV opens." }, 403);
   }
   await issueSession(c, user.id, user.tz);
   c.set("uid", user.id); // attribute this request in the activity log

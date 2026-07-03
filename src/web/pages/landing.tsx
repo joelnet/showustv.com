@@ -1,6 +1,7 @@
 // Marketing landing page shown to logged-out visitors at "/".
 // Static and client-side only; every claim maps to a shipped feature.
 import { Link } from "react-router-dom";
+import { useAuth } from "../app";
 import { SmpteBars, Wordmark } from "../components/ui";
 import { InstallAppButton } from "../components/install";
 import {
@@ -62,6 +63,9 @@ const STEPS = [
 ];
 
 export function Landing() {
+  const { siteOpen } = useAuth();
+  // While closed (pending licensing), sign-up is a wait list, not open access.
+  const joinLabel = siteOpen ? "Create your account" : "Join the wait list";
   return (
     <div className="landing">
       <header className="landing-header">
@@ -85,12 +89,17 @@ export function Landing() {
           </p>
           <div className="landing-cta-row">
             <Link to="/login?mode=register" className="btn btn-lg">
-              Create your account
+              {joinLabel}
             </Link>
             <Link to="/login" className="btn btn-ghost btn-lg">
               Sign in
             </Link>
           </div>
+          {!siteOpen && (
+            <p className="landing-waitlist-note">
+              Free — we&rsquo;ll email you the moment your account can sign in.
+            </p>
+          )}
           <InstallAppButton buttonClass="btn btn-ghost" />
           <figure className="hero-shot">
             <div className="hero-shot-bar" aria-hidden="true">
@@ -152,7 +161,7 @@ export function Landing() {
           <h2>Ready to keep track?</h2>
           <p>Pick up right where you left off — from the very first episode.</p>
           <Link to="/login?mode=register" className="btn btn-lg">
-            Get started
+            {siteOpen ? "Get started" : "Join the wait list"}
           </Link>
         </section>
       </main>

@@ -4,6 +4,8 @@
 import { Hono } from "hono";
 import type { Context, Next } from "hono";
 import type { AppEnv } from "../env";
+import { isSiteOpen, setSiteOpen } from "../lib/settings";
+import { sendEmail } from "../lib/email";
 
 export const admin = new Hono<AppEnv>();
 
@@ -16,6 +18,43 @@ admin.use("*", async (c: Context<AppEnv>, next: Next) => {
   // Other users' audit trails must not linger in any cache (the service
   // worker also skips /api/admin/ — this covers everything else).
   c.res.headers.set("cache-control", "no-store");
+});
+
+// Open or close the site (issue #26). Opening admits everyone — including the
+// wait list — so it clears the waitlisted flag (retiring the concept, so no
+// waitlisted session can linger if the site is later closed again) and emails
+// everyone who was waiting. The mutation is audited by the global middleware.
+admin.get("/site-open", async (c) => c.json({ siteOpen: await isSiteOpen(c.env) }));
+
+admin.put("/site-open", async (c) => {
+  const b = await c.req.json().catch(() => ({}));
+  if (typeof b.open !== "boolean") return c.json({ error: "open must be true or false" }, 400);
+  await setSiteOpen(c.env, b.open);
+
+  let notified = 0;
+  if (b.open) {
+    const { results } = await c.env.DB.prepare(
+      "SELECT email FROM users WHERE waitlisted = 1 AND email IS NOT NULL AND deleted_at IS NULL"
+    ).all<{ email: string }>();
+    // Admit them first; the emails are a best-effort courtesy sent after we
+    // respond (a slow provider must not stall the toggle).
+    await c.env.DB.prepare("UPDATE users SET waitlisted = 0 WHERE waitlisted = 1").run();
+    notified = results.length;
+    const origin = new URL(c.req.url).origin;
+    c.executionCtx.waitUntil(
+      (async () => {
+        for (const u of results) {
+          await sendEmail(
+            c.env,
+            u.email,
+            "Show Us TV is open — you're in",
+            `Good news — Show Us TV is now open. You can sign in and start tracking what you watch:\n\n${origin}/login\n`
+          ).catch(() => {});
+        }
+      })()
+    );
+  }
+  return c.json({ ok: true, siteOpen: b.open, notified });
 });
 
 // Account flags for the admin panel on profiles.

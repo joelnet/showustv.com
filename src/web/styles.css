@@ -400,6 +400,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 }
 .login-card .wordmark { font-size: 24px; }
 .login-tag { color: var(--muted); font-size: 14px; margin: 4px 0 18px; }
+.login-joined-title { font-family: var(--font-display); font-style: italic; font-weight: 800; font-size: 22px; margin: 8px 0 2px; }
 .login-card form { display: flex; flex-direction: column; gap: 14px; }
 .login-card label { display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; color: var(--muted); }
 .login-card .btn { justify-content: center; margin-top: 4px; }
@@ -998,6 +999,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   max-width: 520px;
 }
 .landing-cta-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.landing-waitlist-note { color: var(--muted); font-size: 13.5px; margin: 14px 0 0; }
 .btn-lg { font-size: 15.5px; padding: 12px 26px; border-radius: 10px; }
 .landing-hero .smpte { margin: 44px auto 0; max-width: 420px; }
 

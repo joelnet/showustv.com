@@ -5,7 +5,7 @@ import { useAuth, type User } from "../app";
 import { SmpteBars, Wordmark } from "../components/ui";
 
 export function Login() {
-  const { user, setUser } = useAuth();
+  const { user, setUser, siteOpen } = useAuth();
   const navigate = useNavigate();
   // The landing page links to /login?mode=register for its sign-up CTAs.
   const [params] = useSearchParams();
@@ -14,6 +14,9 @@ export function Login() {
   );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // While the site is closed, registering joins the wait list — the account is
+  // created but can't sign in yet, so show a confirmation instead of routing in.
+  const [joined, setJoined] = useState(false);
 
   if (user) {
     navigate("/", { replace: true });
@@ -34,6 +37,10 @@ export function Login() {
     }
     try {
       const d = await post(`/auth/${mode}`, body);
+      if (d.waitlisted) {
+        setJoined(true);
+        return;
+      }
       setUser(d.user as User);
       navigate("/", { replace: true });
     } catch (err: any) {
@@ -43,12 +50,35 @@ export function Login() {
     }
   }
 
+  const registering = mode === "register";
+  const joinMode = registering && !siteOpen; // "join the wait list" instead of "create account"
+
+  if (joined) {
+    return (
+      <div className="login-page">
+        <div className="login-card">
+          <Wordmark />
+          <SmpteBars />
+          <h1 className="login-joined-title">You&rsquo;re on the list ✓</h1>
+          <p className="login-tag">
+            Show Us TV isn&rsquo;t open to everyone just yet. We&rsquo;ve saved your spot — we&rsquo;ll email you the
+            moment you can sign in.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="login-page">
       <div className="login-card">
         <Wordmark />
         <SmpteBars />
-        <p className="login-tag">Keep track of every show and movie you watch.</p>
+        <p className="login-tag">
+          {joinMode
+            ? "We're not open to everyone yet — join the wait list and we'll email you when you can sign in."
+            : "Keep track of every show and movie you watch."}
+        </p>
         <form onSubmit={submit}>
           {mode === "register" ? (
             <label>
@@ -71,23 +101,23 @@ export function Login() {
               minLength={8}
             />
           </label>
-          {mode === "register" && (
+          {registering && (
             <p className="login-hint">You&rsquo;ll get a random username you can change anytime on your profile.</p>
           )}
           {error && <p className="error-note">{error}</p>}
           <button className="btn" type="submit" disabled={busy}>
-            {mode === "login" ? "Sign in" : "Create account"}
+            {!registering ? "Sign in" : joinMode ? "Join the wait list" : "Create account"}
           </button>
         </form>
         <button
           type="button"
           className="link-btn"
           onClick={() => {
-            setMode(mode === "login" ? "register" : "login");
+            setMode(registering ? "login" : "register");
             setError(null);
           }}
         >
-          {mode === "login" ? "New here? Create an account" : "Have an account? Sign in"}
+          {registering ? "Have an account? Sign in" : siteOpen ? "New here? Create an account" : "Want in? Join the wait list"}
         </button>
       </div>
     </div>
