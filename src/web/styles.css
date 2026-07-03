@@ -284,6 +284,8 @@ a:hover { text-decoration: underline; }
 }
 .link-btn:hover { text-decoration: underline; }
 .link-btn:disabled { opacity: 0.55; cursor: default; }
+.link-btn--danger { color: var(--muted); }
+.link-btn--danger:hover { color: var(--red); }
 
 input, select {
   background: var(--surface);

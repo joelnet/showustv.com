@@ -202,6 +202,34 @@ library.delete("/shows/:id/follow", async (c) => {
   return c.json({ ok: true });
 });
 
+// Full removal (issue #20): for accidental adds — wipe every trace of the
+// show from this user's account, not just the follow. Unlike unfollow, this
+// deletes watch history, ratings, and favorites/list memberships too.
+library.delete("/shows/:id/remove", async (c) => {
+  const id = intParam(c.req.param("id"));
+  if (!id) return c.json({ error: "bad id" }, 400);
+  const uid = c.get("uid");
+  await c.env.DB.batch([
+    c.env.DB.prepare(
+      "DELETE FROM user_episodes WHERE user_id = ?1 AND episode_id IN (SELECT id FROM episodes WHERE show_id = ?2)"
+    ).bind(uid, id),
+    c.env.DB.prepare(
+      "DELETE FROM episode_character_votes WHERE user_id = ?1 AND episode_id IN (SELECT id FROM episodes WHERE show_id = ?2)"
+    ).bind(uid, id),
+    c.env.DB.prepare(
+      `DELETE FROM ratings WHERE user_id = ?1 AND (
+         (target_type = 'show' AND target_id = ?2)
+         OR (target_type = 'episode' AND target_id IN (SELECT id FROM episodes WHERE show_id = ?2)))`
+    ).bind(uid, id),
+    c.env.DB.prepare(
+      `DELETE FROM custom_list_items WHERE target_type = 'show' AND target_id = ?2
+         AND list_id IN (SELECT id FROM custom_lists WHERE user_id = ?1)`
+    ).bind(uid, id),
+    c.env.DB.prepare("DELETE FROM user_shows WHERE user_id = ?1 AND show_id = ?2").bind(uid, id),
+  ]);
+  return c.json({ ok: true });
+});
+
 library.put("/shows/:id/state", async (c) => {
   const id = intParam(c.req.param("id"));
   const body = await c.req.json().catch(() => ({}));

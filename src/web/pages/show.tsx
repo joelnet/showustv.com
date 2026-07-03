@@ -66,6 +66,20 @@ function withUser(d: ShowPayload, user: Partial<ShowPayload["user"]>): ShowPaylo
   return { ...d, user: { ...d.user, ...user } };
 }
 
+// Full removal (issue #20): drop the show from the account and reset every
+// bit of local state it contributed — history, progress, rating, favorite.
+function cleared(d: ShowPayload): ShowPayload {
+  return {
+    ...d,
+    user: { followed: false, state: null, rating: null, favorited: false },
+    progress: { ...d.progress, watched: 0 },
+    seasons: d.seasons.map((s) => ({
+      ...s,
+      episodes: s.episodes.map((e) => ({ ...e, watched: false, playCount: 0 })),
+    })),
+  };
+}
+
 const isBefore = (e: Episode, target: Episode) =>
   e.season_number < target.season_number ||
   (e.season_number === target.season_number && e.number < target.number);
@@ -139,6 +153,12 @@ export function ShowPage() {
   const { show, seasons, user: mine, progress, nextEpisode, providers } = data;
   const tz = user!.tz;
 
+  // Whether the show has any trace in the account. Unfollowing keeps watch
+  // history and ratings, so "followed" alone would hide Remove for exactly the
+  // accidental-add cleanup it exists for — also offer it when history remains.
+  const inLibrary =
+    mine.followed || mine.favorited || mine.rating != null || seasons.some((s) => s.episodes.some((e) => e.watched));
+
   // One API call per action; the UI updates from what we already know.
   const run = (fn: () => Promise<unknown>, apply: (d: ShowPayload) => ShowPayload) => async () => {
     setBusy(true);
@@ -182,6 +202,19 @@ export function ShowPage() {
       () => post(`/episodes/${e.id}/watch`),
       (d) => applyWatch(d, (x) => x.id === e.id, true)
     )();
+  };
+
+  // Remove the show entirely — for accidental adds. Confirms first because it
+  // throws away watch history that unfollow would otherwise keep.
+  const removeShow = async () => {
+    const ok = await confirm({
+      title: "Remove from your account?",
+      message: "This erases your watch history, rating, and progress for this show. This can’t be undone.",
+      confirmLabel: "Remove",
+      cancelLabel: "Keep",
+      danger: true,
+    });
+    if (ok) run(() => del(`/shows/${show.id}/remove`), cleared)();
   };
 
   return (
@@ -267,6 +300,11 @@ export function ShowPage() {
                   {mine.favorited ? <IconHeart size={18} /> : <IconHeartOutline size={18} />}
                 </button>
                 <AddToList type="show" id={show.id} />
+                {inLibrary && (
+                  <button className="link-btn link-btn--danger" onClick={removeShow} disabled={busy}>
+                    Remove
+                  </button>
+                )}
               </div>
               <div className="show-progress">
                 <Progress watched={progress.watched} total={progress.aired} />
