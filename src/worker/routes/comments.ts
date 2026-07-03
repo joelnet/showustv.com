@@ -29,6 +29,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import type { AppEnv } from "../env";
 import { nowIso } from "../lib/dates";
+import { checkAchievements } from "../lib/achievements";
 import { COMMENT_MAX_LEN, COMMENT_URL_RE } from "../../shared/constants";
 
 export const comments = new Hono<AppEnv>();
@@ -335,6 +336,7 @@ comments.post("/", async (c) => {
   const exists = await c.env.DB.prepare(`SELECT 1 FROM ${t.table} WHERE ${t.pk} = ?1`).bind(targetId).first();
   if (!exists) return c.json({ error: `no such ${targetType}` }, 404);
 
+  let parentUserId: number | null = null;
   if (parentId != null) {
     const parent = await c.env.DB.prepare(
       `SELECT c.target_type, c.target_id, c.deleted_at, c.user_id, u.shadow_banned
@@ -344,6 +346,7 @@ comments.post("/", async (c) => {
       .first<{ target_type: string; target_id: number; deleted_at: string | null; user_id: number; shadow_banned: number }>();
     if (!parent || parent.target_type !== targetType || parent.target_id !== targetId)
       return c.json({ error: "no such comment" }, 404);
+    parentUserId = parent.user_id;
     // A ghost parent must be indistinguishable from a deleted one — same
     // check, same message — or replying becomes a shadow-ban probe.
     if (parent.deleted_at || (parent.shadow_banned && parent.user_id !== uid))
@@ -375,6 +378,13 @@ comments.post("/", async (c) => {
   )
     .bind(targetType, targetId, uid, body, parentId)
     .first<{ id: number; created_at: string }>();
+  // This reply may have just unlocked the PARENT author's thread-starter —
+  // the middleware only checks the mutating user (issue #19).
+  if (parentUserId != null && parentUserId !== uid) {
+    c.executionCtx.waitUntil(
+      checkAchievements(c.env, parentUserId).catch((e) => console.error("achievement check failed", e))
+    );
+  }
   // Reddit auto-upvotes your own comment; best-effort — a miss just means a
   // score of 0 instead of 1.
   await c.env.DB.prepare("INSERT INTO comment_votes (comment_id, user_id, value) VALUES (?1, ?2, 1)")
@@ -462,6 +472,13 @@ comments.put("/:id/vote", async (c) => {
   const s = await c.env.DB.prepare("SELECT COALESCE(SUM(value), 0) AS score FROM comment_votes WHERE comment_id = ?1")
     .bind(id)
     .first<{ score: number }>();
+  // This vote may have just unlocked the comment AUTHOR's crowd-pleaser —
+  // the middleware only checks the mutating user (issue #19).
+  if (cm.user_id !== uid) {
+    c.executionCtx.waitUntil(
+      checkAchievements(c.env, cm.user_id).catch((e) => console.error("achievement check failed", e))
+    );
+  }
   return c.json({ score: s?.score ?? 0 });
 });
 

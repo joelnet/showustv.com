@@ -20,7 +20,7 @@ pub.get("/profile/:username", async (c) => {
     .first<{ id: number; username: string; shadow_banned: number }>();
   if (!user) return c.json({ error: "not found" }, 404);
 
-  const [statsR, listsR, postersR, commentsR] = await c.env.DB.batch([
+  const [statsR, listsR, postersR, commentsR, achR] = await c.env.DB.batch([
     statsQuery(c.env.DB, user.id),
     c.env.DB.prepare(
       `SELECT l.id, l.name, COUNT(li.list_id) AS count
@@ -59,6 +59,7 @@ pub.get("/profile/:username", async (c) => {
          AND COALESCE(s.title, m.title, es.title) IS NOT NULL
        ORDER BY c.created_at DESC LIMIT 15`
     ).bind(user.id),
+    c.env.DB.prepare("SELECT achievement_id FROM user_achievements WHERE user_id = ?1 ORDER BY unlocked_at").bind(user.id),
   ]);
 
   // Comment bodies are a signed-in surface (thread pages sit behind auth,
@@ -81,6 +82,7 @@ pub.get("/profile/:username", async (c) => {
     username: user.username,
     stats: statsFromRow(statsR.results[0]),
     lists: (listsR.results as any[]).map((l) => ({ ...l, posters: posters.get(l.id) ?? [] })),
+    achievements: (achR.results as any[]).map((r) => r.achievement_id),
     comments: (hideComments ? [] : (commentsR.results as any[])).map((r) => ({
       // Snippet only — profiles tease the conversation, the thread holds it.
       body: signedIn ? (r.body.length > 240 ? r.body.slice(0, 239) + "…" : r.body) : null,

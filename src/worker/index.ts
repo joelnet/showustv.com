@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import type { AppEnv, Env } from "./env";
 import { requireAuth } from "./lib/session";
+import { checkAchievements } from "./lib/achievements";
 import { TmdbError, ensureShow, ensureMovie } from "./lib/tmdb";
 import { auth } from "./routes/auth";
 import { pub } from "./routes/public";
@@ -43,6 +44,14 @@ function logMutation(c: Context<AppEnv>, status: number): void {
     .run()
     .catch((e) => console.error("activity_log insert failed", e));
   c.executionCtx.waitUntil(insert);
+
+  // Achievements (issue #19) piggyback on the same hook: any successful
+  // mutation by a known user may have unlocked something. Runs in the
+  // background; a check that loses a race just re-awards idempotently later.
+  const uid = c.get("uid");
+  if (uid && status < 400 && !new URL(c.req.url).pathname.startsWith("/api/admin/")) {
+    c.executionCtx.waitUntil(checkAchievements(c.env, uid).catch((e) => console.error("achievement check failed", e)));
+  }
 }
 
 app.get("/healthz", async (c) => {

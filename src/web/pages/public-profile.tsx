@@ -15,6 +15,7 @@ import { Spinner, Wordmark, SmpteBars, ErrorNote, Slate } from "../components/ui
 import { IconList, IconCheck, IconPlus, IconEye } from "../components/icons";
 import { StatsGrid, type WatchStats } from "./profile";
 import { fmtDateTime } from "../format";
+import { ACHIEVEMENTS_BY_ID } from "../../shared/achievements";
 
 interface ProfileComment {
   body: string | null; // null for anonymous visitors — metadata only
@@ -33,7 +34,31 @@ interface PublicProfile {
   username: string;
   stats: WatchStats;
   lists: { id: number; name: string; count: number; posters: string[] }[];
+  achievements: string[];
   comments: ProfileComment[];
+}
+
+// Unlocked achievements only — a public profile is a brag wall, not a
+// checklist of what the person hasn't done.
+function PublicAchievements({ ids }: { ids: string[] }) {
+  const unlocked = ids.map((id) => ACHIEVEMENTS_BY_ID.get(id)).filter((a) => a != null);
+  if (!unlocked.length) return null;
+  return (
+    <>
+      <h2 className="section-title">Achievements</h2>
+      <div className="ach-grid">
+        {unlocked.map((a) => (
+          <div key={a.id} className="ach is-unlocked" title={a.desc}>
+            <span className="ach-emoji" aria-hidden="true">
+              {a.emoji}
+            </span>
+            <span className="ach-title">{a.title}</span>
+            <span className="ach-desc">{a.desc}</span>
+          </div>
+        ))}
+      </div>
+    </>
+  );
 }
 
 // Recent comment activity (issue #16): what shows this user is talking
@@ -299,6 +324,7 @@ export function PublicProfilePage() {
             {user && <FriendActions username={data.username} />}
             {user?.isAdmin && <AdminTools username={data.username} tz={user.tz} />}
             <StatsGrid stats={data.stats} />
+            <PublicAchievements ids={data.achievements} />
             <ProfileComments comments={data.comments} />
             {data.lists.length > 0 && (
               <>

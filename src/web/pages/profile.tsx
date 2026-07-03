@@ -5,7 +5,9 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useApi } from "../hooks";
 import { post, put, del } from "../api";
-import { watchTimeStr } from "../format";
+import { watchTimeStr, fmtDateTime } from "../format";
+import { ACHIEVEMENTS } from "../../shared/achievements";
+import { useAuth } from "../app";
 import { Spinner, Empty, ErrorNote } from "../components/ui";
 import {
   IconHeart,
@@ -37,9 +39,36 @@ interface ProfileData {
   email: string | null;
   emailVerified: boolean;
   pendingEmail: string | null;
+  achievements: { id: string; unlockedAt: string }[];
   stats: WatchStats;
   lists: ProfileList[];
   otherLists: Omit<ProfileList, "posters">[];
+}
+
+// The full catalog, unlocked ones lit (issue #19). Locked entries show
+// their goal as the hint — chasing them is the point.
+export function AchievementGrid({ unlocked, tz }: { unlocked: Map<string, string | null>; tz?: string }) {
+  return (
+    <div className="ach-grid">
+      {ACHIEVEMENTS.map((a) => {
+        const has = unlocked.has(a.id);
+        const at = unlocked.get(a.id);
+        return (
+          <div
+            key={a.id}
+            className={`ach${has ? " is-unlocked" : ""}`}
+            title={has && at && tz ? `Unlocked ${fmtDateTime(at, tz)}` : a.desc}
+          >
+            <span className="ach-emoji" aria-hidden="true">
+              {a.emoji}
+            </span>
+            <span className="ach-title">{a.title}</span>
+            <span className="ach-desc">{a.desc}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 // Email verification (issue #13): enter an address, click the emailed link,
@@ -128,6 +157,7 @@ export function StatsGrid({ stats }: { stats: WatchStats }) {
 }
 
 export function ProfilePage() {
+  const { user } = useAuth();
   const { data, loading, error, reload } = useApi<ProfileData>("/profile");
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -201,6 +231,11 @@ export function ProfilePage() {
       <StatsGrid stats={data.stats} />
 
       <EmailVerification data={data} reload={reload} />
+
+      <h2 className="section-title">
+        Achievements <span className="mono ach-count">({data.achievements.length}/{ACHIEVEMENTS.length})</span>
+      </h2>
+      <AchievementGrid unlocked={new Map(data.achievements.map((a) => [a.id, a.unlockedAt]))} tz={user!.tz} />
 
       <h2 className="section-title">Lists on your profile</h2>
       {!data.lists.length ? (

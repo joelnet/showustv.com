@@ -15,7 +15,7 @@ const RESEND_GAP_MS = 60_000;
 
 profile.get("/", async (c) => {
   const uid = c.get("uid");
-  const [userR, statsR, listsR, postersR, pendingR] = await c.env.DB.batch([
+  const [userR, statsR, listsR, postersR, pendingR, achR] = await c.env.DB.batch([
     c.env.DB.prepare("SELECT username, profile_public, email, email_verified_at FROM users WHERE id = ?1").bind(uid),
     statsQuery(c.env.DB, uid),
     c.env.DB.prepare(
@@ -38,6 +38,7 @@ profile.get("/", async (c) => {
        ) WHERE rn <= 4 ORDER BY list_id, rn`
     ).bind(uid),
     c.env.DB.prepare("SELECT email, expires_at FROM email_verifications WHERE user_id = ?1").bind(uid),
+    c.env.DB.prepare("SELECT achievement_id, unlocked_at FROM user_achievements WHERE user_id = ?1 ORDER BY unlocked_at").bind(uid),
   ]);
 
   const user = userR.results[0] as {
@@ -61,6 +62,7 @@ profile.get("/", async (c) => {
     email: user.email,
     emailVerified: !!user.email_verified_at,
     pendingEmail: pending && pending.expires_at > nowIso() ? pending.email : null,
+    achievements: (achR.results as any[]).map((r) => ({ id: r.achievement_id, unlockedAt: r.unlocked_at })),
     stats: statsFromRow(statsR.results[0]),
     lists: all
       .filter((l) => l.profile_position != null)

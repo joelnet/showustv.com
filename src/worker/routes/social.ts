@@ -18,8 +18,16 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import type { AppEnv } from "../env";
 import { nowIso } from "../lib/dates";
+import { checkAchievements } from "../lib/achievements";
 
 export const social = new Hono<AppEnv>();
+
+// A new friendship counts for BOTH parties' achievements, but the mutation
+// middleware only checks the caller — schedule the other side explicitly
+// (issue #19).
+function checkOtherParty(c: Context<AppEnv>, otherUid: number): void {
+  c.executionCtx.waitUntil(checkAchievements(c.env, otherUid).catch((e) => console.error("achievement check failed", e)));
+}
 
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 
@@ -99,7 +107,10 @@ social.post("/requests", async (c) => {
   )
     .bind(uid, target.id, nowIso())
     .run();
-  if (accepted.meta.changes) return c.json({ status: "friends" });
+  if (accepted.meta.changes) {
+    checkOtherParty(c, target.id);
+    return c.json({ status: "friends" });
+  }
 
   // Bare ON CONFLICT catches both the PK and the unordered-pair unique
   // index, so a concurrent inverse request can't create a duplicate edge.
@@ -128,7 +139,10 @@ social.post("/requests", async (c) => {
     )
       .bind(uid, target.id, nowIso())
       .run();
-    if (retried.meta.changes) return c.json({ status: "friends" });
+    if (retried.meta.changes) {
+      checkOtherParty(c, target.id);
+      return c.json({ status: "friends" });
+    }
   }
   // No edge after all (or theirs vanished mid-race — they cancelled before
   // the retry landed): record this request. Best-effort, single retry depth.
@@ -152,6 +166,7 @@ social.post("/requests/:username/accept", async (c) => {
     .bind(uid, target.id, nowIso())
     .run();
   if (!meta.changes) return c.json({ error: "not found" }, 404);
+  checkOtherParty(c, target.id);
   return c.json({ ok: true });
 });
 

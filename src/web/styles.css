@@ -1181,6 +1181,32 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   margin: 0;
 }
 
+/* Achievements (issue #19). */
+.ach-count { font-size: 13px; }
+.ach-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 26px;
+}
+.ach {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 2px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 10px;
+  opacity: 0.45;
+}
+.ach.is-unlocked { opacity: 1; border-color: var(--amber); background: var(--amber-soft); }
+.ach-emoji { font-size: 24px; filter: grayscale(1); }
+.ach.is-unlocked .ach-emoji { filter: none; }
+.ach-title { font-weight: 600; font-size: 13.5px; }
+.ach-desc { color: var(--muted); font-size: 12px; }
+
 /* Admin tools on profiles (issue #17). */
 .admin-tools { margin: 0 0 20px; display: flex; gap: 8px; flex-wrap: wrap; flex-direction: column; align-items: flex-start; }
 .admin-tools > .btn { align-self: flex-start; }
