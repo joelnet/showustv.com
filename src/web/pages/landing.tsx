@@ -10,6 +10,7 @@ import {
   IconLibrary,
   IconList,
   IconStar,
+  IconWarning,
 } from "../components/icons";
 
 const FEATURES = [
@@ -72,9 +73,9 @@ export function Landing() {
 
       <main className="landing-main">
         <section className="landing-hero">
-          <p className="landing-eyebrow">
-            <span className="on-air-dot" aria-hidden="true" /> A home for TV Time refugees
-          </p>
+          <Link to="/import-help" className="landing-eyebrow landing-eyebrow--warn landing-eyebrow--link">
+            <IconWarning size={13} /> TV Time is shutting down July 15 — import your data here
+          </Link>
           <h1>
             Never lose your place in a show <em className="landing-bug">again</em>
           </h1>

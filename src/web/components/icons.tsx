@@ -22,6 +22,9 @@ import {
   faStar,
   faUser,
   faUserGroup,
+  faTriangleExclamation,
+  faDownload,
+  faArrowUpRightFromSquare,
 } from "@fortawesome/free-solid-svg-icons";
 import { faHeart as faHeartOutline } from "@fortawesome/free-regular-svg-icons";
 
@@ -50,3 +53,6 @@ export const IconCalendar = wrap(faCalendarDays);
 export const IconStar = wrap(faStar);
 export const IconUser = wrap(faUser);
 export const IconUsers = wrap(faUserGroup);
+export const IconWarning = wrap(faTriangleExclamation);
+export const IconDownload = wrap(faDownload);
+export const IconExternal = wrap(faArrowUpRightFromSquare);

@@ -1043,6 +1043,43 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   pointer-events: none;
 }
 
+/* TV Time shutdown warning banner + import how-to (issue #22). */
+.landing-eyebrow--warn {
+  color: var(--amber);
+  border-color: rgba(255, 174, 46, 0.5);
+  background: var(--amber-soft);
+  text-transform: none;
+  letter-spacing: 0.01em;
+  border-radius: 10px;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 13px;
+}
+.landing-eyebrow--link { text-decoration: none; transition: background 0.15s ease, border-color 0.15s ease; }
+.landing-eyebrow--link:hover { text-decoration: none; background: rgba(255, 174, 46, 0.24); border-color: var(--amber); }
+
+.help-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 20px; }
+.help-step {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22px;
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 22px;
+}
+.help-step-text { flex: 1 1 260px; display: flex; gap: 14px; align-items: flex-start; text-align: left; }
+.help-step-text h3 { font-family: var(--font-display); font-weight: 700; font-size: 16px; margin: 0 0 6px; }
+.help-step-text p { color: var(--muted); font-size: 14px; line-height: 1.55; margin: 0; }
+.help-shot { flex: 1 1 300px; margin: 0; max-width: 100%; box-shadow: 0 16px 40px -24px rgba(0, 0, 0, 0.7); }
+.help-shot-frame { max-height: none; }
+.help-shot-frame::after { display: none; }
+.help-shot-frame svg { display: block; width: 100%; height: auto; }
+.help-note { text-align: center; margin-top: 16px; }
+.import-help .landing-final h2 { display: flex; align-items: center; justify-content: center; gap: 10px; }
+.import-help .landing-final h2 .svg-inline--fa { color: var(--green); }
+
 .landing-section { margin-top: 44px; }
 .landing-section .section-title { justify-content: center; }
 .landing-section .section-title::after { content: ""; width: 14px; height: 2px; background: var(--amber); }

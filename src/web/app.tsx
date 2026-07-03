@@ -21,6 +21,7 @@ import { PublicProfilePage } from "./pages/public-profile";
 import { FriendsPage } from "./pages/friends";
 import { SettingsPage } from "./pages/settings";
 import { ImportPage } from "./pages/import";
+import { ImportHelpPage } from "./pages/import-help";
 import { AboutPage } from "./pages/about";
 
 export interface User {
@@ -164,6 +165,8 @@ export function App() {
           {!user && <Route path="/" element={<Landing />} />}
           <Route path="/login" element={<Login />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
+          {/* Public TV Time export/import how-to (linked from the landing banner). */}
+          <Route path="/import-help" element={<ImportHelpPage />} />
           <Route path="/u/:username/lists/:id" element={<PublicListPage />} />
           <Route path="/u/:username" element={<PublicProfilePage />} />
           <Route element={<Shell />}>
