@@ -100,6 +100,7 @@ catalog.get("/shows/:id", async (c) => {
       backdrop: show.backdrop_url,
       overview: show.overview,
       genres: JSON.parse(show.genres_json),
+      imdbId: show.imdb_id,
     },
     seasons,
     user: {
@@ -146,6 +147,7 @@ catalog.get("/movies/:id", async (c) => {
       poster: movie.poster_url,
       overview: movie.overview,
       genres: JSON.parse(movie.genres_json),
+      imdbId: movie.imdb_id,
     },
     user: {
       state: user?.state ?? null,

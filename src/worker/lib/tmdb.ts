@@ -68,16 +68,17 @@ export async function ensureShow(env: Env, tmdbId: number, force = false): Promi
 
   stmts.push(
     env.DB.prepare(
-      `INSERT INTO shows (tmdb_id, tvdb_id, title, status, first_air_date, poster_url, backdrop_url, overview, genres_json, synced_at)
-       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)
+      `INSERT INTO shows (tmdb_id, tvdb_id, imdb_id, title, status, first_air_date, poster_url, backdrop_url, overview, genres_json, synced_at)
+       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)
        ON CONFLICT (tmdb_id) DO UPDATE SET
-         tvdb_id=excluded.tvdb_id, title=excluded.title, status=excluded.status,
+         tvdb_id=excluded.tvdb_id, imdb_id=excluded.imdb_id, title=excluded.title, status=excluded.status,
          first_air_date=excluded.first_air_date, poster_url=excluded.poster_url,
          backdrop_url=excluded.backdrop_url, overview=excluded.overview,
          genres_json=excluded.genres_json, synced_at=excluded.synced_at`
     ).bind(
       tmdbId,
       base.external_ids?.tvdb_id ?? null,
+      base.external_ids?.imdb_id || null,
       base.name,
       base.status ?? "unknown",
       base.first_air_date || null,
@@ -170,15 +171,16 @@ export async function ensureMovie(env: Env, tmdbId: number, force = false): Prom
   }
   const m = await tmdb(env, `/movie/${tmdbId}`, {}, 600);
   await env.DB.prepare(
-    `INSERT INTO movies (tmdb_id, title, release_date, runtime_min, poster_url, overview, genres_json, synced_at)
-     VALUES (?1,?2,?3,?4,?5,?6,?7,?8)
+    `INSERT INTO movies (tmdb_id, imdb_id, title, release_date, runtime_min, poster_url, overview, genres_json, synced_at)
+     VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)
      ON CONFLICT (tmdb_id) DO UPDATE SET
-       title=excluded.title, release_date=excluded.release_date, runtime_min=excluded.runtime_min,
+       imdb_id=excluded.imdb_id, title=excluded.title, release_date=excluded.release_date, runtime_min=excluded.runtime_min,
        poster_url=excluded.poster_url, overview=excluded.overview, genres_json=excluded.genres_json,
        synced_at=excluded.synced_at`
   )
     .bind(
       tmdbId,
+      m.imdb_id || null,
       m.title,
       m.release_date || null,
       m.runtime ?? null,

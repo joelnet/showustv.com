@@ -6,7 +6,7 @@ import { useApi } from "../hooks";
 import { useAuth } from "../app";
 import { poster, backdrop, providerLogo } from "../img";
 import { fmtAirDate } from "../format";
-import { Slate, Spinner, ErrorNote, Progress, CheckButton, ScorePicker } from "../components/ui";
+import { Slate, Spinner, ErrorNote, Progress, CheckButton, ScorePicker, ExternalLinks } from "../components/ui";
 import { Comments } from "../components/comments";
 import { IconCheck, IconPlus, IconChevron, IconBookmark, IconHeart, IconHeartOutline } from "../components/icons";
 import { useConfirm } from "../components/dialog";
@@ -33,6 +33,7 @@ interface ShowPayload {
     backdrop: string | null;
     overview: string | null;
     genres: string[];
+    imdbId: string | null;
   };
   seasons: { id: number; number: number; name: string | null; episodes: Episode[] }[];
   user: {
@@ -312,6 +313,8 @@ export function ShowPage() {
           <span className="justwatch">Streaming data by JustWatch</span>
         </div>
       )}
+
+      <ExternalLinks title={show.title} imdbId={show.imdbId} />
 
       <section className="seasons">
         {seasons

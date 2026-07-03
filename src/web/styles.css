@@ -617,6 +617,24 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .providers img { width: 34px; height: 34px; border-radius: 8px; }
 .justwatch { color: var(--muted); font-size: 11px; }
 
+/* Off-site link chips (IMDb / Rotten Tomatoes / Reddit) — same shelf
+   language as the providers row above. */
+.external-links { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+.external-links-label { color: var(--muted); font-size: 13px; }
+.external-chip {
+  display: inline-flex;
+  align-items: center;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 12px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.external-chip:hover { border-color: var(--amber); color: var(--amber); text-decoration: none; }
+
 .seasons { display: flex; flex-direction: column; gap: 10px; }
 .season { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
 .season-head { display: flex; align-items: center; padding: 4px 14px 4px 4px; gap: 8px; }

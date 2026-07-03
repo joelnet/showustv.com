@@ -6,7 +6,7 @@ import { post, put, del } from "../api";
 import { useAuth } from "../app";
 import { poster, providerLogo } from "../img";
 import { fmtAirDate, fmtDateTime, runtimeStr } from "../format";
-import { Spinner, ErrorNote, ScorePicker, EmojiPicker } from "../components/ui";
+import { Spinner, ErrorNote, ScorePicker, EmojiPicker, ExternalLinks } from "../components/ui";
 import { IconCheck, IconBookmark } from "../components/icons";
 import { AddToList } from "./lists";
 
@@ -19,6 +19,7 @@ interface MoviePayload {
     poster: string | null;
     overview: string | null;
     genres: string[];
+    imdbId: string | null;
   };
   user: {
     state: "watchlist" | "watched" | null;
@@ -139,6 +140,8 @@ export function MoviePage() {
               <span className="justwatch">Streaming data by JustWatch</span>
             </div>
           )}
+
+          <ExternalLinks title={movie.title} imdbId={movie.imdbId} />
         </div>
       </div>
     </div>

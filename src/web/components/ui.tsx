@@ -60,6 +60,29 @@ export function Wordmark() {
   );
 }
 
+// Off-site links for detail pages (issue #12). IMDb links straight to the
+// title once the catalog row has synced its imdb_id; until then (and always
+// for Rotten Tomatoes and Reddit, which expose no stable id mapping) the
+// link is a title search on the target site.
+export function ExternalLinks({ title, imdbId }: { title: string; imdbId: string | null }) {
+  const q = encodeURIComponent(title);
+  const links = [
+    ["IMDb", imdbId ? `https://www.imdb.com/title/${imdbId}/` : `https://www.imdb.com/find/?q=${q}`],
+    ["Rotten Tomatoes", `https://www.rottentomatoes.com/search?search=${q}`],
+    ["Reddit", `https://www.reddit.com/search/?q=${q}`],
+  ];
+  return (
+    <div className="external-links">
+      <span className="external-links-label">Elsewhere</span>
+      {links.map(([name, href]) => (
+        <a key={name} className="external-chip" href={href} target="_blank" rel="noopener noreferrer">
+          {name} ↗
+        </a>
+      ))}
+    </div>
+  );
+}
+
 // Production-slate episode code: S02·E05.
 export function Slate({ season, number }: { season: number; number: number }) {
   return <code className="slate">{epCode(season, number)}</code>;
