@@ -17,11 +17,17 @@
   // 06:00Z lands overnight in US timezones after TMDB same-day schedule updates.
   "triggers": { "crons": ["0 6 * * *"] },
 
+  // Serve on the apex. custom_domain makes Wrangler create the proxied DNS
+  // record + route and manage TLS. Adding routes disables the *.workers.dev
+  // URL by default, so keep it explicitly as a fallback.
+  "routes": [{ "pattern": "showustv.com", "custom_domain": true }],
+  "workers_dev": true,
+
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "showustv",
-      "database_id": "REPLACE_AFTER_wrangler_d1_create",
+      "database_id": "b260221b-135a-4b3e-ae36-c699590e4228",
       "migrations_dir": "migrations"
     }
   ],
