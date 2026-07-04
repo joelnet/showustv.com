@@ -225,7 +225,7 @@ export function Landing() {
             <IconWarning size={13} /> TV Time is shutting down July 15 — import your data here
           </Link>
           <h1>
-            Never lose your place in a show <em className="landing-bug">again</em>
+            Track your shows. Pickup where you <em className="landing-bug">left off</em>.
           </h1>
           <p className="landing-sub">
             Show Us TV keeps track of every show and movie you watch — what&rsquo;s next, what&rsquo;s
