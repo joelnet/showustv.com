@@ -330,6 +330,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .install-app { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
 .install-hint { color: var(--muted); font-size: 13px; margin: 0; }
 .landing-hero .install-app { align-items: center; margin-top: 14px; }
+.landing-header .install-app { align-items: flex-end; text-align: right; }
 
 /* ---------- Offline / sync banner (PWA) ---------- */
 
