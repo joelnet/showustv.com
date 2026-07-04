@@ -1231,7 +1231,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .import-help .landing-final h2 { display: flex; align-items: center; justify-content: center; gap: 10px; }
 .import-help .landing-final h2 .svg-inline--fa { color: var(--green); }
 
-.landing-section { margin-top: 88px; }
+.landing-section { margin-top: 128px; }
 
 /* Section opener: short broadcast bar, cyan mono kicker, big slab headline.
    Gives each section a real marquee between the 92px hero and the body. */
@@ -1356,7 +1356,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 48px 24px;
-  margin-top: 80px;
+  margin-top: 128px;
 }
 .landing-final h2 {
   font-family: var(--font-display);
@@ -1434,7 +1434,8 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 
   .landing-hero { padding-top: 40px; }
   .landing-cta-row .btn-lg { flex: 1 1 100%; justify-content: center; }
-  .landing-section { margin-top: 60px; }
+  .landing-section { margin-top: 88px; }
+  .landing-final { margin-top: 88px; }
   .section-head { margin-bottom: 24px; }
 
   /* Rundown collapses to a single ruled column (keep real side padding so the
