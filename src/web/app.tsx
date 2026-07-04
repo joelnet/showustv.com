@@ -1,6 +1,6 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, NavLink, Link, Outlet, Navigate, useNavigate } from "react-router-dom";
-import { api } from "./api";
+import { api, ApiError } from "./api";
 import { setOfflineUser, useOffline } from "./offline";
 import { Spinner, Wordmark, SiteFooter } from "./components/ui";
 import { ConfirmProvider } from "./components/dialog";
@@ -32,6 +32,40 @@ export interface User {
   tz: string;
   emailVerified: boolean;
   isAdmin: boolean;
+}
+
+// Last-known signed-in identity, mirrored to localStorage (issue #51). On an
+// offline refresh the boot /auth/me call can't reach the server, so we fall
+// back to this instead of bouncing a signed-in user to /login — they keep
+// navigating the app from the service-worker cache until they're back online.
+// It holds only the public identity /auth/me already returns (no secrets), is
+// per-browser, and is cleared on sign-out and on a real 401, so the next
+// person to sign in never inherits it.
+const CACHED_USER_KEY = "showustv-user";
+
+function loadCachedUser(): User | null {
+  try {
+    const raw = localStorage.getItem(CACHED_USER_KEY);
+    if (!raw) return null;
+    const u = JSON.parse(raw) as unknown;
+    // Validate the shape before trusting it to gate protected routes — a
+    // tampered or stale-schema entry must not read as a signed-in user.
+    if (u && typeof u === "object" && typeof (u as User).id === "number" && typeof (u as User).username === "string") {
+      return u as User;
+    }
+    return null;
+  } catch {
+    return null; // storage disabled or corrupt — treat as logged out
+  }
+}
+
+function saveCachedUser(user: User | null): void {
+  try {
+    if (user) localStorage.setItem(CACHED_USER_KEY, JSON.stringify(user));
+    else localStorage.removeItem(CACHED_USER_KEY);
+  } catch {
+    // storage disabled/full — offline boot just falls back to /login
+  }
 }
 
 const AuthCtx = createContext<{ user: User | null; setUser: (u: User | null) => void }>({
@@ -144,15 +178,33 @@ function TabBar() {
 }
 
 export function App() {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUserState] = useState<User | null>(null);
   const [booted, setBooted] = useState(false);
+
+  // Persist every auth transition (login, sign-out, boot) so an offline
+  // refresh can restore the signed-in user — see loadCachedUser above.
+  const setUser = useCallback((u: User | null) => {
+    setUserState(u);
+    saveCachedUser(u);
+  }, []);
 
   useEffect(() => {
     api<{ user: User }>("/auth/me", { allow401: true })
       .then((d) => setUser(d.user))
-      .catch(() => {})
+      .catch((err) => {
+        // A genuine 401 means the session ended: clear the cached identity and
+        // stay logged out. Any other failure is the network being unreachable
+        // (airplane mode / server down) — fall back to the last-known user so a
+        // refresh doesn't force a login the user can't complete offline.
+        if (err instanceof ApiError && err.status === 401) {
+          setUser(null);
+        } else {
+          const cached = loadCachedUser();
+          if (cached) setUser(cached);
+        }
+      })
       .finally(() => setBooted(true));
-  }, []);
+  }, [setUser]);
 
   // The offline queue is per-account: tell it who is signed in so queued
   // ops never replay into a different user (and replay starts on boot).

@@ -76,7 +76,10 @@ export function SettingsPage() {
           // Unsynced offline changes belong to this session — they must not
           // replay into whoever signs in next on this browser.
           await clearQueue();
-          await post("/auth/logout");
+          // The server logout needs the network, but the local sign-out must
+          // happen regardless — otherwise an offline sign-out leaves the cached
+          // identity behind for the next person to restore on a refresh (#51).
+          await post("/auth/logout").catch(() => {});
           setUser(null);
           navigate("/");
         }}
