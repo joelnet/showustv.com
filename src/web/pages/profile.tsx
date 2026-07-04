@@ -300,10 +300,10 @@ export function ProfilePage() {
       <div className="list-head">
         <h1 className="page-title">Profile</h1>
         <div className="list-head-actions">
-          {/* The mobile tab bar keeps its 5 slots — this is the Friends
+          {/* The mobile tab bar keeps its 5 slots — this is the Following
               entry point on small screens (desktop also has it in the header nav). */}
-          <Link className="btn btn-ghost" to="/friends">
-            <IconUsers size={15} /> Friends
+          <Link className="btn btn-ghost" to="/following">
+            <IconUsers size={15} /> Following
           </Link>
           <button
             className="btn btn-ghost"

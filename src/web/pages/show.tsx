@@ -91,17 +91,17 @@ function priorUnwatched(d: ShowPayload, target: Episode): number {
     .filter((e) => e.season_number > 0 && e.aired && !e.watched && isBefore(e, target)).length;
 }
 
-// Friends who track this show — username chips linking to their profile.
-// Quietly renders nothing while loading, with no friends, or offline.
+// People you follow who track this show — username chips linking to their
+// profile. Quietly renders nothing while loading, with none, or offline.
 function AlsoWatching({ showId }: { showId: string }) {
-  const { data } = useApi<{ friends: { username: string; state: string }[] }>(`/social/also-watching/${showId}`);
-  if (!data?.friends.length) return null;
+  const { data } = useApi<{ following: { username: string; state: string }[] }>(`/social/also-watching/${showId}`);
+  if (!data?.following.length) return null;
   const label = (state: string) =>
     state === "watch_later" ? "wants to watch" : state === "finished" || state === "up_to_date" ? "watched" : "watching";
   return (
     <div className="also-watching">
-      <span className="also-watching-label">Friends also watching</span>
-      {data.friends.map((f) => (
+      <span className="also-watching-label">People you follow also watching</span>
+      {data.following.map((f) => (
         <Link key={f.username} to={`/u/${f.username}`} className="friend-chip" title={`${f.username} — ${label(f.state)}`}>
           {f.username}
         </Link>

@@ -50,8 +50,8 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   { id: "curator", emoji: "🗂️", title: "Curator", desc: "Build a list with 10 titles" },
   { id: "open-curtains", emoji: "🌐", title: "Open Curtains", desc: "Make your profile public" },
   { id: "card-carrying", emoji: "🪪", title: "Card-Carrying Member", desc: "Verify your email" },
-  { id: "better-together", emoji: "🤝", title: "Better Together", desc: "Make your first friend" },
-  { id: "entourage", emoji: "👥", title: "Entourage", desc: "Have 10 friends" },
+  { id: "better-together", emoji: "🤝", title: "Better Together", desc: "Follow your first person" },
+  { id: "entourage", emoji: "👥", title: "Entourage", desc: "Follow 10 people" },
 ] as const;
 
 export const ACHIEVEMENTS_BY_ID: ReadonlyMap<string, Achievement> = new Map(ACHIEVEMENTS.map((a) => [a.id, a]));

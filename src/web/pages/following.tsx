@@ -1,5 +1,6 @@
-// Friends (issue #3): add friends by username, answer requests, and see what
-// friends have been watching (the activity feed lives here too).
+// Following (issue #39): follow people by username, see who follows you, and
+// read the activity feed of the people you follow. Instagram-style asymmetric
+// follows — no accept step, and following isn't mutual.
 //
 // Social mutations are deliberately NOT offline-queueable (api.ts only queues
 // watch/favorite ops) — when the network is gone they fail fast and the error
@@ -14,12 +15,11 @@ import { poster } from "../img";
 import { fmtDateTime } from "../format";
 import { Spinner, Empty, ErrorNote } from "../components/ui";
 import { mediaPath } from "../paths";
-import { IconCheck, IconPlus, IconTrash } from "../components/icons";
+import { IconPlus, IconTrash } from "../components/icons";
 
-interface FriendsData {
-  friends: { username: string; since: string }[];
-  incoming: { username: string; at: string }[];
-  outgoing: { username: string; at: string }[];
+interface FollowsData {
+  following: { username: string; since: string }[];
+  followers: { username: string; since: string; youFollow: boolean }[];
 }
 
 export interface ActivityItem {
@@ -35,7 +35,7 @@ export interface ActivityItem {
   k: string; // server-side unique row key (doubles as the pagination tie-break)
 }
 
-// Friendship dates render date-only in the viewer's profile timezone.
+// Follow dates render date-only in the viewer's profile timezone.
 function fmtDate(iso: string, tz: string): string {
   return new Date(iso).toLocaleDateString("en-US", { timeZone: tz, month: "short", day: "numeric", year: "numeric" });
 }
@@ -76,7 +76,7 @@ export function ActivityFeed() {
   if (error) return <ErrorNote message={error} />;
   if (!items) return <Spinner />;
   if (!items.length)
-    return <Empty title="Nothing here yet" hint="When your friends watch, follow, or rate something, it shows up here." />;
+    return <Empty title="Nothing here yet" hint="When someone you follow watches, follows, or rates something, it shows up here." />;
 
   const tz = user!.tz;
   return (
@@ -120,10 +120,10 @@ export function ActivityFeed() {
   );
 }
 
-export function FriendsPage() {
+export function FollowingPage() {
   const { user } = useAuth();
   const confirm = useConfirm();
-  const { data, loading, error, reload } = useApi<FriendsData>("/social/friends");
+  const { data, loading, error, reload } = useApi<FollowsData>("/social/follows");
   const [username, setUsername] = useState("");
   const [note, setNote] = useState<{ text: string; isError: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -141,20 +141,16 @@ export function FriendsPage() {
     }
   };
 
-  async function sendRequest(e: React.FormEvent) {
+  async function follow(e: React.FormEvent) {
     e.preventDefault();
     const name = username.trim();
     if (!name) return;
     setBusy(true);
     setNote(null);
     try {
-      const res = await post("/social/requests", { username: name });
+      await post("/social/follow", { username: name });
       setUsername("");
-      setNote(
-        res.status === "friends"
-          ? { text: `You and ${name} are now friends`, isError: false }
-          : { text: `Friend request sent to ${name}`, isError: false }
-      );
+      setNote({ text: `You're now following ${name}`, isError: false });
       reload();
     } catch (err: any) {
       setNote({ text: err.message, isError: true });
@@ -170,93 +166,48 @@ export function FriendsPage() {
   const tz = user!.tz;
   return (
     <div>
-      <h1 className="page-title">Friends</h1>
+      <h1 className="page-title">Following</h1>
 
-      <form className="friend-add" onSubmit={sendRequest}>
+      <form className="friend-add" onSubmit={follow}>
         <input
           value={username}
           onChange={(e) => setUsername(e.target.value)}
-          placeholder="Add a friend by username"
-          aria-label="Add a friend by username"
+          placeholder="Follow someone by username"
+          aria-label="Follow someone by username"
           autoCapitalize="none"
           autoCorrect="off"
         />
         <button className="btn" disabled={busy || !username.trim()}>
-          <IconPlus size={15} /> Add friend
+          <IconPlus size={15} /> Follow
         </button>
       </form>
       {note && (note.isError ? <ErrorNote message={note.text} /> : <p className="friend-note">{note.text} ✓</p>)}
 
-      {data.incoming.length > 0 && (
-        <>
-          <h2 className="section-title">Friend requests</h2>
-          <ul className="list-items">
-            {data.incoming.map((r) => (
-              <li key={r.username}>
-                <Link to={`/u/${r.username}`} className="profile-list-link">
-                  <span className="list-name">{r.username}</span>
-                  <span className="mono list-count">asked {fmtDate(r.at, tz)}</span>
-                </Link>
-                <div className="list-item-actions">
-                  <button className="btn" disabled={busy} onClick={act(() => post(`/social/requests/${encodeURIComponent(r.username)}/accept`))}>
-                    <IconCheck size={14} /> Accept
-                  </button>
-                  <button className="btn btn-ghost" disabled={busy} onClick={act(() => del(`/social/requests/${encodeURIComponent(r.username)}`))}>
-                    Decline
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-
-      {data.outgoing.length > 0 && (
-        <>
-          <h2 className="section-title">Sent requests</h2>
-          <ul className="list-items">
-            {data.outgoing.map((r) => (
-              <li key={r.username}>
-                <Link to={`/u/${r.username}`} className="profile-list-link">
-                  <span className="list-name">{r.username}</span>
-                  <span className="mono list-count">sent {fmtDate(r.at, tz)} · waiting for them to accept</span>
-                </Link>
-                <div className="list-item-actions">
-                  <button className="btn btn-ghost" disabled={busy} onClick={act(() => del(`/social/requests/${encodeURIComponent(r.username)}`))}>
-                    Cancel
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-
-      <h2 className="section-title">Your friends</h2>
-      {!data.friends.length ? (
-        <Empty title="No friends yet" hint="Add someone by username — they'll get a request to accept." />
+      <h2 className="section-title">Following{data.following.length > 0 && ` · ${data.following.length}`}</h2>
+      {!data.following.length ? (
+        <Empty title="Not following anyone yet" hint="Follow someone by username to see what they're watching." />
       ) : (
         <ul className="list-items">
-          {data.friends.map((f) => (
+          {data.following.map((f) => (
             <li key={f.username}>
               <Link to={`/u/${f.username}`} className="profile-list-link">
                 <span className="list-name">{f.username}</span>
-                <span className="mono list-count">friends since {fmtDate(f.since, tz)}</span>
+                <span className="mono list-count">following since {fmtDate(f.since, tz)}</span>
               </Link>
               <div className="list-item-actions">
                 <button
                   className="btn btn-ghost btn-danger"
                   disabled={busy}
-                  aria-label={`Unfriend ${f.username}`}
-                  title={`Unfriend ${f.username}`}
+                  aria-label={`Unfollow ${f.username}`}
+                  title={`Unfollow ${f.username}`}
                   onClick={async () => {
                     const yes = await confirm({
-                      title: `Unfriend ${f.username}?`,
-                      message: "You'll stop seeing each other's activity. They won't be notified.",
-                      confirmLabel: "Unfriend",
+                      title: `Unfollow ${f.username}?`,
+                      message: "Their activity will stop showing in your feed. They won't be notified.",
+                      confirmLabel: "Unfollow",
                       danger: true,
                     });
-                    if (yes) await act(() => del(`/social/friends/${encodeURIComponent(f.username)}`))();
+                    if (yes) await act(() => del(`/social/follow/${encodeURIComponent(f.username)}`))();
                   }}
                 >
                   <IconTrash size={15} />
@@ -267,7 +218,32 @@ export function FriendsPage() {
         </ul>
       )}
 
-      <h2 className="section-title">Friends activity</h2>
+      <h2 className="section-title">Followers{data.followers.length > 0 && ` · ${data.followers.length}`}</h2>
+      {!data.followers.length ? (
+        <Empty title="No followers yet" hint="When someone follows you, they'll show up here." />
+      ) : (
+        <ul className="list-items">
+          {data.followers.map((f) => (
+            <li key={f.username}>
+              <Link to={`/u/${f.username}`} className="profile-list-link">
+                <span className="list-name">{f.username}</span>
+                <span className="mono list-count">
+                  {f.youFollow ? "you follow each other" : `followed you ${fmtDate(f.since, tz)}`}
+                </span>
+              </Link>
+              {!f.youFollow && (
+                <div className="list-item-actions">
+                  <button className="btn" disabled={busy} onClick={act(() => post("/social/follow", { username: f.username }))}>
+                    <IconPlus size={14} /> Follow back
+                  </button>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <h2 className="section-title">Activity</h2>
       <ActivityFeed />
     </div>
   );

@@ -1,33 +1,24 @@
-// Friends (issue #3): mutual friend graph plus what friends are watching.
-// Mounted behind requireAuth — every query is scoped to the signed-in user.
+// Follows (issue #39): an asymmetric, Instagram-style social graph. You follow
+// people; they don't have to follow back. Mounted behind requireAuth — every
+// query is scoped to the signed-in user.
 //
-// Privacy semantics:
-//   * Friendship is mutual and always needs an explicit accept — there is no
-//     instant-follow path, so users.is_private (the follow-approval flag from
-//     0001) adds nothing extra here yet and keeps its meaning for a future
-//     asymmetric-follow feature.
-//   * Everything friend-related (activity feed, "also watching") is only ever
-//     computed over ACCEPTED edges. A non-friend — and a pending requester —
-//     sees nothing, whatever the target's is_private / profile_public flags.
-//   * User lookup is exact-match by username only (no prefix/substring
-//     search), so the API never reveals more names than a caller already
-//     knows — the same information the public /u/:username route exposes.
-//   * Blocking is future work (the social spec's only remove-a-follower path);
-//     unfriending covers this iteration.
+// Semantics:
+//   * Following is one-directional and instant. Every account is public today
+//     (users.is_private is never set), so a follow is always 'active' and needs
+//     no approval. The 'pending' state and private-account follow requests stay
+//     reserved for when is_private becomes user-settable.
+//   * The activity feed and "also watching" are computed over the people you
+//     FOLLOW (your followees). Someone who follows you but whom you don't follow
+//     back never shows up there.
+//   * User lookup is exact-match by username only (no prefix/substring search),
+//     so the API never reveals more names than a caller already knows.
+//   * Blocking and remove-a-follower are future work; unfollow covers this
+//     iteration.
 import { Hono } from "hono";
 import type { Context } from "hono";
 import type { AppEnv } from "../env";
-import { nowIso } from "../lib/dates";
-import { checkAchievements } from "../lib/achievements";
 
 export const social = new Hono<AppEnv>();
-
-// A new friendship counts for BOTH parties' achievements, but the mutation
-// middleware only checks the caller — schedule the other side explicitly
-// (issue #19).
-function checkOtherParty(c: Context<AppEnv>, otherUid: number): void {
-  c.executionCtx.waitUntil(checkAchievements(c.env, otherUid).catch((e) => console.error("achievement check failed", e)));
-}
 
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 
@@ -40,197 +31,135 @@ async function findUser(c: Context<AppEnv>, username: string): Promise<{ id: num
     .first<{ id: number; username: string }>();
 }
 
-// The signed-in user's accepted friends, as a CTE prefix. ?1 = uid.
-const FRIENDS_CTE = `WITH friends(fid) AS (
-  SELECT CASE WHEN requester_id = ?1 THEN addressee_id ELSE requester_id END
-  FROM friendships
-  WHERE status = 'accepted' AND ?1 IN (requester_id, addressee_id)
+// The people the signed-in user follows, as a CTE prefix. ?1 = uid.
+const FOLLOWING_CTE = `WITH following(fid) AS (
+  SELECT followee_id FROM follows WHERE follower_id = ?1 AND state = 'active'
 )`;
 
-// ---------- Friend graph ----------
+// ---------- Follow graph ----------
 
-// Everything the Friends page needs in one round trip: accepted friends plus
-// pending requests split into incoming (awaiting my answer) and outgoing.
-social.get("/friends", async (c) => {
+// Everything the Following page needs in one round trip: who I follow and who
+// follows me. Each follower row carries youFollow so the UI can offer a
+// "Follow back" button.
+social.get("/follows", async (c) => {
   const uid = c.get("uid");
-  const { results } = await c.env.DB.prepare(
-    `SELECT u.username, f.status, f.created_at, f.accepted_at, (f.requester_id = ?1) AS outgoing
-     FROM friendships f
-     JOIN users u ON u.id = CASE WHEN f.requester_id = ?1 THEN f.addressee_id ELSE f.requester_id END
-     WHERE ?1 IN (f.requester_id, f.addressee_id) AND u.deleted_at IS NULL
-     ORDER BY COALESCE(f.accepted_at, f.created_at) DESC`
+
+  const following = await c.env.DB.prepare(
+    `SELECT u.username, f.created_at AS since
+     FROM follows f
+     JOIN users u ON u.id = f.followee_id AND u.deleted_at IS NULL
+     WHERE f.follower_id = ?1 AND f.state = 'active'
+     ORDER BY f.created_at DESC`
   )
     .bind(uid)
     .all();
-  const rows = results as { username: string; status: string; created_at: string; accepted_at: string | null; outgoing: number }[];
+
+  const followers = await c.env.DB.prepare(
+    `SELECT u.username, f.created_at AS since,
+            EXISTS (SELECT 1 FROM follows me
+                    WHERE me.follower_id = ?1 AND me.followee_id = f.follower_id AND me.state = 'active') AS youFollow
+     FROM follows f
+     JOIN users u ON u.id = f.follower_id AND u.deleted_at IS NULL
+     WHERE f.followee_id = ?1 AND f.state = 'active'
+     ORDER BY f.created_at DESC`
+  )
+    .bind(uid)
+    .all();
+
   return c.json({
-    friends: rows
-      .filter((r) => r.status === "accepted")
-      .map((r) => ({ username: r.username, since: r.accepted_at ?? r.created_at })),
-    incoming: rows.filter((r) => r.status === "pending" && !r.outgoing).map((r) => ({ username: r.username, at: r.created_at })),
-    outgoing: rows.filter((r) => r.status === "pending" && r.outgoing).map((r) => ({ username: r.username, at: r.created_at })),
+    following: following.results,
+    followers: (followers.results as { username: string; since: string; youFollow: number }[]).map((r) => ({
+      username: r.username,
+      since: r.since,
+      youFollow: !!r.youFollow,
+    })),
   });
 });
 
 // Exact-username lookup with the relationship to the caller — powers the
-// friend button on public profiles. Deliberately not a fuzzy search.
+// follow button on public profiles. Deliberately not a fuzzy search.
 social.get("/search", async (c) => {
   const uid = c.get("uid");
   const user = await findUser(c, (c.req.query("q") ?? "").trim());
   if (!user) return c.json({ user: null });
-  if (user.id === uid) return c.json({ user: { username: user.username, relation: "self" } });
-  const f = await c.env.DB.prepare(
-    `SELECT status, requester_id FROM friendships
-     WHERE (requester_id = ?1 AND addressee_id = ?2) OR (requester_id = ?2 AND addressee_id = ?1)`
+  if (user.id === uid) return c.json({ user: { username: user.username, relation: "self", followsYou: false } });
+  const edges = await c.env.DB.prepare(
+    `SELECT
+       EXISTS (SELECT 1 FROM follows WHERE follower_id = ?1 AND followee_id = ?2 AND state = 'active') AS iFollow,
+       EXISTS (SELECT 1 FROM follows WHERE follower_id = ?2 AND followee_id = ?1 AND state = 'active') AS followsYou`
   )
     .bind(uid, user.id)
-    .first<{ status: string; requester_id: number }>();
-  const relation = !f ? "none" : f.status === "accepted" ? "friends" : f.requester_id === uid ? "outgoing" : "incoming";
-  return c.json({ user: { username: user.username, relation } });
+    .first<{ iFollow: number; followsYou: number }>();
+  return c.json({
+    user: {
+      username: user.username,
+      relation: edges?.iFollow ? "following" : "none",
+      followsYou: !!edges?.followsYou,
+    },
+  });
 });
 
-// Send a friend request by username. Idempotent and inverse-aware:
-//   no edge            → pending request created        → { status: 'outgoing' }
-//   they already asked → auto-accept (mutual intent)    → { status: 'friends' }
-//   already sent       → no-op                          → { status: 'outgoing' }
-//   already friends    → no-op                          → { status: 'friends' }
-social.post("/requests", async (c) => {
+// Follow a user by username. Idempotent — following someone you already follow
+// is a no-op. Public accounts follow instantly (state 'active').
+social.post("/follow", async (c) => {
   const uid = c.get("uid");
   const body = await c.req.json().catch(() => ({}));
   const target = await findUser(c, String(body.username ?? "").trim());
   if (!target) return c.json({ error: "No user with that username" }, 404);
-  if (target.id === uid) return c.json({ error: "You can't friend yourself" }, 400);
+  if (target.id === uid) return c.json({ error: "You can't follow yourself" }, 400);
 
-  // Their pending request to me? Requesting back means both want it — accept.
-  const accepted = await c.env.DB.prepare(
-    "UPDATE friendships SET status = 'accepted', accepted_at = ?3 WHERE requester_id = ?2 AND addressee_id = ?1 AND status = 'pending'"
-  )
-    .bind(uid, target.id, nowIso())
-    .run();
-  if (accepted.meta.changes) {
-    checkOtherParty(c, target.id);
-    return c.json({ status: "friends" });
-  }
-
-  // Bare ON CONFLICT catches both the PK and the unordered-pair unique
-  // index, so a concurrent inverse request can't create a duplicate edge.
-  const inserted = await c.env.DB.prepare(
-    "INSERT INTO friendships (requester_id, addressee_id) VALUES (?1, ?2) ON CONFLICT DO NOTHING"
-  )
-    .bind(uid, target.id)
-    .run();
-  if (inserted.meta.changes) return c.json({ status: "outgoing" });
-
-  // An edge already existed (repeat send, existing friendship, or an inverse
-  // request that raced in between the UPDATE and the INSERT above).
-  const existing = await c.env.DB.prepare(
-    `SELECT status, requester_id FROM friendships
-     WHERE (requester_id = ?1 AND addressee_id = ?2) OR (requester_id = ?2 AND addressee_id = ?1)`
-  )
-    .bind(uid, target.id)
-    .first<{ status: string; requester_id: number }>();
-  if (existing?.status === "accepted") return c.json({ status: "friends" });
-  if (existing?.requester_id === uid) return c.json({ status: "outgoing" });
-  if (existing) {
-    // Their pending request won the race — but this caller was SENDING, so
-    // both sides asked: retry the auto-accept instead of answering "incoming".
-    const retried = await c.env.DB.prepare(
-      "UPDATE friendships SET status = 'accepted', accepted_at = ?3 WHERE requester_id = ?2 AND addressee_id = ?1 AND status = 'pending'"
-    )
-      .bind(uid, target.id, nowIso())
-      .run();
-    if (retried.meta.changes) {
-      checkOtherParty(c, target.id);
-      return c.json({ status: "friends" });
-    }
-  }
-  // No edge after all (or theirs vanished mid-race — they cancelled before
-  // the retry landed): record this request. Best-effort, single retry depth.
+  // is_private is never set today, so this is always an instant active follow.
+  // When private accounts land, branch here to insert a 'pending' request.
   await c.env.DB.prepare(
-    "INSERT INTO friendships (requester_id, addressee_id) VALUES (?1, ?2) ON CONFLICT DO NOTHING"
+    "INSERT INTO follows (follower_id, followee_id, state) VALUES (?1, ?2, 'active') ON CONFLICT DO NOTHING"
   )
     .bind(uid, target.id)
     .run();
-  return c.json({ status: "outgoing" });
+  return c.json({ relation: "following" });
 });
 
-// Accept a pending request FROM :username. 404s cover both "no such user"
-// and "no pending request" — indistinguishable on purpose.
-social.post("/requests/:username/accept", async (c) => {
-  const uid = c.get("uid");
-  const target = await findUser(c, c.req.param("username"));
-  if (!target) return c.json({ error: "not found" }, 404);
-  const { meta } = await c.env.DB.prepare(
-    "UPDATE friendships SET status = 'accepted', accepted_at = ?3 WHERE requester_id = ?2 AND addressee_id = ?1 AND status = 'pending'"
-  )
-    .bind(uid, target.id, nowIso())
-    .run();
-  if (!meta.changes) return c.json({ error: "not found" }, 404);
-  checkOtherParty(c, target.id);
-  return c.json({ ok: true });
-});
-
-// Remove the pending request between me and :username — declines an
-// incoming request or cancels my outgoing one. Idempotent.
-social.delete("/requests/:username", async (c) => {
+// Unfollow. Idempotent.
+social.delete("/follow/:username", async (c) => {
   const uid = c.get("uid");
   const target = await findUser(c, c.req.param("username"));
   if (target && target.id !== uid) {
-    await c.env.DB.prepare(
-      `DELETE FROM friendships WHERE status = 'pending'
-       AND ((requester_id = ?1 AND addressee_id = ?2) OR (requester_id = ?2 AND addressee_id = ?1))`
-    )
+    await c.env.DB.prepare("DELETE FROM follows WHERE follower_id = ?1 AND followee_id = ?2")
       .bind(uid, target.id)
       .run();
   }
   return c.json({ ok: true });
 });
 
-// Unfriend. Idempotent.
-social.delete("/friends/:username", async (c) => {
-  const uid = c.get("uid");
-  const target = await findUser(c, c.req.param("username"));
-  if (target && target.id !== uid) {
-    await c.env.DB.prepare(
-      `DELETE FROM friendships WHERE status = 'accepted'
-       AND ((requester_id = ?1 AND addressee_id = ?2) OR (requester_id = ?2 AND addressee_id = ?1))`
-    )
-      .bind(uid, target.id)
-      .run();
-  }
-  return c.json({ ok: true });
-});
+// ---------- What the people you follow are watching ----------
 
-// ---------- What friends are watching ----------
-
-// Friends who have this show in their library ("also watching"), with their
+// Followees who have this show in their library ("also watching"), with their
 // state so the UI can distinguish watching / caught up / wants to watch.
 social.get("/also-watching/:id", async (c) => {
   const id = Number(c.req.param("id"));
   if (!Number.isInteger(id) || id <= 0) return c.json({ error: "bad id" }, 400);
   const { results } = await c.env.DB.prepare(
-    `${FRIENDS_CTE}
+    `${FOLLOWING_CTE}
      SELECT u.username, us.state
      FROM user_shows us
-     JOIN friends f ON f.fid = us.user_id
+     JOIN following fo ON fo.fid = us.user_id
      JOIN users u ON u.id = us.user_id AND u.deleted_at IS NULL
      WHERE us.show_id = ?2 AND us.state != 'hidden'
      ORDER BY u.username COLLATE NOCASE`
   )
     .bind(c.get("uid"), id)
     .all();
-  return c.json({ friends: results });
+  return c.json({ following: results });
 });
 
 // Feed entries older than the window fall off; keeps every branch of the
-// UNION bounded regardless of how much history a friend has.
+// UNION bounded regardless of how much history a followee has.
 const FEED_WINDOW_MS = 30 * 24 * 3600 * 1000;
 const FEED_LIMIT_DEFAULT = 20;
 const FEED_LIMIT_MAX = 50;
 
-// Friends activity: recent episode watches (grouped per friend/show/day so a
-// binge is one entry, not twenty), movie watches, show follows, and ratings —
-// one UNION query, newest first, keyset-paginated.
+// Activity from the people you follow: recent episode watches (grouped per
+// person/show/day so a binge is one entry, not twenty), movie watches, show
+// follows, and ratings — one UNION query, newest first, keyset-paginated.
 //
 // Pagination cursor is the opaque "ts|k" pair: k is a stable, per-row unique
 // tie-break key each branch synthesizes, and the page condition compares
@@ -264,14 +193,14 @@ social.get("/activity", async (c) => {
   const limit = Number.isInteger(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, FEED_LIMIT_MAX) : FEED_LIMIT_DEFAULT;
 
   const { results } = await c.env.DB.prepare(
-    `${FRIENDS_CTE}
+    `${FOLLOWING_CTE}
      SELECT * FROM (
        SELECT 'watched' AS type, u.username, 'show' AS target_type, e.show_id AS target_id,
               s.title, s.poster_url AS poster, COUNT(*) AS count, NULL AS score,
               MAX(ue.watched_at) AS ts,
               'w:' || ue.user_id || ':s:' || e.show_id || ':' || date(ue.watched_at) AS k
        FROM user_episodes ue
-       JOIN friends f ON f.fid = ue.user_id
+       JOIN following fo ON fo.fid = ue.user_id
        JOIN users u ON u.id = ue.user_id AND u.deleted_at IS NULL
        JOIN episodes e ON e.id = ue.episode_id
        JOIN shows s ON s.tmdb_id = e.show_id
@@ -283,7 +212,7 @@ social.get("/activity", async (c) => {
        SELECT 'watched', u.username, 'movie', um.movie_id, m.title, m.poster_url, 1, NULL,
               um.watched_at, 'w:' || um.user_id || ':m:' || um.movie_id
        FROM user_movies um
-       JOIN friends f ON f.fid = um.user_id
+       JOIN following fo ON fo.fid = um.user_id
        JOIN users u ON u.id = um.user_id AND u.deleted_at IS NULL
        JOIN movies m ON m.tmdb_id = um.movie_id
        WHERE um.state = 'watched' AND um.watched_at >= ?2 AND um.watched_at <= ?3
@@ -292,7 +221,7 @@ social.get("/activity", async (c) => {
        SELECT 'followed', u.username, 'show', us.show_id, s.title, s.poster_url, 1, NULL,
               us.added_at, 'f:' || us.user_id || ':s:' || us.show_id
        FROM user_shows us
-       JOIN friends f ON f.fid = us.user_id
+       JOIN following fo ON fo.fid = us.user_id
        JOIN users u ON u.id = us.user_id AND u.deleted_at IS NULL
        JOIN shows s ON s.tmdb_id = us.show_id
        WHERE us.state != 'hidden' AND us.added_at >= ?2 AND us.added_at <= ?3
@@ -302,7 +231,7 @@ social.get("/activity", async (c) => {
               COALESCE(s.title, m.title), COALESCE(s.poster_url, m.poster_url), 1, r.score,
               r.created_at, 'r:' || r.user_id || ':' || r.target_type || ':' || r.target_id
        FROM ratings r
-       JOIN friends f ON f.fid = r.user_id
+       JOIN following fo ON fo.fid = r.user_id
        JOIN users u ON u.id = r.user_id AND u.deleted_at IS NULL
        LEFT JOIN shows s ON r.target_type = 'show' AND s.tmdb_id = r.target_id
        LEFT JOIN movies m ON r.target_type = 'movie' AND m.tmdb_id = r.target_id

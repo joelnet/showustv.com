@@ -10,7 +10,7 @@ import type { Env } from "../env";
 
 export async function checkAchievements(env: Env, uid: number): Promise<void> {
   const db = env.DB;
-  const [comments, deepCuts, replies, bestScore, edited, episodes, movies, doubleFeature, shows, rollCredits, flags, friends, curator, ratings] =
+  const [comments, deepCuts, replies, bestScore, edited, episodes, movies, doubleFeature, shows, rollCredits, flags, following, curator, ratings] =
     await db.batch([
       db.prepare(
         `SELECT COUNT(*) AS total,
@@ -81,7 +81,7 @@ export async function checkAchievements(env: Env, uid: number): Promise<void> {
       ).bind(uid),
       db.prepare("SELECT profile_public, (email_verified_at IS NOT NULL) AS verified FROM users WHERE id = ?1").bind(uid),
       db.prepare(
-        "SELECT COUNT(*) AS n FROM friendships WHERE status = 'accepted' AND ?1 IN (requester_id, addressee_id)"
+        "SELECT COUNT(*) AS n FROM follows WHERE follower_id = ?1 AND state = 'active'"
       ).bind(uid),
       db.prepare(
         `SELECT EXISTS(SELECT 1 FROM (
@@ -141,8 +141,8 @@ export async function checkAchievements(env: Env, uid: number): Promise<void> {
   award("curator", hit(curator));
   award("open-curtains", !!fl.profile_public);
   award("card-carrying", !!fl.verified);
-  award("better-together", one<{ n: number }>(friends).n >= 1);
-  award("entourage", one<{ n: number }>(friends).n >= 10);
+  award("better-together", one<{ n: number }>(following).n >= 1);
+  award("entourage", one<{ n: number }>(following).n >= 10);
 
   if (!earned.length) return;
   await db.batch(
