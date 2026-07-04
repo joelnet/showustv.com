@@ -210,7 +210,9 @@ export function Landing() {
     <div className="landing">
       <header className="landing-header">
         <Wordmark />
-        <InstallAppButton buttonClass="btn btn-ghost" />
+        <Link to="/login" className="btn btn-ghost">
+          Sign in
+        </Link>
       </header>
 
       <main className="landing-main">
@@ -232,12 +234,9 @@ export function Landing() {
             <Link to="/login?mode=register" className="btn btn-lg">
               Create your account
             </Link>
-            <Link to="/login" className="btn btn-ghost btn-lg">
-              Sign in
-            </Link>
+            <InstallAppButton buttonClass="btn btn-ghost btn-lg" />
           </div>
           <p className="landing-free-note">Create an account and start tracking in seconds.</p>
-          <InstallAppButton buttonClass="btn btn-ghost" />
           <figure className="hero-shot">
             <div className="hero-shot-bar" aria-hidden="true">
               <span className="hero-shot-dots">
