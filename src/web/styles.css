@@ -137,6 +137,22 @@ a:hover { text-decoration: underline; }
 .header-gear { color: var(--muted); display: flex; }
 .header-gear:hover { color: var(--text); }
 
+/* Install affordance in the app chrome (Chromium, pre-install only). */
+.header-install {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font: 600 13px var(--font-body);
+  border-radius: 8px;
+  padding: 6px 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.header-install:hover { border-color: var(--amber); color: var(--amber); }
+
 .tabbar {
   display: none;
   position: fixed;
@@ -1312,6 +1328,12 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   .header { gap: 12px; }
   /* Icon alone is ~20px — pad the touch area without moving the icon. */
   .header-gear { padding: 12px; margin: -12px -12px -12px auto; }
+  /* With the search hidden, the install button carries the right-alignment;
+     when it's present, hand the auto margin from the gear to it so the two
+     stay grouped (and it collapses to an icon to save room). */
+  .header-install { margin-left: auto; padding: 10px 12px; }
+  .header-install span { display: none; }
+  .header-install ~ .header-gear { margin-left: 0; }
   .tabbar { display: grid; }
   .main { padding-bottom: 90px; }
   .footer { margin-bottom: 62px; }

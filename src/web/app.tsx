@@ -4,7 +4,8 @@ import { api } from "./api";
 import { setOfflineUser, useOffline } from "./offline";
 import { Spinner, Wordmark } from "./components/ui";
 import { ConfirmProvider } from "./components/dialog";
-import { IconPlay, IconSearch, IconLibrary, IconList, IconGear, IconUser } from "./components/icons";
+import { IconPlay, IconSearch, IconLibrary, IconList, IconGear, IconUser, IconDownload } from "./components/icons";
+import { useInstallPrompt } from "./pwa";
 import { Landing } from "./pages/landing";
 import { Login } from "./pages/login";
 import { VerifyEmailPage } from "./pages/verify-email";
@@ -63,6 +64,9 @@ function Shell() {
 
 function Header() {
   const navigate = useNavigate();
+  // Chromium install prompt only: iOS has no beforeinstallprompt, so its
+  // Add-to-Home-Screen instructions stay on the Settings page.
+  const { available, ios, install } = useInstallPrompt();
   return (
     <header className="header">
       <Link to="/" className="header-brand" aria-label="Show Us TV — home">
@@ -86,6 +90,11 @@ function Header() {
         <IconSearch size={16} />
         <input name="q" type="search" placeholder="Search shows & movies" aria-label="Search shows and movies" />
       </form>
+      {available && !ios && (
+        <button type="button" className="header-install" onClick={install} aria-label="Install app">
+          <IconDownload size={14} /> <span>Install</span>
+        </button>
+      )}
       <Link to="/settings" className="header-gear" aria-label="Settings">
         <IconGear />
       </Link>
