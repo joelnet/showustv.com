@@ -3,7 +3,7 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "../app";
 import { poster } from "../img";
-import { SmpteBars, Wordmark, Slate } from "../components/ui";
+import { SmpteBars, Wordmark, Slate, SiteFooter } from "../components/ui";
 import { InstallAppButton } from "../components/install";
 import {
   IconPlay,
@@ -331,12 +331,7 @@ export function Landing() {
         </section>
       </main>
 
-      <footer className="footer">
-        <span>
-          This product uses the <a href="https://www.themoviedb.org">TMDB</a> API but is not endorsed
-          or certified by TMDB.
-        </span>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

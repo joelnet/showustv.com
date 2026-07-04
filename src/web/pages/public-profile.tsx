@@ -11,7 +11,7 @@ import { useConfirm } from "../components/dialog";
 import { poster } from "../img";
 import { mediaPath, publicListPath, type MediaType } from "../paths";
 import { fmtAgo } from "../format";
-import { Spinner, Wordmark, SmpteBars, ErrorNote, Slate } from "../components/ui";
+import { Spinner, Wordmark, SmpteBars, ErrorNote, Slate, SiteFooter } from "../components/ui";
 import { IconList, IconCheck, IconPlus, IconEye } from "../components/icons";
 import { StatsGrid, type WatchStats } from "./profile";
 import { fmtDateTime } from "../format";
@@ -328,12 +328,7 @@ export function PublicProfilePage() {
           </>
         )}
       </main>
-      <footer className="footer">
-        <span>
-          This product uses the <a href="https://www.themoviedb.org">TMDB</a> API but is not endorsed or
-          certified by TMDB.
-        </span>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }
