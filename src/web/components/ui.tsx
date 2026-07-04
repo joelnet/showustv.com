@@ -42,10 +42,12 @@ export function Wordmark() {
           <line x1="17.8" y1="10" x2="24.2" y2="4.2" stroke="var(--amber)" strokeWidth="2.2" strokeLinecap="round" />
           {/* TV body */}
           <rect x="1.5" y="9" width="27" height="20" rx="4.5" ry="4.5" fill="var(--amber)" />
-          {/* "TV" letters, stroke-drawn and slanted to sit with the italic wordmark */}
+          {/* "TV" letters, stroke-drawn and slanted to sit with the italic
+              wordmark. Drawn in the page background so they read as knocked
+              out of the amber screen. */}
           <g
             transform="translate(3.37 0) skewX(-10)"
-            stroke="#fff"
+            stroke="var(--bg)"
             strokeWidth="2.7"
             strokeLinecap="round"
             strokeLinejoin="round"

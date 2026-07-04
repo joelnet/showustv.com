@@ -1,7 +1,8 @@
 /* ============ Show Us TV — late-night broadcast ============
    Deep slate room, tungsten-amber actions, cyan schedule info,
-   red ON AIR light. Archivo carries titles; IBM Plex Mono wears
-   the production slates (S02·E05). */
+   red ON AIR light. Zilla Slab carries titles (the TV-listings
+   voice); Spline Sans Mono wears the production slates (S02·E05);
+   Figtree reads the body. */
 
 :root {
   --bg: #0f1218;
@@ -17,9 +18,9 @@
   --red: #ff4d3d;
   --green: #58c983;
   --radius: 10px;
-  --font-display: "Archivo", sans-serif;
-  --font-body: "IBM Plex Sans", sans-serif;
-  --font-mono: "IBM Plex Mono", monospace;
+  --font-display: "Zilla Slab", Georgia, serif;
+  --font-body: "Figtree", system-ui, sans-serif;
+  --font-mono: "Spline Sans Mono", ui-monospace, monospace;
 }
 
 * { box-sizing: border-box; }
@@ -77,7 +78,7 @@ a:hover { text-decoration: underline; }
 
 .wordmark {
   font-family: var(--font-display);
-  font-weight: 800;
+  font-weight: 700;
   font-style: italic;
   font-size: 19px;
   letter-spacing: -0.02em;
@@ -174,7 +175,7 @@ a:hover { text-decoration: underline; }
 
 .page-title {
   font-family: var(--font-display);
-  font-weight: 800;
+  font-weight: 700;
   font-size: 28px;
   letter-spacing: -0.02em;
   margin: 4px 0 18px;
@@ -400,7 +401,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 }
 .login-card .wordmark { font-size: 24px; }
 .login-tag { color: var(--muted); font-size: 14px; margin: 4px 0 18px; }
-.login-joined-title { font-family: var(--font-display); font-style: italic; font-weight: 800; font-size: 22px; margin: 8px 0 2px; }
+.login-joined-title { font-family: var(--font-display); font-style: italic; font-weight: 700; font-size: 22px; margin: 8px 0 2px; }
 .login-card form { display: flex; flex-direction: column; gap: 14px; }
 .login-card label { display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; color: var(--muted); }
 .login-card .btn { justify-content: center; margin-top: 4px; }
@@ -541,7 +542,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .show-hero-text h1 {
   font-family: var(--font-display);
   font-style: italic;
-  font-weight: 800;
+  font-weight: 700;
   font-size: 32px;
   letter-spacing: -0.02em;
   margin: 0;
@@ -697,7 +698,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .episode-slate-row { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
 .episode-page h1, .movie-page h1 {
   font-family: var(--font-display);
-  font-weight: 800;
+  font-weight: 700;
   font-size: 26px;
   letter-spacing: -0.02em;
   margin: 0 0 10px;
@@ -950,7 +951,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 
 /* ---------- Landing (logged-out marketing page) ---------- */
 
-.landing { min-height: 100vh; display: flex; flex-direction: column; }
+.landing { min-height: 100vh; display: flex; flex-direction: column; overflow-x: clip; }
 
 .landing-header {
   display: flex;
@@ -971,10 +972,40 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 }
 
 .landing-hero {
+  position: relative;
+  isolation: isolate;
   text-align: center;
-  max-width: 640px;
+  max-width: 780px;
   margin: 0 auto;
-  padding: 64px 0 8px;
+  padding: 72px 0 8px;
+}
+/* Broadcast atmosphere: a tungsten pool of light behind the marquee (ambient,
+   not an action fill) over faint CRT scanlines. The mask feathers both to
+   nothing at the edges so there's no box. Pure gradients, no image, no blur. */
+.landing-hero::before {
+  content: "";
+  position: absolute;
+  inset: -30px -24px auto -24px;
+  height: 560px;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(58% 62% at 50% 30%, rgba(255, 174, 46, 0.11), transparent 72%),
+    repeating-linear-gradient(0deg, rgba(237, 233, 224, 0.022) 0 1px, transparent 1px 3px);
+  -webkit-mask-image: radial-gradient(68% 72% at 50% 34%, #000 48%, transparent);
+  mask-image: radial-gradient(68% 72% at 50% 34%, #000 48%, transparent);
+}
+.landing-hero > * {
+  animation: hero-rise 0.68s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.landing-hero > *:nth-child(2) { animation-delay: 0.06s; }
+.landing-hero > *:nth-child(3) { animation-delay: 0.12s; }
+.landing-hero > *:nth-child(4) { animation-delay: 0.18s; }
+.landing-hero > *:nth-child(5) { animation-delay: 0.24s; }
+.landing-hero > *:nth-child(n + 6) { animation-delay: 0.3s; }
+@keyframes hero-rise {
+  from { opacity: 0; transform: translateY(15px); }
+  to { opacity: 1; transform: none; }
 }
 .landing-eyebrow {
   display: inline-flex;
@@ -994,31 +1025,42 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .landing-hero h1 {
   font-family: var(--font-display);
   font-style: italic;
-  font-weight: 800;
-  font-size: clamp(32px, 6.5vw, 52px);
-  letter-spacing: -0.02em;
-  line-height: 1.08;
-  margin: 0 0 16px;
+  font-weight: 700;
+  font-size: clamp(42px, 8.6vw, 92px);
+  letter-spacing: -0.03em;
+  line-height: 1;
+  margin: 0 0 20px;
+  text-wrap: balance;
 }
 .landing-bug {
   background: var(--amber);
   color: var(--amber-ink);
-  border-radius: 8px;
-  padding: 0 10px;
+  border-radius: 0.14em;
+  padding: 0 0.16em;
   font-style: italic;
   white-space: nowrap;
 }
 .landing-sub {
   color: var(--muted);
-  font-size: 17px;
+  font-size: 18px;
   line-height: 1.55;
-  margin: 0 auto 28px;
-  max-width: 520px;
+  margin: 0 auto 30px;
+  max-width: 560px;
 }
 .landing-cta-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 .landing-waitlist-note { color: var(--muted); font-size: 13.5px; margin: 14px 0 0; }
 .btn-lg { font-size: 15.5px; padding: 12px 26px; border-radius: 10px; }
 .landing-hero .smpte { margin: 44px auto 0; max-width: 420px; }
+
+/* Hero-scoped amplifications (leave the showcase/help shots untouched). */
+.landing-hero .landing-cta-row .btn-lg { font-size: 16.5px; padding: 14px 30px; }
+.landing-hero .hero-shot {
+  max-width: 690px;
+  margin-top: 52px;
+  border-radius: 16px;
+  /* deep drop plus a faint tungsten underglow that ties into the atmosphere */
+  box-shadow: 0 42px 92px -34px rgba(0, 0, 0, 0.85), 0 26px 74px -34px rgba(255, 174, 46, 0.1);
+}
 
 /* Product screenshot, framed like an app window. */
 .hero-shot {
@@ -1101,16 +1143,57 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .import-help .landing-final h2 { display: flex; align-items: center; justify-content: center; gap: 10px; }
 .import-help .landing-final h2 .svg-inline--fa { color: var(--green); }
 
-.landing-section { margin-top: 44px; }
-.landing-section .section-title { justify-content: center; }
-.landing-section .section-title::after { content: ""; width: 14px; height: 2px; background: var(--amber); }
+.landing-section { margin-top: 88px; }
+
+/* Section opener: short broadcast bar, cyan mono kicker, big slab headline.
+   Gives each section a real marquee between the 92px hero and the body. */
+.section-head { text-align: center; margin-bottom: 30px; }
+.section-head .smpte { width: 88px; margin: 0 auto 18px; }
+.section-kicker {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--cyan);
+  margin: 0 0 12px;
+}
+.section-lead {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(26px, 3.8vw, 37px);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  margin: 0;
+  text-wrap: balance;
+}
 
 /* Feature showcase (issue #32): alternating copy + framed live-UI preview. */
-.showcase { display: flex; flex-direction: column; gap: 26px; margin-top: 26px; }
-.showcase-row { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; align-items: center; }
+.showcase { display: flex; flex-direction: column; gap: 48px; margin-top: 32px; }
+.showcase-row { display: grid; grid-template-columns: 1fr 1fr; gap: 44px; align-items: start; }
 .showcase-row:nth-child(even) .showcase-copy { order: 2; } /* alternate the shot side */
-.showcase-copy h3 { font-family: var(--font-display); font-weight: 700; font-size: 19px; letter-spacing: -0.01em; margin: 0 0 8px; }
-.showcase-copy p { color: var(--muted); font-size: 14.5px; line-height: 1.6; margin: 0; }
+/* Segment cue: a broadcast rundown marker before each headline. */
+.showcase-kicker {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--cyan);
+  margin-bottom: 14px;
+}
+.showcase-kicker span { color: var(--muted); }
+.showcase-copy h3 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(23px, 3.2vw, 30px);
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+  margin: 0 0 12px;
+}
+.showcase-copy p { color: var(--muted); font-size: 16px; line-height: 1.6; margin: 0; max-width: 46ch; }
 .showcase-shot { margin: 0; max-width: 100%; }
 .showcase-shot-body { padding: 12px; background: var(--bg); }
 /* minmax(0,1fr) lets the two tiles share the narrow frame evenly instead of a
@@ -1129,70 +1212,82 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   .showcase-row:nth-child(even) .showcase-copy { order: 0; } /* copy always leads when stacked */
 }
 
+/* The rundown: one bordered panel ruled into cells, a shot-list, not a
+   card grid. Icons ride inline with the title; body hangs under the words. */
 .feature-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 14px;
-}
-.feature-card {
-  background: var(--surface);
+  grid-template-columns: repeat(3, 1fr);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 18px 18px 16px;
+  overflow: hidden;
+  background: var(--surface);
 }
-.feature-icon {
-  display: inline-grid;
-  place-items: center;
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  background: var(--amber-soft);
-  color: var(--amber);
-  margin-bottom: 12px;
+.feature-card {
+  padding: 20px 20px 22px;
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
 }
+.feature-card:nth-child(-n + 3) { border-top: none; }
+.feature-card:nth-child(3n + 1) { border-left: none; }
+.feature-icon { display: inline-flex; color: var(--cyan); flex-shrink: 0; }
 .feature-card h3 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 16px;
   letter-spacing: -0.01em;
-  margin: 0 0 6px;
+  margin: 0 0 7px;
 }
-.feature-card p { color: var(--muted); font-size: 13.5px; line-height: 1.55; margin: 0; }
+.feature-card p { color: var(--muted); font-size: 13.5px; line-height: 1.55; margin: 0; padding-left: 26px; }
 
 .steps {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px 30px;
 }
+/* A channel lineup: each step led by a big slab numeral under a cue rule. */
 .steps li {
   display: flex;
-  gap: 12px;
+  gap: 16px;
   align-items: flex-start;
-  border: 1.5px dashed var(--line);
-  border-radius: var(--radius);
-  padding: 16px;
+  border-top: 2px solid var(--line);
+  padding: 18px 0 0;
 }
-.steps h3 { font-family: var(--font-display); font-weight: 700; font-size: 15px; margin: 0 0 4px; }
-.steps p { color: var(--muted); font-size: 13.5px; line-height: 1.5; margin: 0; }
+/* Override the mono slate chip: here the number is a large display numeral. */
+.steps .slate {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 40px;
+  line-height: 0.8;
+  letter-spacing: -0.02em;
+  background: none;
+  padding: 0;
+  color: var(--text);
+  flex-shrink: 0;
+}
+.steps h3 { font-family: var(--font-display); font-weight: 700; font-size: 18.5px; margin: 0 0 6px; }
+.steps p { color: var(--muted); font-size: 15px; line-height: 1.55; margin: 0; }
 
 .landing-final {
   text-align: center;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 14px;
-  padding: 40px 24px;
-  margin-top: 52px;
+  padding: 48px 24px;
+  margin-top: 80px;
 }
 .landing-final h2 {
   font-family: var(--font-display);
   font-style: italic;
-  font-weight: 800;
-  font-size: 26px;
+  font-weight: 700;
+  font-size: clamp(30px, 4vw, 40px);
   letter-spacing: -0.02em;
-  margin: 0 0 8px;
+  margin: 0 0 10px;
 }
 .landing-final p { color: var(--muted); margin: 0 0 22px; }
 
@@ -1256,7 +1351,18 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 
   .landing-hero { padding-top: 40px; }
   .landing-cta-row .btn-lg { flex: 1 1 100%; justify-content: center; }
-  .landing-section { margin-top: 36px; }
+  .landing-section { margin-top: 60px; }
+  .section-head { margin-bottom: 24px; }
+
+  /* Rundown collapses to a single ruled column (keep real side padding so the
+     bordered-panel identity survives on a phone). */
+  .feature-grid { grid-template-columns: 1fr; }
+  .feature-card { border-left: none; padding: 18px 16px; }
+  .feature-card:nth-child(-n + 3) { border-top: 1px solid var(--line); }
+  .feature-card:first-child { border-top: none; }
+
+  /* Steps stack one per row. */
+  .steps { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {

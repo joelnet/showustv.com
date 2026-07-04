@@ -15,47 +15,49 @@ import {
   IconWarning,
 } from "../components/icons";
 
+// Tight one-clause rundown. The showcase below carries the proof, so these
+// stay scannable and don't restate it.
 const FEATURES = [
   {
     icon: IconPlay,
     title: "Watch Next queue",
-    body: "Open the app and the next unwatched episode of every show you follow is waiting, with a count of what's left.",
+    body: "The next episode of every show, queued and counted.",
   },
   {
     icon: IconCheck,
     title: "One-tap tracking",
-    body: "Check off episodes as you watch. Jumping in mid-series? Marking an episode can catch up everything before it too.",
+    body: "Check off an episode, or catch up a whole run at once.",
   },
   {
     icon: IconCalendar,
     title: "Never miss an air date",
-    body: "See when the next episode of every show you follow airs, so premieres and finales never slip past.",
+    body: "See what airs next across everything you follow.",
   },
   {
     icon: IconLibrary,
     title: "Library & watchlist",
-    body: "Every show and movie you follow in one place, with progress bars — plus a watchlist for things you'll get to later.",
+    body: "Everything you follow, with progress bars and a watchlist.",
   },
   {
     icon: IconList,
     title: "Lists you can share",
-    body: "Build custom lists and flip them public. Anyone with the link can view — no account needed on their end.",
+    body: "Build lists and flip them public with a link.",
   },
   {
     icon: IconStar,
     title: "Ratings & favorites",
-    body: "Score what you watch 1–10 and heart your favorite shows so the best stuff stays on top.",
+    body: "Rate things 1 to 10 and heart the best.",
   },
 ];
 
 const STEPS = [
   {
     title: "Create an account",
-    body: "An email and a password. That's the whole form — we'll hand you a username you can change later.",
+    body: "An email and a password. That's the whole form; we'll hand you a username you can change later.",
   },
   {
     title: "Find your shows",
-    body: "Search the TMDB catalog for anything on the air — or anything that ever was — and hit Follow.",
+    body: "Search the TMDB catalog for anything on the air, or anything that ever was, and hit Follow.",
   },
   {
     title: "Watch and check off",
@@ -190,6 +192,20 @@ const SHOWCASE = [
   },
 ];
 
+// Section opener: a short broadcast bar, a mono kicker, and a real display
+// headline, so each section announces itself between the big hero and the body.
+function SectionHead({ id, kicker, children }: { id: string; kicker: string; children: React.ReactNode }) {
+  return (
+    <header className="section-head">
+      <SmpteBars />
+      <span className="section-kicker">{kicker}</span>
+      <h2 className="section-lead" id={id}>
+        {children}
+      </h2>
+    </header>
+  );
+}
+
 export function Landing() {
   const { siteOpen } = useAuth();
   // While closed (pending licensing), sign-up is a wait list, not open access.
@@ -248,20 +264,21 @@ export function Landing() {
               />
             </div>
           </figure>
-          <SmpteBars />
         </section>
 
         <section className="landing-section" aria-labelledby="landing-features-title">
-          <h2 className="section-title" id="landing-features-title">
-            What it does
-          </h2>
+          <SectionHead id="landing-features-title" kicker="What it does">
+            Everything you follow, on one dial
+          </SectionHead>
           <div className="feature-grid">
             {FEATURES.map((f) => (
               <article className="feature-card" key={f.title}>
-                <span className="feature-icon" aria-hidden="true">
-                  <f.icon size={18} />
-                </span>
-                <h3>{f.title}</h3>
+                <h3>
+                  <span className="feature-icon" aria-hidden="true">
+                    <f.icon size={17} />
+                  </span>
+                  {f.title}
+                </h3>
                 <p>{f.body}</p>
               </article>
             ))}
@@ -269,13 +286,16 @@ export function Landing() {
         </section>
 
         <section className="landing-section" aria-labelledby="landing-showcase-title">
-          <h2 className="section-title" id="landing-showcase-title">
-            See it in action
-          </h2>
+          <SectionHead id="landing-showcase-title" kicker="See it in action">
+            This is the actual app
+          </SectionHead>
           <div className="showcase">
-            {SHOWCASE.map((s) => (
+            {SHOWCASE.map((s, i) => (
               <article className="showcase-row" key={s.title}>
                 <div className="showcase-copy">
+                  <span className="showcase-kicker">
+                    {String(i + 1).padStart(2, "0")} <span>/ {String(SHOWCASE.length).padStart(2, "0")}</span>
+                  </span>
                   <h3>{s.title}</h3>
                   <p>{s.body}</p>
                 </div>
@@ -286,9 +306,9 @@ export function Landing() {
         </section>
 
         <section className="landing-section" aria-labelledby="landing-steps-title">
-          <h2 className="section-title" id="landing-steps-title">
-            How it works
-          </h2>
+          <SectionHead id="landing-steps-title" kicker="How it works">
+            On the air in three steps
+          </SectionHead>
           <ol className="steps">
             {STEPS.map((s, i) => (
               <li key={s.title}>
@@ -304,7 +324,7 @@ export function Landing() {
 
         <section className="landing-final">
           <h2>Ready to keep track?</h2>
-          <p>Pick up right where you left off — from the very first episode.</p>
+          <p>Pick up right where you left off, from the very first episode.</p>
           <Link to="/login?mode=register" className="btn btn-lg">
             {siteOpen ? "Get started" : "Join the wait list"}
           </Link>
