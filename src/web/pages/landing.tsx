@@ -234,7 +234,7 @@ export function Landing() {
             <Link to="/login?mode=register" className="btn btn-lg">
               Create your account
             </Link>
-            <InstallAppButton buttonClass="btn btn-ghost btn-lg" />
+            <InstallAppButton buttonClass="btn btn-amber-ghost btn-lg" />
           </div>
           <p className="landing-free-note">Create an account and start tracking in seconds.</p>
           <figure className="hero-shot">

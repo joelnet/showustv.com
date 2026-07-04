@@ -89,7 +89,7 @@ function Header() {
       </form>
       {available && !ios && (
         <button type="button" className="header-install" onClick={install} aria-label="Install app">
-          <IconDownload size={14} /> <span>Install</span>
+          <IconDownload size={14} /> <span>Install App</span>
         </button>
       )}
       <Link to="/settings" className="header-gear" aria-label="Settings">
