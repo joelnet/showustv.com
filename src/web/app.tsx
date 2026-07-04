@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, NavLink, Link, Outlet, Navigate, useNavigate } from "react-router-dom";
 import { api } from "./api";
 import { setOfflineUser, useOffline } from "./offline";
-import { Spinner, Wordmark } from "./components/ui";
+import { Spinner, Wordmark, SiteFooter } from "./components/ui";
 import { ConfirmProvider } from "./components/dialog";
 import { IconPlay, IconSearch, IconLibrary, IconList, IconGear, IconUser, IconDownload } from "./components/icons";
 import { useInstallPrompt } from "./pwa";
@@ -24,6 +24,7 @@ import { SettingsPage } from "./pages/settings";
 import { ImportPage } from "./pages/import";
 import { ImportHelpPage } from "./pages/import-help";
 import { AboutPage } from "./pages/about";
+import { PrivacyPage, TermsPage } from "./pages/legal";
 
 export interface User {
   id: number;
@@ -50,12 +51,9 @@ function Shell() {
       <main className="main">
         <Outlet />
       </main>
-      <footer className="footer">
-        <span>
-          This product uses the <a href="https://www.themoviedb.org">TMDB</a> API but is not endorsed or
-          certified by TMDB. <Link to="/about">About</Link>
-        </span>
-      </footer>
+      <SiteFooter>
+        <Link to="/about">About</Link>
+      </SiteFooter>
       <TabBar />
     </div>
   );
@@ -176,6 +174,9 @@ export function App() {
           <Route path="/verify-email" element={<VerifyEmailPage />} />
           {/* Public TV Time export/import how-to (linked from the landing banner). */}
           <Route path="/import-help" element={<ImportHelpPage />} />
+          {/* Legal pages — public so they're reachable signed in or out (footer). */}
+          <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/terms" element={<TermsPage />} />
           <Route path="/u/:username/lists/:id" element={<PublicListPage />} />
           <Route path="/u/:username" element={<PublicProfilePage />} />
           <Route element={<Shell />}>

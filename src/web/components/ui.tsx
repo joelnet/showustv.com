@@ -31,6 +31,26 @@ export function SmpteBars() {
   return <div className="smpte" aria-hidden="true" />;
 }
 
+// Shared site footer: the required TMDB attribution plus the legal links, so
+// Privacy/Terms are reachable from every page (signed in or out). `children`
+// lets a context prepend its own link — the signed-in Shell adds About, which
+// lives behind auth and so isn't shown in the logged-out footers.
+export function SiteFooter({ children }: { children?: React.ReactNode }) {
+  return (
+    <footer className="footer">
+      <span>
+        This product uses the <a href="https://www.themoviedb.org">TMDB</a> API but is not endorsed
+        or certified by TMDB.
+      </span>
+      <nav className="footer-links" aria-label="Footer">
+        {children}
+        <Link to="/privacy">Privacy</Link>
+        <Link to="/terms">Terms</Link>
+      </nav>
+    </footer>
+  );
+}
+
 export function Wordmark() {
   return (
     <span className="wordmark">

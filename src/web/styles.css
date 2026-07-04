@@ -186,6 +186,15 @@ a:hover { text-decoration: underline; }
   text-align: center;
   padding: 18px 20px;
 }
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 16px;
+  margin-top: 9px;
+}
+.footer-links a { color: var(--muted); }
+.footer-links a:hover { color: var(--text); }
 
 /* ---------- Type & shared ---------- */
 
@@ -970,6 +979,36 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .about { max-width: 560px; }
 .about .wordmark { font-size: 24px; }
 .about p { color: var(--text); }
+
+/* ---------- Legal (privacy / terms) ---------- */
+.legal { max-width: 680px; margin: 0 auto; padding: 8px 0 12px; }
+.legal-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 30px;
+  letter-spacing: -0.02em;
+  margin: 8px 0 4px;
+}
+.legal-updated { display: block; margin: 0 0 26px; }
+.legal h2 {
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 30px 0 8px;
+  scroll-margin-top: 20px;
+}
+.legal h3 { font-size: 15px; font-weight: 700; margin: 18px 0 4px; }
+.legal p { color: var(--text); line-height: 1.62; margin: 0 0 12px; }
+.legal ul { margin: 0 0 14px; padding-left: 20px; }
+.legal li { color: var(--text); line-height: 1.6; margin: 0 0 6px; }
+.legal code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: var(--surface-2);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
 .tmdb-mark {
   background: linear-gradient(90deg, #90cea1, #01b4e4);
   color: #0d253f;

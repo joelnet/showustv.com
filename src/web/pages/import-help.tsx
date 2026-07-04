@@ -6,7 +6,7 @@
 // export screens, not real screenshots — swap in captured PNGs when available.
 import { Link } from "react-router-dom";
 import { useAuth } from "../app";
-import { Wordmark } from "../components/ui";
+import { Wordmark, SiteFooter } from "../components/ui";
 import { IconWarning, IconDownload, IconExternal, IconCheck } from "../components/icons";
 
 // TV Time's GDPR self-service export (same link the importer points at).
@@ -206,12 +206,7 @@ export function ImportHelpPage() {
         </section>
       </main>
 
-      <footer className="footer">
-        <span>
-          This product uses the <a href="https://www.themoviedb.org">TMDB</a> API but is not endorsed
-          or certified by TMDB.
-        </span>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

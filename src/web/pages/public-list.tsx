@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useApi } from "../hooks";
-import { Spinner, PosterCard, Wordmark, SmpteBars } from "../components/ui";
+import { Spinner, PosterCard, Wordmark, SmpteBars, SiteFooter } from "../components/ui";
 import { mediaPath, idFromParam, publicListPath } from "../paths";
 
 interface PublicList {
@@ -63,12 +63,7 @@ export function PublicListPage() {
           </>
         )}
       </main>
-      <footer className="footer">
-        <span>
-          This product uses the <a href="https://www.themoviedb.org">TMDB</a> API but is not endorsed or
-          certified by TMDB.
-        </span>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }
