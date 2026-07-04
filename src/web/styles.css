@@ -1204,17 +1204,6 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .showcase { display: flex; flex-direction: column; gap: 48px; margin-top: 32px; }
 .showcase-row { display: grid; grid-template-columns: 1fr 1fr; gap: 44px; align-items: start; }
 .showcase-row:nth-child(even) .showcase-copy { order: 2; } /* alternate the shot side */
-/* Segment cue: a broadcast rundown marker before each headline. */
-.showcase-kicker {
-  display: inline-block;
-  font-family: var(--font-mono);
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  color: var(--cyan);
-  margin-bottom: 14px;
-}
-.showcase-kicker span { color: var(--muted); }
 .showcase-copy h3 {
   font-family: var(--font-display);
   font-weight: 700;
