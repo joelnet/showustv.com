@@ -1,0 +1,146 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-03T00:00:00Z",
+  "title": "Design System: Show Us TV",
+  "extensions": {
+    "colorMeta": {
+      "bg": { "role": "neutral", "displayName": "Slate Room", "canonical": "oklch(0.19 0.012 255)", "tonalRamp": ["oklch(0.19 0.012 255)", "oklch(0.24 0.014 255)", "oklch(0.29 0.016 255)", "oklch(0.36 0.016 255)", "oklch(0.50 0.012 255)", "oklch(0.66 0.010 255)", "oklch(0.82 0.008 255)", "oklch(0.93 0.006 255)"] },
+      "surface": { "role": "neutral", "displayName": "Surface", "canonical": "oklch(0.24 0.014 255)", "tonalRamp": ["oklch(0.19 0.012 255)", "oklch(0.24 0.014 255)", "oklch(0.29 0.016 255)", "oklch(0.36 0.016 255)", "oklch(0.50 0.012 255)", "oklch(0.66 0.010 255)", "oklch(0.82 0.008 255)", "oklch(0.93 0.006 255)"] },
+      "surface-2": { "role": "neutral", "displayName": "Surface Riser", "canonical": "oklch(0.29 0.016 255)" },
+      "line": { "role": "neutral", "displayName": "Hairline", "canonical": "oklch(0.36 0.016 255)" },
+      "text": { "role": "neutral", "displayName": "Warm White", "canonical": "oklch(0.93 0.008 80)", "tonalRamp": ["oklch(0.30 0.010 80)", "oklch(0.42 0.010 80)", "oklch(0.54 0.010 80)", "oklch(0.66 0.009 80)", "oklch(0.76 0.009 80)", "oklch(0.84 0.008 80)", "oklch(0.93 0.008 80)", "oklch(0.97 0.006 80)"] },
+      "muted": { "role": "neutral", "displayName": "Muted Slate", "canonical": "oklch(0.66 0.020 255)" },
+      "amber": { "role": "primary", "displayName": "Tungsten Amber", "canonical": "oklch(0.79 0.15 74)", "tonalRamp": ["oklch(0.20 0.05 74)", "oklch(0.32 0.08 74)", "oklch(0.44 0.11 74)", "oklch(0.56 0.13 74)", "oklch(0.68 0.15 74)", "oklch(0.79 0.15 74)", "oklch(0.88 0.10 74)", "oklch(0.95 0.04 74)"] },
+      "amber-soft": { "role": "primary", "displayName": "Amber Wash", "canonical": "rgba(255,174,46,0.14)" },
+      "amber-ink": { "role": "primary", "displayName": "Amber Ink", "canonical": "oklch(0.18 0.03 60)" },
+      "cyan": { "role": "secondary", "displayName": "Schedule Cyan", "canonical": "oklch(0.78 0.09 210)", "tonalRamp": ["oklch(0.22 0.03 210)", "oklch(0.34 0.05 210)", "oklch(0.46 0.07 210)", "oklch(0.57 0.08 210)", "oklch(0.68 0.09 210)", "oklch(0.78 0.09 210)", "oklch(0.87 0.06 210)", "oklch(0.95 0.03 210)"] },
+      "red": { "role": "tertiary", "displayName": "ON AIR Red", "canonical": "oklch(0.65 0.22 27)", "tonalRamp": ["oklch(0.20 0.06 27)", "oklch(0.31 0.10 27)", "oklch(0.42 0.14 27)", "oklch(0.52 0.18 27)", "oklch(0.61 0.21 27)", "oklch(0.68 0.22 27)", "oklch(0.80 0.14 27)", "oklch(0.92 0.05 27)"] },
+      "green": { "role": "tertiary", "displayName": "Watched Green", "canonical": "oklch(0.77 0.14 155)", "tonalRamp": ["oklch(0.22 0.04 155)", "oklch(0.34 0.06 155)", "oklch(0.46 0.09 155)", "oklch(0.57 0.11 155)", "oklch(0.67 0.13 155)", "oklch(0.77 0.14 155)", "oklch(0.86 0.09 155)", "oklch(0.95 0.04 155)"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Landing hero and wordmark. Zilla Slab 700 italic, once per view." },
+      "headline": { "displayName": "Headline", "purpose": "App page titles." },
+      "title": { "displayName": "Title", "purpose": "Card headings, show/episode H1s (italic), list and feature names." },
+      "body": { "displayName": "Body", "purpose": "All running text. Cap measure at 65-75ch." },
+      "label": { "displayName": "Label", "purpose": "Uppercase section eyebrows with an amber tick, small stat labels." },
+      "mono": { "displayName": "Mono", "purpose": "Printed-on-the-tape metadata: slates, dates, counts, faux URLs." }
+    },
+    "shadows": [
+      { "name": "overlay-lift", "value": "0 24px 64px rgba(0,0,0,0.55)", "purpose": "Modal dialogs only, the one surface that truly floats." },
+      { "name": "hero-frame", "value": "0 30px 70px -28px rgba(0,0,0,0.75)", "purpose": "Framed product screenshots on the landing page." },
+      { "name": "on-air-glow", "value": "0 0 6px rgba(255,77,61,0.8)", "purpose": "The only colored shadow, and only on the live airing dot." }
+    ],
+    "motion": [
+      { "name": "btn-press", "value": "transform 0.1s, filter 0.15s", "purpose": "Button hover brighten and active scale(0.98)." },
+      { "name": "check-flip", "value": "transform 0.1s, background 0.15s", "purpose": "Episode check toggling on, with a scale(0.9) active dip." },
+      { "name": "progress-fill", "value": "width 0.3s", "purpose": "Progress bar filling as episodes are marked." },
+      { "name": "reduced-motion", "value": "transition: none; animation-duration: 0.01ms", "purpose": "prefers-reduced-motion collapses all transitions and animations." }
+    ],
+    "breakpoints": [
+      { "name": "mobile", "value": "719px" },
+      { "name": "comments", "value": "640px" },
+      { "name": "content", "value": "1080px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one loud control on a screen: solid tungsten amber, used for the single most important action.",
+      "html": "<button class=\"ds-btn ds-btn-primary\"><svg viewBox=\"0 0 24 24\" width=\"14\" height=\"14\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M20 6 9 17l-5-5\"/></svg><span>Watched</span></button>",
+      "css": ".ds-btn { display: inline-flex; align-items: center; gap: 7px; font: 600 14px \"Figtree\", sans-serif; border-radius: 8px; padding: 8px 16px; cursor: pointer; border: 1px solid transparent; transition: filter 0.15s, transform 0.1s; } .ds-btn-primary { background: var(--amber, #ffae2e); color: var(--amber-ink, #1a1205); border-color: var(--amber, #ffae2e); } .ds-btn-primary:hover { filter: brightness(1.08); } .ds-btn-primary:active { transform: scale(0.98); } .ds-btn-primary:focus-visible { outline: 2px solid var(--amber, #ffae2e); outline-offset: 2px; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Secondary action: transparent with a hairline border. Hover lifts the border, no brightness shift.",
+      "html": "<button class=\"ds-btn ds-btn-ghost\">Sign in</button>",
+      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; gap: 7px; font: 600 14px \"Figtree\", sans-serif; border-radius: 8px; padding: 8px 16px; cursor: pointer; background: transparent; color: var(--text, #ede9e0); border: 1px solid var(--line, #2a3344); transition: border-color 0.15s; } .ds-btn-ghost:hover { border-color: var(--muted, #8e97a8); } .ds-btn-ghost:focus-visible { outline: 2px solid var(--amber, #ffae2e); outline-offset: 2px; }"
+    },
+    {
+      "name": "Slate Chip",
+      "kind": "chip",
+      "refersTo": "slate",
+      "description": "The signature production slate: a mono episode code, amber on amber-wash. The product's most-repeated brand atom.",
+      "html": "<code class=\"ds-slate\">S02·E05</code>",
+      "css": ".ds-slate { font: 600 12px \"Spline Sans Mono\", monospace; letter-spacing: 0.04em; color: var(--amber, #ffae2e); background: rgba(255,174,46,0.14); border-radius: 4px; padding: 1.5px 6px; white-space: nowrap; }"
+    },
+    {
+      "name": "Search Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Pill-shaped tuner readout with an inline magnifier. The header/search field idiom.",
+      "html": "<div class=\"ds-search\"><svg viewBox=\"0 0 24 24\" width=\"15\" height=\"15\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><circle cx=\"11\" cy=\"11\" r=\"7\"/><path d=\"m21 21-4.3-4.3\"/></svg><input placeholder=\"Search shows & movies\" /></div>",
+      "css": ".ds-search { display: inline-flex; align-items: center; gap: 8px; background: var(--surface, #171c26); border: 1px solid var(--line, #2a3344); border-radius: 999px; padding: 5px 14px; color: var(--muted, #8e97a8); } .ds-search input { background: none; border: none; color: var(--text, #ede9e0); font: 400 15px \"Figtree\", sans-serif; width: 190px; outline: none; } .ds-search:focus-within { outline: 2px solid var(--amber, #ffae2e); outline-offset: 1px; }"
+    },
+    {
+      "name": "Progress Bar",
+      "kind": "custom",
+      "refersTo": "progress",
+      "description": "Watch progress: a thin amber fill on a surface-riser track, animating its width as episodes are marked.",
+      "html": "<div class=\"ds-progress\" role=\"progressbar\" aria-valuenow=\"64\" aria-valuemin=\"0\" aria-valuemax=\"100\"><div class=\"ds-progress-fill\" style=\"width:64%\"></div></div>",
+      "css": ".ds-progress { height: 4px; width: 180px; background: var(--surface-2, #202836); border-radius: 2px; overflow: hidden; } .ds-progress-fill { height: 100%; background: var(--amber, #ffae2e); border-radius: 2px; transition: width 0.3s; }"
+    },
+    {
+      "name": "SMPTE Bars",
+      "kind": "custom",
+      "refersTo": "smpte",
+      "description": "Signature section divider and brand punctuation: a seven-band broadcast color-bar strip.",
+      "html": "<div class=\"ds-smpte\" aria-hidden=\"true\"></div>",
+      "css": ".ds-smpte { height: 6px; width: 100%; border-radius: 3px; opacity: 0.85; background: linear-gradient(90deg, #b8b8ac 0 14.3%, #b8b855 0 28.6%, #55b8ac 0 42.9%, #55b855 0 57.2%, #b855ac 0 71.5%, #b85555 0 85.8%, #5555b8 0 100%); }"
+    },
+    {
+      "name": "ON AIR Dot",
+      "kind": "custom",
+      "refersTo": "on-air-dot",
+      "description": "Airing-now status light: a glowing red dot for live, a hollow hairline ring for a future air date. Color plus shape, never color alone.",
+      "html": "<span class=\"ds-onair\" title=\"Airing now\"></span> <span class=\"ds-onair ds-onair-future\" title=\"Upcoming\"></span>",
+      "css": ".ds-onair { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--red, #ff4d3d); box-shadow: 0 0 6px rgba(255,77,61,0.8); } .ds-onair-future { background: none; box-shadow: none; border: 1.5px solid var(--line, #2a3344); }"
+    },
+    {
+      "name": "Feature Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Flat content card: surface fill, hairline border, an amber-wash icon tile. No shadow, separation is tonal.",
+      "html": "<article class=\"ds-card\"><span class=\"ds-card-icon\"><svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"currentColor\"><path d=\"M8 5v14l11-7z\"/></svg></span><h3 class=\"ds-card-title\">Watch Next queue</h3><p class=\"ds-card-body\">Every show you follow, lined up to its exact next episode.</p></article>",
+      "css": ".ds-card { background: var(--surface, #171c26); border: 1px solid var(--line, #2a3344); border-radius: 10px; padding: 18px; max-width: 260px; } .ds-card-icon { display: inline-grid; place-items: center; width: 38px; height: 38px; border-radius: 10px; background: rgba(255,174,46,0.14); color: var(--amber, #ffae2e); margin-bottom: 12px; } .ds-card-title { font: 700 16px \"Zilla Slab\", serif; letter-spacing: -0.01em; color: var(--text, #ede9e0); margin: 0 0 6px; } .ds-card-body { font: 400 13.5px \"Figtree\", sans-serif; line-height: 1.55; color: var(--muted, #8e97a8); margin: 0; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Analog Rewind",
+    "overview": "Show Us TV looks like the room where the tape lived. A dim slate wall, one warm tungsten dial you keep reaching for, a cyan readout ticking off the schedule, and a red light that means something is on the air right now. The whole product runs on the vocabulary of analog broadcast, SMPTE color bars, production slates, the ON AIR bulb, a TV bug in the wordmark, but the nostalgia is warm and worn, not neon. Density is calm and legible: the working surfaces stay quiet and fast; the personality lives in the chrome, the empty states, the wordmark, and the copy, never in the path of the one tap that matters.",
+    "keyCharacteristics": [
+      "Deep slate room, dark by conviction, not by trend.",
+      "One warm accent (tungsten amber) that only ever means action or progress.",
+      "A three-light status language borrowed from a broadcast rack: red ON AIR, amber acting, green done.",
+      "Broadcast props that carry real meaning: slates for episode codes, SMPTE bars for section breaks.",
+      "Zilla Slab italic for identity, Spline Sans Mono for the printed-on-the-tape details."
+    ],
+    "rules": [
+      { "name": "The Three-Light Rule", "body": "Status is spoken in exactly three colored lights, red on air, amber acting, green done, plus cyan for schedule/info. A surface never invents a fifth status color; it reuses one of these four with an icon or label beside it.", "section": "colors" },
+      { "name": "The One Bulb Rule", "body": "Amber is the only warm light in the room and it means action or progress, nothing else. It is never a decorative accent, a heading color, or a background field. Its scarcity is what makes a primary button obvious.", "section": "colors" },
+      { "name": "The Printed-On-The-Tape Rule", "body": "Anything that would be physically stamped on a cassette or a shot list, episode codes, air dates, counts, runtimes, is set in Spline Sans Mono. Prose is never mono; metadata is never prose-set.", "section": "typography" },
+      { "name": "The Italic-Is-The-Brand Rule", "body": "The forward-leaning italic is reserved for the wordmark, the landing hero, and title-level show names. It is an identity signal, not emphasis; body copy never leans.", "section": "typography" },
+      { "name": "The Flat-Room Rule", "body": "Cards, tiles, chips, and panels are flat, distinguished by a lighter slate fill and a 1px line border. Shadows are for things that truly float (dialogs, the hero photo) and for the ON AIR glow. Nothing else.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep amber to one job. A primary button, active state, or progress fill, never a heading color or decorative fill (the One Bulb Rule).",
+      "Do speak status in the three lights plus cyan: red ON AIR, amber acting, green done, cyan schedule/info, and always pair the color with an icon, label, or code so color is never the only signal (WCAG 2.2 AA).",
+      "Do build surfaces from the four slate steps (bg/surface/surface-2/line) and a 1px hairline. Depth is tonal, not shadowed (the Flat-Room Rule).",
+      "Do set every episode code, date, count, and runtime in Spline Sans Mono; reserve Zilla Slab italic for the wordmark, landing hero, and show titles.",
+      "Do use warm-white #ede9e0 for text and the slate neutrals for chrome. Tint neutrals toward blue-slate; never reach for pure #fff or #000.",
+      "Do give the ON AIR dot its soft red glow, the one colored shadow in the system, and grow tap targets to at least 40px on mobile."
+    ],
+    "donts": [
+      "Don't make it a streaming-service clone: no Netflix/Max glossy-dark hero carousels or browse-and-stream autoplay. This is a tracker, not a storefront.",
+      "Don't let it drift into corporate SaaS sameness: no flat-gray Linear/Notion dashboard template, no endless identical icon+heading+text card grids.",
+      "Don't ship generic Material/Bootstrap admin defaults: no purple primary buttons, no stock elevation, no off-the-shelf component library look.",
+      "Don't go neon gamer/cinema: no glow-on-black, no aggressive gradients, no cyberpunk. The retro is warm analog, not synthwave.",
+      "Don't add drop shadows to separate flat surfaces, if a card doesn't read, fix the slate step, not the shadow.",
+      "Don't use background-clip: text gradient text, decorative glassmorphism, or a border-left/border-right colored stripe wider than 1px as an accent.",
+      "Don't print prose in mono or lean body text into italic, those are reserved signals."
+    ]
+  }
+}
