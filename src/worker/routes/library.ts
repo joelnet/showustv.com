@@ -129,7 +129,7 @@ library.get("/watch-next", async (c) => {
 library.get("/library", async (c) => {
   const uid = c.get("uid");
   const today = todayInTz(c.get("tz"));
-  const [showsR, moviesR, favoritesR] = await c.env.DB.batch([
+  const [showsR, moviesR] = await c.env.DB.batch([
     c.env.DB.prepare(
       `SELECT us.show_id AS id, us.state, s.title, s.poster_url AS poster, s.status,
          (SELECT COUNT(*) FROM episodes e WHERE e.show_id = us.show_id AND e.season_number > 0
@@ -153,16 +153,6 @@ library.get("/library", async (c) => {
        WHERE um.user_id = ?1 AND um.state = 'watched'
        ORDER BY um.watched_at DESC`
     ).bind(uid),
-    c.env.DB.prepare(
-      `SELECT li.target_type AS type, li.target_id AS id, l.id AS list_id,
-              COALESCE(s.title, m.title) AS title, COALESCE(s.poster_url, m.poster_url) AS poster
-       FROM custom_lists l
-       JOIN custom_list_items li ON li.list_id = l.id
-       LEFT JOIN shows s ON li.target_type = 'show' AND s.tmdb_id = li.target_id
-       LEFT JOIN movies m ON li.target_type = 'movie' AND m.tmdb_id = li.target_id
-       WHERE l.user_id = ?1 AND l.kind = 'favorites'
-       ORDER BY li.position`
-    ).bind(uid),
   ]);
 
   // A show still being watched but with no watch/air activity in the recent
@@ -179,7 +169,6 @@ library.get("/library", async (c) => {
       };
     }),
     movies: moviesR.results,
-    favorites: favoritesR.results,
   });
 });
 

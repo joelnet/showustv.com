@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, NavLink } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 import { useApi } from "../hooks";
 import { useAuth } from "../app";
 import { fmtDateTime } from "../format";
@@ -63,18 +63,11 @@ interface WatchlistItem {
   title: string;
   poster: string | null;
 }
-interface FavoriteItem {
-  type: "show" | "movie";
-  id: number;
-  list_id: number;
-  title: string;
-  poster: string | null;
-}
 
-// The shows library: favorites strip, a status tab bar (Watching / Haven't
-// watched for a while / Up to date / Finished / Not started / Stopped — only
-// tabs that have shows appear), and the active tab's poster grid.
-function ShowsLibrary({ shows, favorites }: { shows: LibShow[]; favorites: FavoriteItem[] }) {
+// The shows library: a status tab bar (Watching / Haven't watched for a while /
+// Up to date / Finished / Not started / Stopped — only tabs that have shows
+// appear), and the active tab's poster grid.
+function ShowsLibrary({ shows }: { shows: LibShow[] }) {
   const [sort, setSort] = useState<ShowSort>(() =>
     localStorage.getItem(SORT_KEY) === "alphabetical" ? "alphabetical" : "last_watched"
   );
@@ -97,20 +90,6 @@ function ShowsLibrary({ shows, favorites }: { shows: LibShow[]; favorites: Favor
 
   return (
     <>
-      {favorites.length > 0 && (
-        <section>
-          <h2 className="section-title">
-            Favorites
-            <Link to={`/lists/${favorites[0].list_id}`} className="section-link">View list</Link>
-          </h2>
-          <div className="poster-grid">
-            {favorites.map((f) => (
-              <PosterCard key={`${f.type}-${f.id}`} to={`/${f.type}/${f.id}`} posterPath={f.poster} title={f.title} />
-            ))}
-          </div>
-        </section>
-      )}
-
       {tabs.length > 0 && (
         <>
           <nav className="subtabs" aria-label="Show status">
@@ -150,7 +129,7 @@ function ShowsLibrary({ shows, favorites }: { shows: LibShow[]; favorites: Favor
 
 export function LibraryPage({ tab }: { tab: "shows" | "movies" | "watchlist" }) {
   const { user } = useAuth();
-  const lib = useApi<{ shows: LibShow[]; movies: LibMovie[]; favorites: FavoriteItem[] }>(
+  const lib = useApi<{ shows: LibShow[]; movies: LibMovie[] }>(
     tab !== "watchlist" ? "/library" : null
   );
   const wl = useApi<{ shows: WatchlistItem[]; movies: WatchlistItem[] }>(tab === "watchlist" ? "/watchlist" : null);
@@ -169,10 +148,10 @@ export function LibraryPage({ tab }: { tab: "shows" | "movies" | "watchlist" }) 
           <Spinner />
         ) : lib.error ? (
           <ErrorNote message={lib.error} />
-        ) : !lib.data?.shows.length && !lib.data?.favorites.length ? (
+        ) : !lib.data?.shows.length ? (
           <Empty title="No shows yet" hint="Follow a show from search and it shows up here." />
         ) : (
-          <ShowsLibrary shows={lib.data!.shows} favorites={lib.data!.favorites} />
+          <ShowsLibrary shows={lib.data!.shows} />
         ))}
 
       {tab === "movies" &&
