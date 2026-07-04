@@ -77,7 +77,6 @@ export function WatchNext() {
   const { user } = useAuth();
   const { data, loading, error, reload } = useApi<{
     watchNext: WatchNextItem[];
-    stale: WatchNextItem[];
     upcoming: UpcomingItem[];
   }>("/watch-next");
   const [marking, setMarking] = useState(false);
@@ -103,7 +102,6 @@ export function WatchNext() {
   if (loading) return <Spinner />;
   if (error) return <ErrorNote message={error} />;
   const current = (data?.watchNext ?? []).filter((i) => !hidden.has(i.episode.id));
-  const stale = (data?.stale ?? []).filter((i) => !hidden.has(i.episode.id));
   const upcoming = data?.upcoming ?? [];
   const tz = user!.tz;
 
@@ -111,7 +109,7 @@ export function WatchNext() {
     <div>
       <h1 className="page-title">Watch next</h1>
 
-      {!current.length && !stale.length && !upcoming.length ? (
+      {!current.length && !upcoming.length ? (
         <Empty
           title="Nothing on deck"
           hint="Follow a show and its next episode lands here. Try the search — or start with what's trending."
@@ -144,16 +142,6 @@ export function WatchNext() {
             </>
           )}
 
-          {stale.length > 0 && (
-            <>
-              <h2 className="section-title wn-divider">Haven&rsquo;t watched for a while</h2>
-              <div className="wn-grid">
-                {stale.map((item) => (
-                  <Tile key={item.show.id} item={item} tz={tz} marking={marking} onMark={markWatched} />
-                ))}
-              </div>
-            </>
-          )}
         </>
       )}
     </div>
