@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { post } from "../api";
 import { useAuth, type User } from "../app";
+import { isStandalone } from "../pwa";
 import { SmpteBars, Wordmark } from "../components/ui";
 import { IconClose } from "../components/icons";
 
@@ -49,9 +50,14 @@ export function Login() {
   return (
     <div className="login-page">
       <div className="login-card">
-        <Link to="/" className="login-close" aria-label="Back to home">
-          <IconClose size={18} />
-        </Link>
+        {/* Installed (standalone) users have no marketing landing page to
+            return to — "/" renders Login itself — so drop the dead escape
+            hatch there and keep it for browser visitors (issue #46). */}
+        {!isStandalone() && (
+          <Link to="/" className="login-close" aria-label="Back to home">
+            <IconClose size={18} />
+          </Link>
+        )}
         <Wordmark />
         <SmpteBars />
         <p className="login-tag">Keeps Track of Our TV Shows (and Movies)</p>

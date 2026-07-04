@@ -5,7 +5,7 @@ import { setOfflineUser, useOffline } from "./offline";
 import { Spinner, Wordmark, SiteFooter } from "./components/ui";
 import { ConfirmProvider } from "./components/dialog";
 import { IconPlay, IconSearch, IconLibrary, IconList, IconGear, IconUser, IconDownload } from "./components/icons";
-import { useInstallPrompt } from "./pwa";
+import { useInstallPrompt, isStandalone } from "./pwa";
 import { Landing } from "./pages/landing";
 import { Login } from "./pages/login";
 import { VerifyEmailPage } from "./pages/verify-email";
@@ -162,14 +162,20 @@ export function App() {
 
   if (!booted) return <Spinner />;
 
+  // Logged-out visitors normally get the marketing page at "/". But when the
+  // app is running installed (standalone / iOS home-screen), there's no reason
+  // to re-pitch the product — send them straight to Login instead (issue #46).
+  const loggedOutRoot = isStandalone() ? <Login /> : <Landing />;
+
   return (
     <AuthCtx.Provider value={{ user, setUser }}>
       <BrowserRouter>
         <ConfirmProvider>
         <Routes>
-          {/* Logged-out visitors get the marketing page at "/"; signed-in users fall
-              through to the Shell route below and land on Watch Next as before. */}
-          {!user && <Route path="/" element={<Landing />} />}
+          {/* Logged-out visitors get the marketing page at "/" (or Login when
+              installed); signed-in users fall through to the Shell route below
+              and land on Watch Next as before. */}
+          {!user && <Route path="/" element={loggedOutRoot} />}
           <Route path="/login" element={<Login />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
           {/* Public TV Time export/import how-to (linked from the landing banner). */}
