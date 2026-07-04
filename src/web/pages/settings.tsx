@@ -78,7 +78,7 @@ export function SettingsPage() {
           await clearQueue();
           await post("/auth/logout");
           setUser(null);
-          navigate("/login");
+          navigate("/");
         }}
       >
         Sign out
