@@ -231,6 +231,9 @@ export function Landing() {
             Show Us TV keeps track of every show and movie you watch — what&rsquo;s next, what&rsquo;s
             airing soon, and everything you&rsquo;ve finished.
           </p>
+          <p className="landing-freebadge">
+            <IconCheck size={13} /> 100% free &mdash; no ads, ever
+          </p>
           <div className="landing-cta-row">
             <Link to="/login?mode=register" className="btn btn-lg">
               {joinLabel}
@@ -241,7 +244,7 @@ export function Landing() {
           </div>
           {!siteOpen && (
             <p className="landing-waitlist-note">
-              Free — we&rsquo;ll email you the moment your account can sign in.
+              We&rsquo;ll email you the moment your account can sign in.
             </p>
           )}
           <InstallAppButton buttonClass="btn btn-ghost" />

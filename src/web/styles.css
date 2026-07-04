@@ -1077,6 +1077,24 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   margin: 0 auto 30px;
   max-width: 560px;
 }
+/* Key marketing point: the app is 100% free with no ads (issue #41). A green
+   "go" pill in the conversion zone, built from the hero badge pattern. */
+.landing-freebadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--green);
+  background: rgba(88, 201, 131, 0.12);
+  border: 1px solid rgba(88, 201, 131, 0.5);
+  border-radius: 999px;
+  padding: 6px 16px;
+  margin: 0 0 26px;
+}
 .landing-cta-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 .landing-waitlist-note { color: var(--muted); font-size: 13.5px; margin: 14px 0 0; }
 .btn-lg { font-size: 15.5px; padding: 12px 26px; border-radius: 10px; }
