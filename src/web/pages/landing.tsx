@@ -210,9 +210,7 @@ export function Landing() {
     <div className="landing">
       <header className="landing-header">
         <Wordmark />
-        <Link to="/login" className="btn btn-ghost">
-          Sign in
-        </Link>
+        <InstallAppButton buttonClass="btn btn-ghost" />
       </header>
 
       <main className="landing-main">
