@@ -114,17 +114,14 @@ App secrets (`TMDB_TOKEN`, `SESSION_SECRET`) stay out of CI — set them once wi
 database; pass `--remote` for production. Every command supports `--json`.
 
 ```sh
-npm run admin -- help                       # all commands
-npm run admin -- waitlist                    # who's waiting to be let in
-npm run admin -- approve someone@example.com # admit them (can sign in at once)
+npm run admin -- help                        # all commands
+npm run admin -- users --search someone@example.com
 npm run admin -- activity --errors --limit 20
 npm run admin -- stats
-npm run admin -- site open --remote          # open the whole site (prod)
 ```
 
-Covers the wait list (`waitlist`/`approve`/`approve-all`), the audit log
-(`activity`), account lookup and flags (`users`/`user`/`admin`/`ban`), the
-open/closed switch (`site`), instance `stats`, and a read-only `sql` escape
+Covers the audit log (`activity`), account lookup and flags
+(`users`/`user`/`admin`/`ban`), instance `stats`, and a read-only `sql` escape
 hatch. (Note the `--` so npm passes flags through to the tool.)
 
 ## Architecture notes

@@ -6,7 +6,7 @@ import { SmpteBars, Wordmark } from "../components/ui";
 import { IconClose } from "../components/icons";
 
 export function Login() {
-  const { user, setUser, siteOpen } = useAuth();
+  const { user, setUser } = useAuth();
   const navigate = useNavigate();
   // The landing page links to /login?mode=register for its sign-up CTAs.
   const [params] = useSearchParams();
@@ -15,9 +15,6 @@ export function Login() {
   );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  // While the site is closed, registering joins the wait list — the account is
-  // created but can't sign in yet, so show a confirmation instead of routing in.
-  const [joined, setJoined] = useState(false);
 
   if (user) {
     navigate("/", { replace: true });
@@ -38,10 +35,6 @@ export function Login() {
     }
     try {
       const d = await post(`/auth/${mode}`, body);
-      if (d.waitlisted) {
-        setJoined(true);
-        return;
-      }
       setUser(d.user as User);
       navigate("/", { replace: true });
     } catch (err: any) {
@@ -52,26 +45,6 @@ export function Login() {
   }
 
   const registering = mode === "register";
-  const joinMode = registering && !siteOpen; // "join the wait list" instead of "create account"
-
-  if (joined) {
-    return (
-      <div className="login-page">
-        <div className="login-card">
-          <Link to="/" className="login-close" aria-label="Back to home">
-            <IconClose size={18} />
-          </Link>
-          <Wordmark />
-          <SmpteBars />
-          <h1 className="login-joined-title">You&rsquo;re on the list ✓</h1>
-          <p className="login-tag">
-            Show Us TV isn&rsquo;t open to everyone just yet. We&rsquo;ve saved your spot — we&rsquo;ll email you the
-            moment you can sign in.
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="login-page">
@@ -81,11 +54,7 @@ export function Login() {
         </Link>
         <Wordmark />
         <SmpteBars />
-        <p className="login-tag">
-          {joinMode
-            ? "We're not open to everyone yet — join the wait list and we'll email you when you can sign in."
-            : "Keeps Track of Our TV Shows (and Movies)"}
-        </p>
+        <p className="login-tag">Keeps Track of Our TV Shows (and Movies)</p>
         <form onSubmit={submit}>
           {mode === "register" ? (
             <label>
@@ -113,7 +82,7 @@ export function Login() {
           )}
           {error && <p className="error-note">{error}</p>}
           <button className="btn" type="submit" disabled={busy}>
-            {!registering ? "Sign in" : joinMode ? "Join the wait list" : "Create account"}
+            {registering ? "Create account" : "Sign in"}
           </button>
         </form>
         <button
@@ -124,7 +93,7 @@ export function Login() {
             setError(null);
           }}
         >
-          {registering ? "Have an account? Sign in" : siteOpen ? "New here? Create an account" : "Want in? Join the wait list"}
+          {registering ? "Have an account? Sign in" : "New here? Create an account"}
         </button>
       </div>
     </div>

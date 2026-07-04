@@ -107,62 +107,22 @@ const commands = {
     emit(data, (d) => table(d, ["ts", "method", "status", "username", "path"]));
   },
 
-  waitlist() {
-    const data = rows(
-      `SELECT id, username, email, created_at
-       FROM users WHERE waitlisted = 1 AND deleted_at IS NULL ORDER BY created_at`
-    );
-    emit(data, (d) => {
-      table(d, ["id", "username", "email", "created_at"]);
-      if (d.length) console.log(`\n${d.length} waiting. Admit with: approve <email|username>  (or approve-all)`);
-    });
-  },
-
-  approve() {
-    if (!positional.length) fail("usage: approve <email|username> [more...]");
-    const results = positional.map((who) => {
-      const target = rows(
-        `SELECT id, username, email, waitlisted FROM users
-         WHERE (email = ${qstr(who)} OR username = ${qstr(who)}) AND deleted_at IS NULL`
-      )[0];
-      if (!target) return { input: who, approved: false, reason: "not found" };
-      if (!target.waitlisted) return { input: who, approved: false, reason: "not on the wait list", username: target.username };
-      run(`UPDATE users SET waitlisted = 0 WHERE id = ${target.id | 0}`);
-      return { input: who, approved: true, username: target.username, email: target.email };
-    });
-    emit({ approved: results.filter((r) => r.approved).length, results }, ({ results }) => {
-      for (const r of results)
-        console.log(r.approved ? `✓ approved ${r.username} <${r.email}>` : `– ${r.input}: ${r.reason}`);
-      const ok = results.filter((r) => r.approved);
-      if (ok.length) console.log(`\n${ok.length} admitted — they can sign in now (even while the site is closed). Notify: ${ok.map((r) => r.email).join(", ")}`);
-    });
-  },
-
-  "approve-all"() {
-    const waiting = rows("SELECT username, email FROM users WHERE waitlisted = 1 AND deleted_at IS NULL");
-    const n = changes("UPDATE users SET waitlisted = 0 WHERE waitlisted = 1");
-    emit({ approved: n, users: waiting }, () => {
-      console.log(`✓ admitted ${n} wait-list account(s).`);
-      if (waiting.length) console.log(`Notify: ${waiting.map((u) => u.email).join(", ")}`);
-    });
-  },
-
   users() {
     const limit = Math.max(1, Math.min(1000, Number(opts.limit) || 50));
     const where = ["deleted_at IS NULL"];
     if (opts.search) where.push(`(username LIKE ${like(opts.search)} ESCAPE '\\' OR email LIKE ${like(opts.search)} ESCAPE '\\')`);
     const data = rows(
-      `SELECT id, username, email, is_admin, shadow_banned, waitlisted, created_at
+      `SELECT id, username, email, is_admin, shadow_banned, created_at
        FROM users WHERE ${where.join(" AND ")} ORDER BY id LIMIT ${limit}`
     );
-    emit(data, (d) => table(d, ["id", "username", "email", "is_admin", "shadow_banned", "waitlisted", "created_at"]));
+    emit(data, (d) => table(d, ["id", "username", "email", "is_admin", "shadow_banned", "created_at"]));
   },
 
   user() {
     const who = positional[0];
     if (!who) fail("usage: user <email|username>");
     const u = rows(
-      `SELECT id, username, email, tz, is_admin, shadow_banned, waitlisted, email_verified_at, created_at, deleted_at
+      `SELECT id, username, email, tz, is_admin, shadow_banned, email_verified_at, created_at, deleted_at
        FROM users WHERE email = ${qstr(who)} OR username = ${qstr(who)}`
     )[0];
     if (!u) fail(`no user matching ${JSON.stringify(who)}`);
@@ -182,11 +142,7 @@ const commands = {
     const who = positional[0];
     if (!who) fail("usage: admin <username> [--revoke]");
     const grant = !opts.revoke;
-    // Granting admin also admits the account: admins are never wait-listed
-    // (login relies on that), so a promoted wait-list user could otherwise be
-    // told they're an admin yet stay locked out while the site is closed.
-    const set = grant ? "is_admin = 1, waitlisted = 0" : "is_admin = 0";
-    const n = changes(`UPDATE users SET ${set} WHERE username = ${qstr(who)} AND deleted_at IS NULL`);
+    const n = changes(`UPDATE users SET is_admin = ${grant ? 1 : 0} WHERE username = ${qstr(who)} AND deleted_at IS NULL`);
     if (!n) fail(`no user named ${JSON.stringify(who)}`);
     emit({ ok: true, username: who, isAdmin: grant }, (d) => console.log(`✓ ${d.username} is ${d.isAdmin ? "now an admin" : "no longer an admin"}`));
   },
@@ -200,44 +156,16 @@ const commands = {
     emit({ ok: true, username: who, shadowBanned: !!val }, (d) => console.log(`✓ ${d.username} ${d.shadowBanned ? "shadow-banned" : "un-banned"}`));
   },
 
-  site() {
-    const sub = positional[0] ?? "status";
-    if (sub === "status") {
-      const open = rows("SELECT value FROM app_settings WHERE key = 'site_open'")[0]?.value === "1";
-      const [{ waiting }] = rows("SELECT COUNT(*) AS waiting FROM users WHERE waitlisted = 1 AND deleted_at IS NULL");
-      return emit({ siteOpen: open, waiting }, (d) => console.log(`site: ${d.siteOpen ? "OPEN" : "CLOSED"} · ${d.waiting} on the wait list`));
-    }
-    if (sub !== "open" && sub !== "close") fail("usage: site [status|open|close]");
-    const open = sub === "open";
-    run(`INSERT INTO app_settings (key, value) VALUES ('site_open', ${open ? "'1'" : "'0'"})
-         ON CONFLICT (key) DO UPDATE SET value = excluded.value`);
-    let admitted = [];
-    if (open) {
-      // Opening admits everyone and retires the wait-list flag (so a later
-      // close can't strand an admitted user's session). The CLI can't send
-      // mail — print who to notify.
-      admitted = rows("SELECT email FROM users WHERE waitlisted = 1 AND deleted_at IS NULL").map((r) => r.email);
-      run("UPDATE users SET waitlisted = 0 WHERE waitlisted = 1");
-    }
-    emit({ ok: true, siteOpen: open, admitted }, (d) => {
-      console.log(`✓ site is now ${d.siteOpen ? "OPEN" : "CLOSED"}`);
-      if (d.admitted.length) console.log(`Admitted ${d.admitted.length} — notify (CLI sends no email): ${d.admitted.join(", ")}`);
-    });
-  },
-
   stats() {
     const [s] = rows(
       `SELECT
          (SELECT COUNT(*) FROM users WHERE deleted_at IS NULL) AS users,
-         (SELECT COUNT(*) FROM users WHERE waitlisted = 1 AND deleted_at IS NULL) AS waitlisted,
          (SELECT COUNT(*) FROM users WHERE is_admin = 1) AS admins,
          (SELECT COUNT(*) FROM users WHERE shadow_banned = 1) AS shadow_banned,
-         (SELECT value FROM app_settings WHERE key = 'site_open') AS site_open,
          (SELECT COUNT(*) FROM user_episodes) AS episodes_watched,
          (SELECT COUNT(*) FROM shows) AS shows_cached,
          (SELECT COUNT(*) FROM activity_log WHERE ts > strftime('%Y-%m-%dT%H:%M:%fZ','now','-1 day')) AS requests_24h`
     );
-    s.site_open = s.site_open === "1";
     emit(s, (d) => {
       for (const [k, v] of Object.entries(d)) console.log(`${k.padEnd(18)} ${v}`);
     });
@@ -262,24 +190,19 @@ Every command supports --json for machine-readable output.
 Commands:
   activity [--limit N] [--user NAME] [--status N] [--errors]
                              recent mutating requests from the audit log
-  waitlist                   accounts waiting for admission
-  approve <email|username>…  admit wait-list account(s) (they can sign in at once)
-  approve-all                admit everyone on the wait list
   users [--search TERM] [--limit N]
                              list / search accounts and their flags
   user <email|username>      one account's details + watch counts
   admin <username> [--revoke]        grant or revoke admin
   ban <username> [--unban]           shadow-ban or un-ban a user
-  site [status|open|close]           show or flip the wait-list gate
   stats                      quick counts across the whole instance
   sql "SELECT …"             run a single read-only query
   help                       this text
 
 Examples:
-  node scripts/admin.mjs waitlist
-  node scripts/admin.mjs approve someone@example.com --remote
+  node scripts/admin.mjs users --search someone@example.com --remote
   node scripts/admin.mjs activity --errors --limit 20 --json
-  node scripts/admin.mjs site open --remote`);
+  node scripts/admin.mjs stats --remote`);
   },
 };
 
