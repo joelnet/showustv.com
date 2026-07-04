@@ -285,12 +285,9 @@ export function Landing() {
             This is the actual app
           </SectionHead>
           <div className="showcase">
-            {SHOWCASE.map((s, i) => (
+            {SHOWCASE.map((s) => (
               <article className="showcase-row" key={s.title}>
                 <div className="showcase-copy">
-                  <span className="showcase-kicker">
-                    {String(i + 1).padStart(2, "0")} <span>/ {String(SHOWCASE.length).padStart(2, "0")}</span>
-                  </span>
                   <h3>{s.title}</h3>
                   <p>{s.body}</p>
                 </div>
