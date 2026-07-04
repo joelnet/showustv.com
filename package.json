@@ -5,7 +5,7 @@
   "scripts": {
     "build": "vite build",
     "check": "tsc --noEmit -p tsconfig.worker.json && tsc --noEmit -p tsconfig.web.json",
-    "dev": "npm run build && wrangler dev",
+    "dev": "npm run build && wrangler dev --ip 0.0.0.0",
     "deploy": "npm run build && wrangler deploy",
     "db:migrate:local": "wrangler d1 migrations apply showustv --local",
     "db:migrate:remote": "wrangler d1 migrations apply showustv --remote",
