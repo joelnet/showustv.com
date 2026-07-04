@@ -392,6 +392,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   padding: 24px;
 }
 .login-card {
+  position: relative;
   width: 100%;
   max-width: 380px;
   background: var(--surface);
@@ -399,6 +400,19 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   border-radius: 16px;
   padding: 30px 28px;
 }
+/* Escape hatch back to the landing so the login page is never a dead end. */
+.login-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  color: var(--muted);
+}
+.login-close:hover { color: var(--text); background: var(--surface-2); text-decoration: none; }
 .login-card .wordmark { font-size: 24px; }
 .login-tag { color: var(--muted); font-size: 14px; margin: 4px 0 18px; }
 .login-joined-title { font-family: var(--font-display); font-style: italic; font-weight: 700; font-size: 22px; margin: 8px 0 2px; }

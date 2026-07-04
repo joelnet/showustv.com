@@ -25,6 +25,7 @@ import {
   faTriangleExclamation,
   faDownload,
   faArrowUpRightFromSquare,
+  faXmark,
 } from "@fortawesome/free-solid-svg-icons";
 import { faHeart as faHeartOutline } from "@fortawesome/free-regular-svg-icons";
 
@@ -56,3 +57,4 @@ export const IconUsers = wrap(faUserGroup);
 export const IconWarning = wrap(faTriangleExclamation);
 export const IconDownload = wrap(faDownload);
 export const IconExternal = wrap(faArrowUpRightFromSquare);
+export const IconClose = wrap(faXmark);

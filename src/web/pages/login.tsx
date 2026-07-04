@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { post } from "../api";
 import { useAuth, type User } from "../app";
 import { SmpteBars, Wordmark } from "../components/ui";
+import { IconClose } from "../components/icons";
 
 export function Login() {
   const { user, setUser, siteOpen } = useAuth();
@@ -57,6 +58,9 @@ export function Login() {
     return (
       <div className="login-page">
         <div className="login-card">
+          <Link to="/" className="login-close" aria-label="Back to home">
+            <IconClose size={18} />
+          </Link>
           <Wordmark />
           <SmpteBars />
           <h1 className="login-joined-title">You&rsquo;re on the list ✓</h1>
@@ -72,12 +76,15 @@ export function Login() {
   return (
     <div className="login-page">
       <div className="login-card">
+        <Link to="/" className="login-close" aria-label="Back to home">
+          <IconClose size={18} />
+        </Link>
         <Wordmark />
         <SmpteBars />
         <p className="login-tag">
           {joinMode
             ? "We're not open to everyone yet — join the wait list and we'll email you when you can sign in."
-            : "Keep track of every show and movie you watch."}
+            : "Keeps Track of Our TV Shows (and Movies)"}
         </p>
         <form onSubmit={submit}>
           {mode === "register" ? (
