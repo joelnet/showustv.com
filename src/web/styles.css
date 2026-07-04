@@ -1058,7 +1058,9 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   font-weight: 700;
   font-size: clamp(42px, 8.6vw, 92px);
   letter-spacing: -0.03em;
-  line-height: 1;
+  /* Extra leading so the amber .landing-bug block word doesn't crowd the line
+     above/below when the heading wraps to two lines. */
+  line-height: 1.12;
   margin: 0 0 20px;
   text-wrap: balance;
 }
