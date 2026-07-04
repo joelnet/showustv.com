@@ -142,16 +142,16 @@ a:hover { text-decoration: underline; }
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  color: var(--text);
+  background: var(--amber-soft);
+  border: 1px solid var(--amber);
+  color: var(--amber);
   font: 600 13px var(--font-body);
   border-radius: 8px;
   padding: 6px 11px;
   cursor: pointer;
   white-space: nowrap;
 }
-.header-install:hover { border-color: var(--amber); color: var(--amber); }
+.header-install:hover { background: rgba(255, 174, 46, 0.24); color: var(--amber); }
 
 .tabbar {
   display: none;
@@ -292,6 +292,12 @@ a:hover { text-decoration: underline; }
 
 .btn-ghost { background: transparent; border-color: var(--line); color: var(--text); }
 .btn-ghost:hover { border-color: var(--muted); filter: none; }
+
+/* Amber-outline CTA: unmistakably on-brand and eye-catching, but a clear step
+   below the solid primary so paired hero CTAs keep a legible hierarchy instead
+   of two identical amber fills fighting each other. */
+.btn-amber-ghost { background: var(--amber-soft); border-color: var(--amber); color: var(--amber); }
+.btn-amber-ghost:hover { background: rgba(255, 174, 46, 0.24); filter: none; }
 
 .btn-danger { color: var(--red); }
 .btn-danger:hover { border-color: var(--red); }
@@ -1376,9 +1382,10 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   .header-gear { padding: 12px; margin: -12px -12px -12px auto; }
   /* With the search hidden, the install button carries the right-alignment;
      when it's present, hand the auto margin from the gear to it so the two
-     stay grouped (and it collapses to an icon to save room). */
+     stay grouped. The nav and search are gone at this width, so the "Install
+     App" words still fit — and mobile Chromium is exactly where we want the
+     install nudge to read clearly. */
   .header-install { margin-left: auto; padding: 10px 12px; }
-  .header-install span { display: none; }
   .header-install ~ .header-gear { margin-left: 0; }
   .tabbar { display: grid; }
   .main { padding-bottom: 90px; }
