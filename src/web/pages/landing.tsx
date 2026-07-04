@@ -227,6 +227,9 @@ export function Landing() {
             Show Us TV keeps track of every show and movie you watch — what&rsquo;s next, what&rsquo;s
             airing soon, and everything you&rsquo;ve finished.
           </p>
+          <p className="landing-freebadge">
+            <IconCheck size={13} /> 100% free &mdash; no ads, ever
+          </p>
           <div className="landing-cta-row">
             <Link to="/login?mode=register" className="btn btn-lg">
               Create your account
@@ -235,7 +238,7 @@ export function Landing() {
               Sign in
             </Link>
           </div>
-          <p className="landing-free-note">Free — create an account and start tracking in seconds.</p>
+          <p className="landing-free-note">Create an account and start tracking in seconds.</p>
           <InstallAppButton buttonClass="btn btn-ghost" />
           <figure className="hero-shot">
             <div className="hero-shot-bar" aria-hidden="true">
