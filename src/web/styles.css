@@ -1662,3 +1662,69 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   .comment-children { padding-left: 9px; }
   .comments-head { flex-wrap: wrap; }
 }
+
+/* ---------- Caught-up celebration (issue #53) ----------
+   A brief confetti shower in the brand colors plus a congratulations toast,
+   shown once when a watch action finishes a show. The overlay never captures
+   pointer events, so it can't trap focus or block navigation, and it removes
+   itself after a couple of seconds. */
+.celebrate {
+  position: fixed;
+  inset: 0;
+  z-index: 90; /* above header (20) and tabbar/banner (30) */
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.celebrate-field { position: absolute; inset: 0; }
+
+.celebrate-piece {
+  position: absolute;
+  top: 0;
+  animation-name: confetti-fall;
+  animation-timing-function: cubic-bezier(0.2, 0.6, 0.4, 1);
+  animation-fill-mode: both;
+  will-change: transform, opacity;
+}
+
+@keyframes confetti-fall {
+  0%   { transform: translate3d(0, -12vh, 0) rotate(0deg); opacity: 1; }
+  85%  { opacity: 1; }
+  100% { transform: translate3d(var(--drift, 0), 112vh, 0) rotate(var(--spin, 540deg)); opacity: 0; }
+}
+
+.celebrate-toast {
+  position: absolute;
+  left: 50%;
+  top: 20%;
+  transform: translateX(-50%);
+  max-width: min(92vw, 460px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+  padding: 18px 26px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
+  animation: celebrate-pop 0.4s cubic-bezier(0.2, 1.4, 0.5, 1) both;
+}
+
+.celebrate-emoji { font-size: 34px; line-height: 1; }
+
+.celebrate-headline {
+  font-family: var(--font-display);
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.celebrate-headline em { color: var(--amber); font-style: normal; }
+
+.celebrate-sub { color: var(--muted); font-size: 13px; }
+
+@keyframes celebrate-pop {
+  0%   { opacity: 0; transform: translate(-50%, 8px) scale(0.94); }
+  100% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}

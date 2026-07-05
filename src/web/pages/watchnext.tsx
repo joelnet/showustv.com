@@ -6,6 +6,7 @@ import { useAuth } from "../app";
 import { poster } from "../img";
 import { fmtAirDate } from "../format";
 import { Slate, Spinner, Empty, ErrorNote } from "../components/ui";
+import { useCelebrate } from "../components/celebration";
 import { IconCheck } from "../components/icons";
 import { mediaPath } from "../paths";
 
@@ -75,6 +76,7 @@ function Tile({
 
 export function WatchNext() {
   const { user } = useAuth();
+  const celebrate = useCelebrate();
   const { data, loading, error, reload } = useApi<{
     watchNext: WatchNextItem[];
     upcoming: UpcomingItem[];
@@ -94,6 +96,8 @@ export function WatchNext() {
       // revalidation refetches the real list.
       if (r?.queued) setHidden((h) => new Set(h).add(episodeId));
       else reload();
+      // Server flags when this was the show's last unwatched episode (issue #53).
+      if (r?.caughtUp) celebrate(r.showTitle);
     } finally {
       setMarking(false);
     }

@@ -8,6 +8,7 @@ import { still } from "../img";
 import { fmtAirDate, fmtDateTime, runtimeStr } from "../format";
 import { Slate, Spinner, ErrorNote, ScorePicker, EmojiPicker } from "../components/ui";
 import { Comments } from "../components/comments";
+import { useCelebrate } from "../components/celebration";
 import { IconCheck } from "../components/icons";
 
 interface EpisodePayload {
@@ -34,6 +35,7 @@ interface EpisodePayload {
 export function EpisodePage() {
   const id = idFromParam(useParams().id);
   const { user } = useAuth();
+  const celebrate = useCelebrate();
   const navigate = useNavigate();
   const location = useLocation();
   const { data, loading, error, reload } = useApi<EpisodePayload>(`/episodes/${id}`);
@@ -68,6 +70,9 @@ export function EpisodePage() {
       // brings the server truth.
       if (r?.queued) setQueuedState(queuedAs ?? queuedState);
       else reload();
+      // The watch endpoint flags when this mark just finished the show (issue
+      // #53). Only the mark-watched post carries it, so undo/rating never fire.
+      if (r?.caughtUp) celebrate(r.showTitle ?? ep.showTitle);
     } finally {
       setBusy(false);
     }

@@ -8,6 +8,7 @@ import { poster, backdrop, providerLogo } from "../img";
 import { fmtAirDate } from "../format";
 import { Slate, Spinner, ErrorNote, Progress, CheckButton, ScorePicker, ExternalLinks } from "../components/ui";
 import { Comments } from "../components/comments";
+import { useCelebrate } from "../components/celebration";
 import { IconCheck, IconPlus, IconChevron, IconBookmark, IconHeart, IconHeartOutline } from "../components/icons";
 import { useConfirm } from "../components/dialog";
 import { AddToList } from "./lists";
@@ -80,6 +81,11 @@ function cleared(d: ShowPayload): ShowPayload {
   };
 }
 
+// Fully caught up: every aired regular-season episode is watched. Uses the
+// same aired-only progress counts the server sends, so it matches the app's
+// definition of "no episodes left to watch right now" (issue #53).
+const isCaughtUp = (d: ShowPayload) => d.progress.aired > 0 && d.progress.watched >= d.progress.aired;
+
 const isBefore = (e: Episode, target: Episode) =>
   e.season_number < target.season_number ||
   (e.season_number === target.season_number && e.number < target.number);
@@ -113,6 +119,7 @@ function AlsoWatching({ showId }: { showId: string }) {
 export function ShowPage() {
   const id = idFromParam(useParams().id);
   const { user } = useAuth();
+  const celebrate = useCelebrate();
   const confirm = useConfirm();
   const navigate = useNavigate();
   const location = useLocation();
@@ -160,11 +167,17 @@ export function ShowPage() {
     mine.followed || mine.favorited || mine.rating != null || seasons.some((s) => s.episodes.some((e) => e.watched));
 
   // One API call per action; the UI updates from what we already know.
+  // `apply` is pure, so any watch action that flips the show from "behind" to
+  // "caught up" is caught here in one place — single episode, whole season,
+  // mark-all, or a catch-up sweep (issue #53). Detection runs off the captured
+  // `data` (single-flight thanks to `busy`), keeping the side effect out of the
+  // state updater so a double-invoked render can't replay the confetti.
   const run = (fn: () => Promise<unknown>, apply: (d: ShowPayload) => ShowPayload) => async () => {
     setBusy(true);
     try {
       await fn();
       setData((d) => (d ? apply(d) : d));
+      if (data && !isCaughtUp(data) && isCaughtUp(apply(data))) celebrate(data.show.title);
     } finally {
       setBusy(false);
     }
