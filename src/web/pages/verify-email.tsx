@@ -10,8 +10,8 @@ import { Wordmark } from "../components/ui";
 
 const RESULT_MSG: Record<string, string> = {
   verified: "Email verified ✓ — you're all set.",
-  expired: "This verification link has expired. Send a fresh one from your profile.",
-  invalid: "This verification link isn't valid. Send a fresh one from your profile.",
+  expired: "This verification link has expired. Send a fresh one from your settings.",
+  invalid: "This verification link isn't valid. Send a fresh one from your settings.",
   taken: "That email address was verified by another account in the meantime.",
 };
 
@@ -39,9 +39,17 @@ export function VerifyEmailPage() {
       {result ? (
         <>
           <p className={result === "verified" ? "email-flag is-ok" : "email-flag"}>{RESULT_MSG[result] ?? RESULT_MSG.invalid}</p>
-          <Link className="btn" to="/profile">
-            Go to your profile
-          </Link>
+          {result === "verified" ? (
+            <Link className="btn" to="/profile">
+              Go to your profile
+            </Link>
+          ) : (
+            // A failed verification needs the resend flow, which now lives on
+            // Settings (issue #55) — send them there rather than to the profile.
+            <Link className="btn" to="/settings">
+              Go to settings
+            </Link>
+          )}
         </>
       ) : (
         <>

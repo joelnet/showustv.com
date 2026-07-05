@@ -1,6 +1,6 @@
-// The signed-in user's profile: watch stats, public/private toggle, email
-// verification, and the lists pinned to it (add / remove / reorder).
-// Public view: public-profile.tsx.
+// The signed-in user's profile: watch stats, public/private toggle, and the
+// lists pinned to it (add / remove / reorder). Email verification lives on the
+// Settings page (settings.tsx). Public view: public-profile.tsx.
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useApi } from "../hooks";
@@ -18,7 +18,6 @@ import {
   IconArrowUp,
   IconArrowDown,
   IconUsers,
-  IconCheck,
 } from "../components/icons";
 
 export interface WatchStats {
@@ -37,9 +36,6 @@ interface ProfileList {
 interface ProfileData {
   username: string;
   isPublic: boolean;
-  email: string | null;
-  emailVerified: boolean;
-  pendingEmail: string | null;
   achievements: { id: string; unlockedAt: string }[];
   stats: WatchStats;
   lists: ProfileList[];
@@ -68,72 +64,6 @@ export function AchievementGrid({ unlocked, tz }: { unlocked: Map<string, string
           </div>
         );
       })}
-    </div>
-  );
-}
-
-// Email verification (issue #13): enter an address, click the emailed link,
-// confirm on the landing page, get the check mark. A verified email is what
-// unlocks commenting.
-function EmailVerification({ data, reload }: { data: ProfileData; reload: () => void }) {
-  const [email, setEmail] = useState(data.pendingEmail ?? data.email ?? "");
-  const [busy, setBusy] = useState(false);
-  const [note, setNote] = useState<string | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-
-  const send = async () => {
-    setBusy(true);
-    setErr(null);
-    setNote(null);
-    try {
-      await post("/profile/email", { email: email.trim() });
-      setNote(`Verification link sent to ${email.trim()} — check your inbox.`);
-      reload();
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Something went wrong");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="email-verify">
-      <h2 className="section-title">Email</h2>
-      {data.emailVerified && data.email ? (
-        <p className="email-status">
-          <span className="email-address">{data.email}</span>
-          <span className="email-badge">
-            <IconCheck size={13} /> Validated
-          </span>
-        </p>
-      ) : (
-        <p className="email-status">
-          {data.pendingEmail
-            ? `Verification pending for ${data.pendingEmail} — click the link in your inbox.`
-            : "Not validated — verify your email to comment and vote."}
-        </p>
-      )}
-      <form
-        className="email-form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          send();
-        }}
-      >
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="you@example.com"
-          aria-label="Email address"
-          required
-        />
-        <button type="submit" className="btn" disabled={busy || !email.trim()}>
-          {data.pendingEmail && email.trim() === data.pendingEmail ? "Resend link" : data.emailVerified ? "Change email" : "Verify"}
-        </button>
-      </form>
-      {note && <p className="email-note">{note}</p>}
-      {err && <p className="email-err">{err}</p>}
     </div>
   );
 }
@@ -336,8 +266,6 @@ export function ProfilePage() {
       )}
 
       <StatsGrid stats={data.stats} />
-
-      <EmailVerification data={data} reload={reload} />
 
       <h2 className="section-title">
         Achievements <span className="mono ach-count">({data.achievements.length}/{ACHIEVEMENTS.length})</span>
