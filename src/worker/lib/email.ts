@@ -57,14 +57,20 @@ function escapeHtml(s: string): string {
 }
 
 // A branded transactional-email shell that echoes the site's identity: dark
-// slate card, amber accent, and the "SHOW US TV" wordmark rendered as styled
-// text (the app draws it as text/SVG, never an image, so nothing to fetch).
-// Table-based layout with inline styles only — no external CSS/JS/images, and
-// no inline SVG, so it renders reliably across email clients (Gmail, Outlook,
-// Apple Mail). The CTA is a real <a href> so it still works if styles are
-// stripped, and the raw URL is repeated as a copy-paste fallback.
-// Kept generic (heading/intro/button/footnote) so any future transactional
-// mail — e.g. a password reset — can reuse the same template.
+// slate card, amber accent, and the "SHOW US TV" wordmark. "SHOW US" is set as
+// text (an email-safe italic serif approximating the site's slab display face)
+// and the vector "TV" bug is an <img> of a committed PNG raster of the site's
+// wordmark SVG (scripts/generate-email-logo.mjs) — HTML clients (Outlook
+// especially) don't render inline <svg> reliably, so a raster keeps the real
+// logo intact. Table-based layout with inline styles only. Remote images are
+// blocked by default in many clients, so the branding never leans on the
+// image: "SHOW US" plus the image's alt="TV" still reads "SHOW US TV" with
+// images off, and the footer and copy repeat the name. The <img> carries
+// explicit width/height attributes (not just CSS) since clients need real
+// dimensions and don't reliably load external CSS. The CTA is a real <a href>
+// so it still works if styles are stripped, and the raw URL is repeated as a
+// copy-paste fallback. Kept generic (heading/intro/button/footnote) so any
+// future transactional mail — e.g. a password reset — can reuse the template.
 export function brandedEmailHtml(opts: {
   preheader: string;
   heading: string;
@@ -93,7 +99,7 @@ export function brandedEmailHtml(opts: {
 <table role="presentation" width="480" cellpadding="0" cellspacing="0" border="0" style="width:100%; max-width:480px; background-color:#171c26; border:1px solid #2a3344; border-radius:12px;">
 <tr>
 <td style="padding:32px;">
-<div style="font-family:${display}; font-style:italic; font-weight:bold; font-size:22px; letter-spacing:-0.5px; color:#ede9e0;">SHOW&nbsp;US <span style="font-style:normal; display:inline-block; background-color:#ffae2e; color:#1a1205; padding:1px 7px; border-radius:5px; font-size:17px; letter-spacing:0;">TV</span></div>
+<div style="font-family:${display}; font-style:italic; font-weight:bold; font-size:22px; line-height:26px; letter-spacing:-0.5px; color:#ede9e0;">SHOW&nbsp;US <img src="https://showustv.com/email-logo.png" width="30" height="26" alt="TV" style="display:inline-block; vertical-align:middle; border:0; margin-left:3px;"></div>
 <h1 style="margin:28px 0 12px 0; font-family:${display}; font-size:22px; font-weight:bold; color:#ede9e0;">${escapeHtml(opts.heading)}</h1>
 <p style="margin:0 0 24px 0; font-family:${body}; font-size:15px; line-height:1.6; color:#c7ccd6;">${escapeHtml(opts.intro)}</p>
 <table role="presentation" cellpadding="0" cellspacing="0" border="0">
