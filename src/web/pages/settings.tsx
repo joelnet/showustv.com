@@ -20,10 +20,17 @@ interface EmailData {
 // unlocks commenting. Lives on Settings alongside the rest of account
 // identity (issue #55).
 function EmailVerification({ data, reload }: { data: EmailData; reload: () => void }) {
-  const [email, setEmail] = useState(data.pendingEmail ?? data.email ?? "");
+  const verified = data.emailVerified && !!data.email;
+  // A verified address is settled — don't prefill it into an input the user
+  // never asked for. Unvalidated/pending flows still seed from the in-progress
+  // address so "Resend link" targets it (issue #56).
+  const [email, setEmail] = useState(verified ? "" : data.pendingEmail ?? data.email ?? "");
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // Only relevant when already verified: the input stays hidden behind a
+  // "Change email" affordance so a settled address is never re-validated.
+  const [changing, setChanging] = useState(false);
 
   const send = async () => {
     setBusy(true);
@@ -32,6 +39,10 @@ function EmailVerification({ data, reload }: { data: EmailData; reload: () => vo
     try {
       await post("/profile/email", { email: email.trim() });
       setNote(`Verification link sent to ${email.trim()} — check your inbox.`);
+      // Success starts a fresh pending verification (reload surfaces it). Fold
+      // the change form away so the new pending state — not a stale open input —
+      // is what the user sees.
+      setChanging(false);
       reload();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Something went wrong");
@@ -40,41 +51,80 @@ function EmailVerification({ data, reload }: { data: EmailData; reload: () => vo
     }
   };
 
+  const openChange = () => {
+    setEmail("");
+    setNote(null);
+    setErr(null);
+    setChanging(true);
+  };
+
+  const cancelChange = () => {
+    setEmail("");
+    setErr(null);
+    setChanging(false);
+  };
+
+  const emailForm = (label: string) => (
+    <form
+      className="email-form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        send();
+      }}
+    >
+      <input
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="you@example.com"
+        aria-label="Email address"
+        autoFocus={changing}
+        required
+      />
+      <button type="submit" className="btn" disabled={busy || !email.trim()}>
+        {label}
+      </button>
+    </form>
+  );
+
   return (
     <>
-      {data.emailVerified && data.email ? (
-        <p className="email-status">
-          <span className="email-address">{data.email}</span>
-          <span className="email-badge">
-            <IconCheck size={13} /> Validated
-          </span>
-        </p>
+      {verified ? (
+        <>
+          <p className="email-status">
+            <span className="email-address">{data.email}</span>
+            <span className="email-badge">
+              <IconCheck size={13} /> Validated
+            </span>
+          </p>
+          {data.pendingEmail && (
+            <p className="email-status">
+              Verification pending for {data.pendingEmail} — click the link in your inbox.
+            </p>
+          )}
+          {changing ? (
+            <div className="email-change">
+              {emailForm("Send verification link")}
+              <button type="button" className="link-btn" onClick={cancelChange} disabled={busy}>
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button type="button" className="link-btn" onClick={openChange}>
+              Change email
+            </button>
+          )}
+        </>
       ) : (
-        <p className="email-status">
-          {data.pendingEmail
-            ? `Verification pending for ${data.pendingEmail} — click the link in your inbox.`
-            : "Not validated — verify your email to comment and vote."}
-        </p>
+        <>
+          <p className="email-status">
+            {data.pendingEmail
+              ? `Verification pending for ${data.pendingEmail} — click the link in your inbox.`
+              : "Not validated — verify your email to comment and vote."}
+          </p>
+          {emailForm(data.pendingEmail && email.trim() === data.pendingEmail ? "Resend link" : "Verify")}
+        </>
       )}
-      <form
-        className="email-form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          send();
-        }}
-      >
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="you@example.com"
-          aria-label="Email address"
-          required
-        />
-        <button type="submit" className="btn" disabled={busy || !email.trim()}>
-          {data.pendingEmail && email.trim() === data.pendingEmail ? "Resend link" : data.emailVerified ? "Change email" : "Verify"}
-        </button>
-      </form>
       {note && <p className="email-note">{note}</p>}
       {err && <p className="email-err">{err}</p>}
     </>
