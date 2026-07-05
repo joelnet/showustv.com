@@ -4,6 +4,7 @@ import { api, ApiError } from "./api";
 import { setOfflineUser, useOffline } from "./offline";
 import { Spinner, Wordmark, SiteFooter } from "./components/ui";
 import { ConfirmProvider } from "./components/dialog";
+import { CelebrationProvider } from "./components/celebration";
 import { IconPlay, IconSearch, IconLibrary, IconList, IconGear, IconUser, IconDownload } from "./components/icons";
 import { useInstallPrompt, isStandalone } from "./pwa";
 import { Landing } from "./pages/landing";
@@ -223,6 +224,7 @@ export function App() {
     <AuthCtx.Provider value={{ user, setUser }}>
       <BrowserRouter>
         <ConfirmProvider>
+        <CelebrationProvider>
         <Routes>
           {/* Logged-out visitors get the marketing page at "/" (or Login when
               installed); signed-in users fall through to the Shell route below
@@ -256,6 +258,7 @@ export function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
+        </CelebrationProvider>
         </ConfirmProvider>
       </BrowserRouter>
     </AuthCtx.Provider>

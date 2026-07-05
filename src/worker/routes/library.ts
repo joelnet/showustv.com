@@ -331,29 +331,56 @@ library.post("/episodes/:id/watch", async (c) => {
   const watchedAt = watchedAtFrom(await c.req.json().catch(() => ({})));
   if (!id || !watchedAt) return c.json({ error: "bad request" }, 400);
   const uid = c.get("uid");
+  const today = todayInTz(c.get("tz"));
 
-  try {
-    await c.env.DB.batch([
-      // Marking an episode implies tracking the show; a watch-later show flips to watching.
-      c.env.DB.prepare(
-        `INSERT INTO user_shows (user_id, show_id)
-         SELECT ?1, e.show_id FROM episodes e WHERE e.id = ?2
-         ON CONFLICT (user_id, show_id) DO UPDATE
-           SET state = 'watching', last_state_change = strftime('%Y-%m-%dT%H:%M:%fZ','now')
-           WHERE user_shows.state = 'watch_later'`
-      ).bind(uid, id),
-      // Re-marking a watched episode counts a rewatch.
-      c.env.DB.prepare(
-        `INSERT INTO user_episodes (user_id, episode_id, watched_at) VALUES (?1, ?2, ?3)
-         ON CONFLICT (user_id, episode_id) DO UPDATE
-           SET play_count = play_count + 1, last_rewatched_at = excluded.watched_at`
-      ).bind(uid, id, watchedAt),
-    ]);
-  } catch (e: any) {
-    if (String(e.message).includes("FOREIGN KEY")) return c.json({ error: "unknown episode" }, 404);
-    throw e;
+  // Episode meta + whether this user has already watched it. Doubles as the
+  // existence check (unknown id → 404) and feeds the "caught up" test below.
+  const ep = await c.env.DB.prepare(
+    `SELECT e.show_id, e.season_number, e.air_date, s.title AS show_title,
+            EXISTS (SELECT 1 FROM user_episodes ue WHERE ue.user_id = ?1 AND ue.episode_id = e.id) AS already
+     FROM episodes e JOIN shows s ON s.tmdb_id = e.show_id WHERE e.id = ?2`
+  )
+    .bind(uid, id)
+    .first<{ show_id: number; season_number: number; air_date: string | null; show_title: string; already: number }>();
+  if (!ep) return c.json({ error: "unknown episode" }, 404);
+
+  await c.env.DB.batch([
+    // Marking an episode implies tracking the show; a watch-later show flips to watching.
+    c.env.DB.prepare(
+      `INSERT INTO user_shows (user_id, show_id)
+       SELECT ?1, e.show_id FROM episodes e WHERE e.id = ?2
+       ON CONFLICT (user_id, show_id) DO UPDATE
+         SET state = 'watching', last_state_change = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+         WHERE user_shows.state = 'watch_later'`
+    ).bind(uid, id),
+    // Re-marking a watched episode counts a rewatch.
+    c.env.DB.prepare(
+      `INSERT INTO user_episodes (user_id, episode_id, watched_at) VALUES (?1, ?2, ?3)
+       ON CONFLICT (user_id, episode_id) DO UPDATE
+         SET play_count = play_count + 1, last_rewatched_at = excluded.watched_at`
+    ).bind(uid, id, watchedAt),
+  ]);
+
+  // Confetti trigger (issue #53): this watch just caught the user up when it
+  // was a *fresh* watch (not a rewatch) of an aired, regular-season episode
+  // and no aired regular-season episode is left unwatched for the show. The
+  // freshness + aired guards keep it from firing on rewatches or on shows that
+  // were already fully caught up. Specials (season 0) never count, matching the
+  // rest of the app's progress accounting.
+  let caughtUp = false;
+  if (!ep.already && ep.season_number > 0 && ep.air_date != null && ep.air_date <= today) {
+    const remaining = await c.env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM episodes e
+       WHERE e.show_id = ?2 AND e.season_number > 0
+         AND e.air_date IS NOT NULL AND e.air_date <= ?3
+         AND NOT EXISTS (SELECT 1 FROM user_episodes ue WHERE ue.user_id = ?1 AND ue.episode_id = e.id)`
+    )
+      .bind(uid, ep.show_id, today)
+      .first<{ n: number }>();
+    caughtUp = (remaining?.n ?? 0) === 0;
   }
-  return c.json({ ok: true });
+
+  return c.json({ ok: true, caughtUp, showTitle: ep.show_title });
 });
 
 library.delete("/episodes/:id/watch", async (c) => {
