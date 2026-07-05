@@ -34,7 +34,13 @@
 
   "vars": {
     "TMDB_API_BASE": "https://api.themoviedb.org/3",
-    "TMDB_IMG_BASE": "https://image.tmdb.org/t/p"
-  }
+    "TMDB_IMG_BASE": "https://image.tmdb.org/t/p",
+    "EMAIL_FROM": "noreply@showustv.com",
+    "EMAIL_FROM_NAME": "Show Us TV"
+  },
+
+  // Cloudflare Email Service — sends verification mail from the onboarded domain,
+  // no API key. Onboard once: `wrangler email sending enable showustv.com`.
+  "send_email": [{ "name": "EMAIL" }]
   // Secrets (wrangler secret put): TMDB_TOKEN (v4 read token or v3 key), SESSION_SECRET
 }

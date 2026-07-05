@@ -1,39 +1,32 @@
-// Outbound email. Provider-optional: with RESEND_API_KEY set (wrangler
-// secret put) mail goes out via Resend. Without it, delivery FAILS CLOSED
-// unless DEV_MAIL_LOG=1 (set in .dev.vars, never in production) explicitly
-// opts into logging the message to the console — which is what local dev
-// wants: wrangler dev prints the verification link to click. A false return
-// means "not delivered"; callers must surface that, not pretend.
+// Outbound email via the Cloudflare Email Service `send_email` binding (EMAIL).
+// No API keys: the binding sends from any address on an onboarded domain. Local
+// dev sets DISABLE_EMAIL_SEND=true (.dev.vars, never in production) to log the
+// message — including the verification link — to the console instead of sending,
+// which is what wrangler dev wants. Without the binding and not disabled,
+// delivery FAILS CLOSED. A false return means "not delivered"; callers must
+// surface that, not pretend.
 
 import type { Env } from "../env";
 
 export async function sendEmail(env: Env, to: string, subject: string, text: string): Promise<boolean> {
-  if (!env.RESEND_API_KEY) {
-    if (env.DEV_MAIL_LOG === "1") {
-      console.log(`[email:dev] to=${to} subject=${JSON.stringify(subject)}\n${text}`);
-      return true;
-    }
-    console.error("email: RESEND_API_KEY not configured — refusing to drop mail silently");
+  if (env.DISABLE_EMAIL_SEND === "true") {
+    console.log(`[email:dev] to=${to} subject=${JSON.stringify(subject)}\n${text}`);
+    return true;
+  }
+  if (!env.EMAIL) {
+    console.error("email: EMAIL binding not configured — refusing to drop mail silently");
     return false;
   }
   try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${env.RESEND_API_KEY}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        from: env.MAIL_FROM ?? "Show Us TV <noreply@showustv.com>",
-        to: [to],
-        subject,
-        text,
-      }),
+    await env.EMAIL.send({
+      to,
+      from: { email: env.EMAIL_FROM ?? "noreply@showustv.com", name: env.EMAIL_FROM_NAME ?? "Show Us TV" },
+      subject,
+      text,
     });
-    if (!res.ok) console.error(`resend: ${res.status} ${await res.text()}`);
-    return res.ok;
+    return true;
   } catch (e) {
-    console.error("resend: send failed", e);
+    console.error("email: send failed", e);
     return false;
   }
 }
