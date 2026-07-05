@@ -21,10 +21,11 @@ interface EmailData {
 // identity (issue #55).
 function EmailVerification({ data, reload }: { data: EmailData; reload: () => void }) {
   const verified = data.emailVerified && !!data.email;
-  // A verified address is settled — don't prefill it into an input the user
-  // never asked for. Unvalidated/pending flows still seed from the in-progress
-  // address so "Resend link" targets it (issue #56).
-  const [email, setEmail] = useState(verified ? "" : data.pendingEmail ?? data.email ?? "");
+  // A pending change takes precedence: seed the input with the pending address
+  // so "Resend link" targets it (issues #56/#57). A settled verified address
+  // (no pending change) stays empty — it's never re-validated unless the user
+  // opts in via "Change email". Otherwise seed from the current unvalidated one.
+  const [email, setEmail] = useState(data.pendingEmail ?? (verified ? "" : data.email ?? ""));
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -89,7 +90,21 @@ function EmailVerification({ data, reload }: { data: EmailData; reload: () => vo
 
   return (
     <>
-      {verified ? (
+      {data.pendingEmail ? (
+        // A change is in flight (issue #57): present the NEW address as the one
+        // awaiting validation — never the old validated address alongside it.
+        // The form still lets the user resend to the pending address (or retarget
+        // to a different one), so this isn't a dead end. There's already a change
+        // in progress, so no "Change email" toggle is offered here.
+        <>
+          <p className="email-status">
+            Verification pending for {data.pendingEmail} — click the link in your inbox.
+          </p>
+          {emailForm(email.trim() === data.pendingEmail ? "Resend link" : "Verify")}
+        </>
+      ) : verified ? (
+        // Settled, validated address with no pending change. The input stays
+        // hidden behind "Change email" so a settled address is never re-validated.
         <>
           <p className="email-status">
             <span className="email-address">{data.email}</span>
@@ -97,11 +112,6 @@ function EmailVerification({ data, reload }: { data: EmailData; reload: () => vo
               <IconCheck size={13} /> Validated
             </span>
           </p>
-          {data.pendingEmail && (
-            <p className="email-status">
-              Verification pending for {data.pendingEmail} — click the link in your inbox.
-            </p>
-          )}
           {changing ? (
             <div className="email-change">
               {emailForm("Send verification link")}
@@ -116,13 +126,10 @@ function EmailVerification({ data, reload }: { data: EmailData; reload: () => vo
           )}
         </>
       ) : (
+        // First-time verification, no pending change.
         <>
-          <p className="email-status">
-            {data.pendingEmail
-              ? `Verification pending for ${data.pendingEmail} — click the link in your inbox.`
-              : "Not validated — verify your email to comment and vote."}
-          </p>
-          {emailForm(data.pendingEmail && email.trim() === data.pendingEmail ? "Resend link" : "Verify")}
+          <p className="email-status">Not validated — verify your email to comment and vote.</p>
+          {emailForm("Verify")}
         </>
       )}
       {note && <p className="email-note">{note}</p>}
