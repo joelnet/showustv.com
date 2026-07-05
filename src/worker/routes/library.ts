@@ -41,6 +41,11 @@ function recentlyActive(lastWatched: string | null, lastAired: string | null, si
 library.get("/watch-next", async (c) => {
   const uid = c.get("uid");
   const today = todayInTz(c.get("tz"));
+  // Recent window: watched or aired within RECENT_WINDOW_DAYS. Everything else
+  // that's still being watched falls to "Haven't watched for a while". Computed
+  // once here so the query filter (below) and the bucketing (further down) share
+  // exactly the same cutoff.
+  const recentSince = daysAgoInTz(c.get("tz"), RECENT_WINDOW_DAYS);
   const { results } = await c.env.DB.prepare(
     `WITH cand AS (
        SELECT e.id, e.show_id, e.season_number, e.number, e.title, e.air_date, e.runtime_min, e.overview, e.still_url,
@@ -70,14 +75,13 @@ library.get("/watch-next", async (c) => {
        WHERE ue.user_id = ?1 GROUP BY e2.show_id
      ) lw ON lw.show_id = c.show_id
      WHERE c.rn = 1
+       -- Hide not-yet-started shows (no episode ever watched) unless they were
+       -- followed within the recent window — newly added shows still surface.
+       AND (lw.last_watched IS NOT NULL OR us.added_at >= ?3)
      ORDER BY last_activity DESC, c.air_date DESC`
   )
-    .bind(uid, today)
+    .bind(uid, today, recentSince)
     .all();
-
-  // Recent window: watched or aired within RECENT_WINDOW_DAYS. Everything else
-  // that's still being watched falls to "Haven't watched for a while".
-  const recentSince = daysAgoInTz(c.get("tz"), RECENT_WINDOW_DAYS);
   const toItem = (r: any) => ({
     show: { id: r.show_id, title: r.show_title, poster: r.poster_url, backdrop: r.backdrop_url },
     episode: {
