@@ -4,7 +4,7 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../env";
 import { statsQuery, statsFromRow } from "../lib/stats";
-import { sendEmail, sha256Hex } from "../lib/email";
+import { sendEmail, sha256Hex, brandedEmailHtml } from "../lib/email";
 import { nowIso } from "../lib/dates";
 
 export const profile = new Hono<AppEnv>();
@@ -110,7 +110,15 @@ profile.post("/email", async (c) => {
     c.env,
     email,
     "Verify your email — Show Us TV",
-    `Confirm this email address for your Show Us TV account:\n\n${link}\n\nThe link expires in 24 hours. If you didn't request this, ignore it.`
+    `Confirm this email address for your Show Us TV account:\n\n${link}\n\nThe link expires in 24 hours. If you didn't request this, ignore it.`,
+    brandedEmailHtml({
+      preheader: "Confirm this email address for your Show Us TV account.",
+      heading: "Verify your email",
+      intro: "Confirm this email address for your Show Us TV account.",
+      buttonLabel: "Verify email",
+      buttonUrl: link,
+      footnote: "This link expires in 24 hours. If you didn't request this, you can safely ignore this email.",
+    })
   );
   if (!sent) {
     // Clear the pending row so the retry isn't stuck behind the cooldown.
