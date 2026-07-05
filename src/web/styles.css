@@ -1547,9 +1547,8 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .profile-comment-body { margin: 0 0 4px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .profile-comment-meta { margin: 0; color: var(--muted); font-size: 13px; }
 
-/* ---------- Email verification (profile) ---------- */
+/* ---------- Email verification (settings) ---------- */
 
-.email-verify { margin: 26px 0; }
 .email-status { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; color: var(--muted); margin: 6px 0 10px; }
 .email-address { color: var(--text); font-weight: 500; }
 .email-badge {
