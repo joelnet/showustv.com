@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { startTransition, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { post, put } from "../api";
 import { clearQueue } from "../offline";
@@ -80,8 +80,19 @@ export function SettingsPage() {
           // happen regardless — otherwise an offline sign-out leaves the cached
           // identity behind for the next person to restore on a refresh (#51).
           await post("/auth/logout").catch(() => {});
-          setUser(null);
-          navigate("/");
+          // Clear the user AND route home in one transition. react-router's
+          // <BrowserRouter> wraps location updates in React.startTransition, so
+          // navigate("/") is a low-priority update while a bare setUser(null) is
+          // urgent. Committed separately, the urgent user=null render happens
+          // while we're still on /settings — <Shell>'s `if (!user)` guard then
+          // fires <Navigate to="/login">, which beats the pending "/" transition
+          // and strands sign-out on /login (issue #34). Batching both into the
+          // same transition commits user=null and location="/" together, so the
+          // logged-out "/" route (Landing/Login) matches and Shell never renders.
+          startTransition(() => {
+            setUser(null);
+            navigate("/", { replace: true });
+          });
         }}
       >
         Sign out
