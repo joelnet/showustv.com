@@ -67,7 +67,16 @@ function escapeHtml(s: string): string {
 // image: "SHOW US" plus the image's alt="TV" still reads "SHOW US TV" with
 // images off, and the footer and copy repeat the name. The <img> carries
 // explicit width/height attributes (not just CSS) since clients need real
-// dimensions and don't reliably load external CSS. The CTA is a real <a href>
+// dimensions and don't reliably load external CSS. It's nudged up with
+// vertical-align:-3px (not `middle`) so the TV body brackets the "SHOW US"
+// caps — top just above cap height, bottom a touch below the baseline — the
+// same look the live wordmark gets from its `transform: translateY(-0.2em)`
+// lift; a plain `middle` sits ~0.2 cap-heights too low (issue #54). A negative
+// vertical-align length is used rather than a CSS transform or negative margin
+// because it renders consistently across clients and, where a client ignores
+// the length (older Outlook), degrades gracefully to plain baseline alignment
+// — the TV resting on the baseline instead of a touch below it, still fine and
+// never the reported "TV too low". The CTA is a real <a href>
 // so it still works if styles are stripped, and the raw URL is repeated as a
 // copy-paste fallback. Kept generic (heading/intro/button/footnote) so any
 // future transactional mail — e.g. a password reset — can reuse the template.
@@ -99,7 +108,7 @@ export function brandedEmailHtml(opts: {
 <table role="presentation" width="480" cellpadding="0" cellspacing="0" border="0" style="width:100%; max-width:480px; background-color:#171c26; border:1px solid #2a3344; border-radius:12px;">
 <tr>
 <td style="padding:32px;">
-<div style="font-family:${display}; font-style:italic; font-weight:bold; font-size:22px; line-height:26px; letter-spacing:-0.5px; color:#ede9e0;">SHOW&nbsp;US <img src="https://showustv.com/email-logo.png" width="30" height="26" alt="TV" style="display:inline-block; vertical-align:middle; border:0; margin-left:3px;"></div>
+<div style="font-family:${display}; font-style:italic; font-weight:bold; font-size:22px; line-height:26px; letter-spacing:-0.5px; color:#ede9e0;">SHOW&nbsp;US <img src="https://showustv.com/email-logo.png" width="30" height="26" alt="TV" style="display:inline-block; vertical-align:-3px; border:0; margin-left:3px;"></div>
 <h1 style="margin:28px 0 12px 0; font-family:${display}; font-size:22px; font-weight:bold; color:#ede9e0;">${escapeHtml(opts.heading)}</h1>
 <p style="margin:0 0 24px 0; font-family:${body}; font-size:15px; line-height:1.6; color:#c7ccd6;">${escapeHtml(opts.intro)}</p>
 <table role="presentation" cellpadding="0" cellspacing="0" border="0">
