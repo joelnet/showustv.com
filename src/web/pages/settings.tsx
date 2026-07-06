@@ -203,7 +203,7 @@ export function SettingsPage() {
         Import from TV Time
       </Link>
 
-      {install.available && (
+      {install.available && !user!.installed && (
         <>
           <hr className="settings-rule" />
           <h2 className="settings-subtitle">Install app</h2>

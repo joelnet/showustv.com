@@ -50,7 +50,7 @@ auth.post("/register", async (c) => {
         .first<{ id: number }>();
       c.set("uid", row!.id); // attribute this request in the activity log
       await issueSession(c, row!.id, tz);
-      return c.json({ user: { id: row!.id, username, tz, emailVerified: false, isAdmin: false } });
+      return c.json({ user: { id: row!.id, username, tz, emailVerified: false, isAdmin: false, installed: false } });
     } catch (e: any) {
       const msg = String(e.message);
       if (msg.includes("users.email")) return c.json({ error: "That email is already in use" }, 409);
@@ -68,7 +68,7 @@ auth.post("/login", async (c) => {
   const password = String(body.password ?? "");
 
   const user = await c.env.DB.prepare(
-    "SELECT id, username, pw_hash, tz, email_verified_at, is_admin FROM users WHERE (email = ?1 OR username = ?1) AND deleted_at IS NULL"
+    "SELECT id, username, pw_hash, tz, email_verified_at, is_admin, installed_at FROM users WHERE (email = ?1 OR username = ?1) AND deleted_at IS NULL"
   )
     .bind(login)
     .first<{
@@ -78,6 +78,7 @@ auth.post("/login", async (c) => {
       tz: string;
       email_verified_at: string | null;
       is_admin: number;
+      installed_at: string | null;
     }>();
 
   if (!user || !(await verifyPassword(password, user.pw_hash))) {
@@ -93,6 +94,7 @@ auth.post("/login", async (c) => {
       tz: user.tz,
       emailVerified: !!user.email_verified_at,
       isAdmin: !!user.is_admin,
+      installed: !!user.installed_at,
     },
   });
 });
@@ -108,14 +110,27 @@ auth.post("/logout", async (c) => {
 
 auth.get("/me", requireAuth, async (c) => {
   const user = await c.env.DB.prepare(
-    "SELECT id, username, tz, (email_verified_at IS NOT NULL) AS verified, is_admin FROM users WHERE id = ?1"
+    "SELECT id, username, tz, (email_verified_at IS NOT NULL) AS verified, is_admin, (installed_at IS NOT NULL) AS installed FROM users WHERE id = ?1"
   )
     .bind(c.get("uid"))
-    .first<{ id: number; username: string; tz: string; verified: number; is_admin: number }>();
+    .first<{ id: number; username: string; tz: string; verified: number; is_admin: number; installed: number }>();
   if (!user) return c.json({ error: "unauthorized" }, 401);
   return c.json({
-    user: { id: user.id, username: user.username, tz: user.tz, emailVerified: !!user.verified, isAdmin: !!user.is_admin },
+    user: { id: user.id, username: user.username, tz: user.tz, emailVerified: !!user.verified, isAdmin: !!user.is_admin, installed: !!user.installed },
   });
+});
+
+// The app pings this on its first boot in standalone (installed / home-screen)
+// mode. iOS gives the browser tab no signal that an install exists, so the
+// installed app self-reports here and the browser tab hides its "Install App"
+// button for this user via the /auth/me flag (Android-style auto-hide).
+// Set-once: COALESCE keeps the first timestamp, so it marks when they installed
+// rather than the latest standalone launch.
+auth.post("/installed", requireAuth, async (c) => {
+  await c.env.DB.prepare("UPDATE users SET installed_at = COALESCE(installed_at, ?2) WHERE id = ?1")
+    .bind(c.get("uid"), nowIso())
+    .run();
+  return c.json({ ok: true });
 });
 
 // Consume a verification token. POST only: the emailed link lands on the
