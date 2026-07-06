@@ -104,7 +104,7 @@
       "kind": "card",
       "refersTo": "card",
       "description": "Flat content card: surface fill, hairline border, an amber-wash icon tile. No shadow, separation is tonal.",
-      "html": "<article class=\"ds-card\"><span class=\"ds-card-icon\"><svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"currentColor\"><path d=\"M8 5v14l11-7z\"/></svg></span><h3 class=\"ds-card-title\">Watch Next queue</h3><p class=\"ds-card-body\">Every show you follow, lined up to its exact next episode.</p></article>",
+      "html": "<article class=\"ds-card\"><span class=\"ds-card-icon\"><svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"currentColor\"><path d=\"M8 5v14l11-7z\"/></svg></span><h3 class=\"ds-card-title\">Watch Now queue</h3><p class=\"ds-card-body\">Every show you follow, lined up to its exact next episode.</p></article>",
       "css": ".ds-card { background: var(--surface, #171c26); border: 1px solid var(--line, #2a3344); border-radius: 10px; padding: 18px; max-width: 260px; } .ds-card-icon { display: inline-grid; place-items: center; width: 38px; height: 38px; border-radius: 10px; background: rgba(255,174,46,0.14); color: var(--amber, #ffae2e); margin-bottom: 12px; } .ds-card-title { font: 700 16px \"Zilla Slab\", serif; letter-spacing: -0.01em; color: var(--text, #ede9e0); margin: 0 0 6px; } .ds-card-body { font: 400 13.5px \"Figtree\", sans-serif; line-height: 1.55; color: var(--muted, #8e97a8); margin: 0; }"
     }
   ],

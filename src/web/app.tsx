@@ -105,7 +105,7 @@ function Header() {
         <Wordmark />
       </Link>
       <nav className="header-nav" aria-label="Primary">
-        <NavLink to="/" end>Watch next</NavLink>
+        <NavLink to="/" end>Watch now</NavLink>
         <NavLink to="/library">Library</NavLink>
         <NavLink to="/lists">Lists</NavLink>
         <NavLink to="/following">Following</NavLink>
@@ -169,7 +169,7 @@ function NetBanner() {
 function TabBar() {
   return (
     <nav className="tabbar" aria-label="Primary">
-      <NavLink to="/" end><IconPlay /><span>Watch next</span></NavLink>
+      <NavLink to="/" end><IconPlay /><span>Watch now</span></NavLink>
       <NavLink to="/search"><IconSearch /><span>Search</span></NavLink>
       <NavLink to="/library"><IconLibrary /><span>Library</span></NavLink>
       <NavLink to="/lists"><IconList /><span>Lists</span></NavLink>

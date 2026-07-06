@@ -19,7 +19,7 @@ import {
 const FEATURES = [
   {
     icon: IconPlay,
-    title: "Watch Next queue",
+    title: "Watch Now queue",
     body: "The next episode of every show, queued and counted.",
   },
   {
@@ -60,7 +60,7 @@ const STEPS = [
   },
   {
     title: "Watch and check off",
-    body: "Mark episodes as you go. Watch Next keeps your place in every show, every season.",
+    body: "Mark episodes as you go. Watch Now keeps your place in every show, every season.",
   },
 ];
 
@@ -123,7 +123,7 @@ function MockList({ name, count, posters }: { name: string; count: number; poste
 
 const SHOWCASE = [
   {
-    title: "Your Watch Next queue",
+    title: "Your Watch Now queue",
     body: "Open the app and every show you follow is already lined up to its exact next episode, with a running count of what's left. No more “wait, where was I?”",
     url: "showustv.com",
     shot: (

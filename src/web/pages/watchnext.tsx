@@ -111,7 +111,7 @@ export function WatchNext() {
 
   return (
     <div>
-      <h1 className="page-title">Watch next</h1>
+      <h1 className="page-title">Watch now</h1>
 
       {!current.length && !upcoming.length ? (
         <Empty
