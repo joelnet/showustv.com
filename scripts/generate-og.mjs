@@ -97,7 +97,7 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" 
   <text x="100" y="278" font-family="${FONT}" font-size="58" font-weight="bold" font-style="italic" fill="${TEXT}">Pickup where you <tspan fill="${AMBER}">left off</tspan>.</text>
 
   <!-- subtext -->
-  <text x="102" y="330" font-family="${FONT}" font-size="27" fill="${MUTED}">Your Watch Next queue, air dates, and full history.</text>
+  <text x="102" y="330" font-family="${FONT}" font-size="27" fill="${MUTED}">Your Watch Now queue, air dates, and full history.</text>
 
   ${smpte}
   ${cards}
