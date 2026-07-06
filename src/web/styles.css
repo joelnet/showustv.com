@@ -1035,6 +1035,11 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   border-bottom: 1px solid var(--line);
 }
 .landing-header .wordmark { font-size: 21px; }
+/* Landing type floor (issue #61): keep every landing tier >= 18px. The hero h1
+   is deliberately exempt, and the framed product screenshots (.hero-shot /
+   .showcase-shot) stay at real app sizes so they read as faithful previews. */
+.landing-header .btn { font-size: 18px; }
+.landing .footer { font-size: 18px; }
 
 .landing-main {
   width: 100%;
@@ -1085,7 +1090,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   align-items: center;
   gap: 8px;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 18px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--cyan);
@@ -1117,10 +1122,10 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 }
 .landing-sub {
   color: var(--muted);
-  font-size: 18px;
-  line-height: 1.55;
+  font-size: 21px;
+  line-height: 1.5;
   margin: 0 auto 30px;
-  max-width: 560px;
+  max-width: 600px;
 }
 /* Key marketing point: the app is 100% free with no ads (issue #41). A green
    "go" pill in the conversion zone, built from the hero badge pattern. */
@@ -1129,7 +1134,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   align-items: center;
   gap: 8px;
   font-family: var(--font-mono);
-  font-size: 12.5px;
+  font-size: 18px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1141,12 +1146,12 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   margin: 0 0 26px;
 }
 .landing-cta-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
-.landing-free-note { color: var(--muted); font-size: 13.5px; margin: 14px 0 0; }
+.landing-free-note { color: var(--muted); font-size: 18px; margin: 14px 0 0; }
 .btn-lg { font-size: 15.5px; padding: 12px 26px; border-radius: 10px; }
 .landing-hero .smpte { margin: 44px auto 0; max-width: 420px; }
 
 /* Hero-scoped amplifications (leave the showcase/help shots untouched). */
-.landing-hero .landing-cta-row .btn-lg { font-size: 16.5px; padding: 14px 30px; }
+.landing-hero .landing-cta-row .btn-lg { font-size: 19px; padding: 14px 30px; }
 .landing-hero .hero-shot {
   max-width: 690px;
   margin-top: 52px;
@@ -1209,7 +1214,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   border-radius: 10px;
   font-family: var(--font-body);
   font-weight: 600;
-  font-size: 13px;
+  font-size: 18px;
 }
 .landing-eyebrow--link { text-decoration: none; transition: background 0.15s ease, border-color 0.15s ease; }
 .landing-eyebrow--link:hover { text-decoration: none; background: rgba(255, 174, 46, 0.24); border-color: var(--amber); }
@@ -1245,7 +1250,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .section-kicker {
   display: inline-block;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 18px;
   font-weight: 600;
   letter-spacing: 0.2em;
   text-transform: uppercase;
@@ -1275,7 +1280,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   letter-spacing: -0.01em;
   margin: 0 0 12px;
 }
-.showcase-copy p { color: var(--muted); font-size: 16px; line-height: 1.6; margin: 0; max-width: 46ch; }
+.showcase-copy p { color: var(--muted); font-size: 20px; line-height: 1.55; margin: 0; max-width: 46ch; }
 .showcase-shot { margin: 0; max-width: 100%; }
 .showcase-shot-body { padding: 12px; background: var(--bg); }
 /* minmax(0,1fr) lets the two tiles share the narrow frame evenly instead of a
@@ -1318,11 +1323,11 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   gap: 9px;
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 16px;
+  font-size: 22px;
   letter-spacing: -0.01em;
   margin: 0 0 7px;
 }
-.feature-card p { color: var(--muted); font-size: 13.5px; line-height: 1.55; margin: 0; padding-left: 26px; }
+.feature-card p { color: var(--muted); font-size: 20px; line-height: 1.5; margin: 0; padding-left: 26px; }
 
 .steps {
   list-style: none;
@@ -1352,8 +1357,8 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   color: var(--text);
   flex-shrink: 0;
 }
-.steps h3 { font-family: var(--font-display); font-weight: 700; font-size: 18.5px; margin: 0 0 6px; }
-.steps p { color: var(--muted); font-size: 15px; line-height: 1.55; margin: 0; }
+.steps h3 { font-family: var(--font-display); font-weight: 700; font-size: 22px; margin: 0 0 6px; }
+.steps p { color: var(--muted); font-size: 20px; line-height: 1.5; margin: 0; }
 
 .landing-final {
   text-align: center;
@@ -1371,7 +1376,8 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   letter-spacing: -0.02em;
   margin: 0 0 10px;
 }
-.landing-final p { color: var(--muted); margin: 0 0 22px; }
+.landing-final p { color: var(--muted); font-size: 20px; margin: 0 0 22px; }
+.landing-final .btn { font-size: 19px; }
 
 /* ---------- Responsive ---------- */
 
