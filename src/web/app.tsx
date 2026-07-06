@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, NavLink, Link, Outlet, Navigate, useNavigate } from "react-router-dom";
-import { api, ApiError } from "./api";
+import { api, post, ApiError } from "./api";
 import { setOfflineUser, useOffline } from "./offline";
 import { Spinner, Wordmark, SiteFooter } from "./components/ui";
 import { ConfirmProvider } from "./components/dialog";
@@ -33,6 +33,11 @@ export interface User {
   tz: string;
   emailVerified: boolean;
   isAdmin: boolean;
+  // True once the user has launched the app as an installed PWA at least once.
+  // Drives the install button's Android-style auto-hide (see the standalone
+  // ping in App and the Header gate). Older cached users may lack it — treat
+  // a missing value as false.
+  installed: boolean;
 }
 
 // Last-known signed-in identity, mirrored to localStorage (issue #51). On an
@@ -96,9 +101,15 @@ function Shell() {
 
 function Header() {
   const navigate = useNavigate();
-  // Chromium install prompt only: iOS has no beforeinstallprompt, so its
-  // Add-to-Home-Screen instructions stay on the Settings page.
+  const { user } = useAuth();
   const { available, ios, install } = useInstallPrompt();
+  const [iosHint, setIosHint] = useState(false);
+  // Show the install affordance until the app is installed. Chromium gets a
+  // one-tap prompt; iOS has no programmatic install, so the button reveals the
+  // Safari "Add to Home Screen" steps. iOS also fires no appinstalled event, so
+  // we hide it on `user.installed` (set once the installed app first boots) —
+  // that's what makes it disappear post-install, like Chromium's does.
+  const showInstall = available && (!ios || !user?.installed);
   return (
     <header className="header">
       <Link to="/" className="header-brand" aria-label="Show Us TV, home">
@@ -122,11 +133,29 @@ function Header() {
         <IconSearch size={16} />
         <input name="q" type="search" placeholder="Search shows & movies" aria-label="Search shows and movies" />
       </form>
-      {available && !ios && (
-        <button type="button" className="header-install" onClick={install} aria-label="Install app">
-          <IconDownload size={14} /> <span>Install App</span>
-        </button>
-      )}
+      {showInstall &&
+        (ios ? (
+          <div className="header-install-wrap">
+            <button
+              type="button"
+              className="header-install"
+              onClick={() => setIosHint((v) => !v)}
+              aria-expanded={iosHint}
+              aria-label="How to install the app"
+            >
+              <IconDownload size={14} /> <span>Install App</span>
+            </button>
+            {iosHint && (
+              <p className="header-install-hint" role="status">
+                In Safari: tap the Share button, then &ldquo;Add to Home Screen&rdquo;.
+              </p>
+            )}
+          </div>
+        ) : (
+          <button type="button" className="header-install" onClick={install} aria-label="Install app">
+            <IconDownload size={14} /> <span>Install App</span>
+          </button>
+        ))}
       <Link to="/settings" className="header-gear" aria-label="Settings">
         <IconGear />
       </Link>
@@ -212,6 +241,18 @@ export function App() {
   useEffect(() => {
     setOfflineUser(user?.id ?? null);
   }, [user]);
+
+  // When the signed-in app boots as an installed PWA (standalone / home-screen),
+  // record it once. iOS never tells the browser tab that an install happened,
+  // so the installed app self-reports here; the browser tab then hides its
+  // install button for this user (Android-style). No-ops after the flag flips,
+  // and best-effort — a failure just retries on the next standalone launch.
+  useEffect(() => {
+    if (!user || user.installed || !isStandalone()) return;
+    post("/auth/installed")
+      .then(() => setUser({ ...user, installed: true }))
+      .catch(() => {});
+  }, [user, setUser]);
 
   if (!booted) return <Spinner />;
 
