@@ -1428,8 +1428,29 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   .agenda-show { white-space: normal; }
   .agenda li { flex-wrap: wrap; gap: 6px 10px; }
 
-  /* Stats fit two-up instead of a tall single column. */
-  .profile-stats { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+  /* Stats readout. The auto-fit grid wrapped 2-up on a phone and orphaned the
+     third box at half-width below — lopsided. Collapse to one flat readout
+     panel: three full-width rows split by hairline dividers, label left, value
+     right. Symmetric at any width, and the verbose "TV time" value (e.g.
+     "3 months 12 days") gets a whole row instead of a cramped grid cell. */
+  .profile-stats {
+    grid-template-columns: 1fr;
+    gap: 0;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .stat-card {
+    flex-direction: row-reverse;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+    padding: 12px 16px;
+  }
+  .stat-card:last-child { border-bottom: 0; }
 
   /* List rows: tighter chrome so titles keep readable width next to the
      reorder/remove buttons. */
