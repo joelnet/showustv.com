@@ -228,7 +228,7 @@ export function Landing() {
             airing soon, and everything you&rsquo;ve finished.
           </p>
           <p className="landing-freebadge">
-            <IconCheck size={13} /> 100% free &mdash; no ads, ever
+            <IconCheck size={13} /> 100% free! No credit card, no ads!
           </p>
           <div className="landing-cta-row">
             <Link to="/login?mode=register" className="btn btn-lg">
