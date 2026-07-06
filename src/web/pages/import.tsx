@@ -151,7 +151,7 @@ export function ImportPage() {
             <a href="https://gdpr.tvtime.com/gdpr/self-service" target="_blank" rel="noreferrer">
               GDPR data export
             </a>
-            . It&rsquo;s unpacked right here in your browser — only the shows, episodes and movies we can match are
+            . It&rsquo;s unpacked right here in your browser: only the shows, episodes and movies we can match are
             sent to the server. You&rsquo;ll see a preview before anything is imported, and re-running an import never
             duplicates history.
           </p>
@@ -391,7 +391,7 @@ function Busy({ verb, progress }: { verb: string; progress: Progress | null }) {
     <div className="import-busy" role="status">
       <p>
         {verb}
-        {progress ? ` — ${progress.label}` : "…"}
+        {progress ? `: ${progress.label}` : "…"}
       </p>
       <div className="progress" aria-hidden={pct == null}>
         <div className="progress-fill" style={{ width: `${pct ?? 5}%` }} />
@@ -466,7 +466,7 @@ function Preview({
               {matched.map((g) => (
                 <li key={g.key}>
                   {g.match!.title}
-                  {g.episodes.length > 0 && <span className="import-dim"> — {plural(g.episodes.length, "episode")}</span>}
+                  {g.episodes.length > 0 && <span className="import-dim"> ({plural(g.episodes.length, "episode")})</span>}
                   {g.method === "name" && <span className="import-dim"> (matched by title)</span>}
                 </li>
               ))}
@@ -509,9 +509,9 @@ function Preview({
                       {g.name ?? (g.tvdbId != null ? `TVDB #${g.tvdbId}` : "unknown show")}
                       <span className="import-dim">
                         {" "}
-                        — {g.episodes.length + g.unresolvedIds > 0
+                        ({g.episodes.length + g.unresolvedIds > 0
                           ? `${plural(g.episodes.length + g.unresolvedIds, "episode")} skipped`
-                          : "follow skipped"}
+                          : "follow skipped"})
                       </span>
                     </li>
                   ))}
@@ -540,7 +540,7 @@ function Preview({
                 <ul className="import-detail-list">
                   {parsed.unrecognized.map((f) => (
                     <li key={f.name}>
-                      {f.name} <span className="import-dim">— {f.reason}</span>
+                      {f.name} <span className="import-dim">({f.reason})</span>
                     </li>
                   ))}
                 </ul>
@@ -554,7 +554,7 @@ function Preview({
             )}
             {truncatedFiles.length > 0 && (
               <li>
-                {plural(truncatedFiles.length, "file")} too large — rows beyond the first 250,000 were ignored
+                {plural(truncatedFiles.length, "file")} too large: rows beyond the first 250,000 were ignored
                 <ul className="import-detail-list">
                   {truncatedFiles.map((f) => (
                     <li key={f.name}>{f.name}</li>
@@ -635,11 +635,11 @@ function Summary({ outcome }: { outcome: ImportOutcome }) {
                         {g.title}
                         <span className="import-dim">
                           {" "}
-                          — {g.notFound
+                          ({g.notFound
                             .slice(0, 12)
                             .map((e) => `S${String(e.season).padStart(2, "0")}E${String(e.number).padStart(2, "0")}`)
                             .join(", ")}
-                          {g.notFound.length > 12 && ` and ${g.notFound.length - 12} more`}
+                          {g.notFound.length > 12 && ` and ${g.notFound.length - 12} more`})
                         </span>
                       </li>
                     ))}
@@ -652,7 +652,7 @@ function Summary({ outcome }: { outcome: ImportOutcome }) {
                 <ul className="import-detail-list">
                   {failed.map((g) => (
                     <li key={g.title}>
-                      {g.title} <span className="import-dim">— {g.error}</span>
+                      {g.title} <span className="import-dim">({g.error})</span>
                     </li>
                   ))}
                 </ul>

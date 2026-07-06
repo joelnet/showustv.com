@@ -98,7 +98,7 @@ function Celebration({ title }: { title: string }) {
           You&rsquo;re all caught up{title ? " on " : ""}
           {title && <em>{title}</em>}!
         </strong>
-        <span className="celebrate-sub">Nice — you&rsquo;ve watched every episode that&rsquo;s aired.</span>
+        <span className="celebrate-sub">Nice, you&rsquo;ve watched every episode that&rsquo;s aired.</span>
       </div>
     </div>
   );

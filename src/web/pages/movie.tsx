@@ -89,7 +89,7 @@ export function MoviePage() {
             {state === "watched" ? (
               <>
                 <button className="btn btn-ghost" onClick={act(() => del(`/movies/${movie.id}/watch`), "unwatched")} disabled={busy}>
-                  Watched ✓ — undo
+                  Watched ✓ (undo)
                 </button>
                 <button className="btn btn-ghost" onClick={act(() => post(`/movies/${movie.id}/watch`), "watched")} disabled={busy}>
                   + Rewatch
@@ -102,7 +102,7 @@ export function MoviePage() {
                 </button>
                 {state === "watchlist" ? (
                   <button className="btn btn-ghost" onClick={act(() => del(`/movies/${movie.id}/watchlist`))} disabled={busy}>
-                    On watchlist ✓ — remove
+                    On watchlist ✓ (remove)
                   </button>
                 ) : (
                   <button className="btn btn-ghost" onClick={act(() => put(`/movies/${movie.id}/watchlist`))} disabled={busy}>

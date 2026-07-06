@@ -98,7 +98,7 @@ export function EpisodePage() {
             {watched ? (
               <>
                 <button className="btn btn-ghost" onClick={act(() => del(`/episodes/${ep.id}/watch`), "unwatched")} disabled={busy}>
-                  Watched ✓ — undo
+                  Watched ✓ (undo)
                 </button>
                 <button className="btn btn-ghost" onClick={act(() => post(`/episodes/${ep.id}/watch`), "watched")} disabled={busy}>
                   + Rewatch

@@ -1,7 +1,7 @@
 {
   "name": "Show Us TV",
   "short_name": "Show Us TV",
-  "description": "Track every show and movie you watch — what's next, what's airing soon, and everything you've finished.",
+  "description": "Track every show and movie you watch: what's next, what's airing soon, and everything you've finished.",
   "id": "/",
   "start_url": "/",
   "scope": "/",

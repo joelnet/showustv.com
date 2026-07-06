@@ -66,7 +66,7 @@ export function ListsPage() {
       ) : error ? (
         <ErrorNote message={error} />
       ) : !data?.lists.length ? (
-        <Empty title="No lists yet" hint="Make a list — “Comfort rewatches”, “Watch with Sam” — and fill it from any show or movie page." />
+        <Empty title="No lists yet" hint="Make a list (“Comfort rewatches”, “Watch with Sam”) and fill it from any show or movie page." />
       ) : (
         <div className="lists-grid">
           {data.lists.map((l) => (
@@ -163,7 +163,7 @@ export function ListDetailPage() {
             className="btn btn-ghost"
             disabled={busy}
             aria-pressed={!!data.list.is_shared}
-            title={data.list.is_shared ? "Public — anyone with the link can view" : "Private — only you can view"}
+            title={data.list.is_shared ? "Public: anyone with the link can view" : "Private: only you can view"}
             onClick={toggleVisibility}
           >
             {data.list.is_shared ? <IconEye size={15} /> : <IconEyeSlash size={15} />}

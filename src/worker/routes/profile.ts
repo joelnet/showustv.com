@@ -90,7 +90,7 @@ profile.post("/email", async (c) => {
     .bind(uid)
     .first<{ sent_at: string }>();
   if (prev && Date.now() - Date.parse(prev.sent_at) < RESEND_GAP_MS)
-    return c.json({ error: "Verification email just sent — give it a minute" }, 429);
+    return c.json({ error: "Verification email just sent. Give it a minute" }, 429);
 
   // The raw token exists only in the email; the DB keeps its digest. The
   // link lands on the SPA confirm page — verification is consumed by an
@@ -109,7 +109,7 @@ profile.post("/email", async (c) => {
   const sent = await sendEmail(
     c.env,
     email,
-    "Verify your email — Show Us TV",
+    "Verify your email: Show Us TV",
     `Confirm this email address for your Show Us TV account:\n\n${link}\n\nThe link expires in 24 hours. If you didn't request this, ignore it.`,
     brandedEmailHtml({
       preheader: "Confirm this email address for your Show Us TV account.",
@@ -123,7 +123,7 @@ profile.post("/email", async (c) => {
   if (!sent) {
     // Clear the pending row so the retry isn't stuck behind the cooldown.
     await c.env.DB.prepare("DELETE FROM email_verifications WHERE user_id = ?1").bind(uid).run();
-    return c.json({ error: "Couldn't send the verification email — try again later" }, 502);
+    return c.json({ error: "Couldn't send the verification email. Try again later" }, 502);
   }
   return c.json({ ok: true });
 });

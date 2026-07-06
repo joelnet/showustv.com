@@ -144,7 +144,7 @@ function FollowActions({ username }: { username: string }) {
         <button
           className="btn btn-ghost"
           disabled={busy}
-          title={`You follow ${username} — click to unfollow`}
+          title={`You follow ${username}. Click to unfollow`}
           onClick={async () => {
             const yes = await confirm({
               title: `Unfollow ${username}?`,
@@ -235,10 +235,10 @@ function AdminTools({ username, tz }: { username: string; tz: string }) {
         <button
           className={`btn btn-ghost${banned ? " btn-danger" : ""}`}
           disabled={busy}
-          title={banned ? "Shadow banned — comments hidden from everyone else" : "Comments visible normally"}
+          title={banned ? "Shadow banned: comments hidden from everyone else" : "Comments visible normally"}
           onClick={toggleBan}
         >
-          {banned ? "Shadow banned — lift?" : "Shadow ban"}
+          {banned ? "Shadow banned (lift?)" : "Shadow ban"}
         </button>
       )}
       {rows === null ? (
@@ -247,7 +247,7 @@ function AdminTools({ username, tz }: { username: string; tz: string }) {
         </button>
       ) : (
         <>
-          <h2 className="section-title">Activity log — admin view</h2>
+          <h2 className="section-title">Activity log (admin view)</h2>
           {rows.length === 0 ? (
             <p className="admin-empty">No recorded activity.</p>
           ) : (
@@ -281,7 +281,7 @@ export function PublicProfilePage() {
   return (
     <div className="public-page">
       <header className="header">
-        <Link to="/" className="header-brand" aria-label="Show Us TV — home">
+        <Link to="/" className="header-brand" aria-label="Show Us TV, home">
           <Wordmark />
         </Link>
       </header>

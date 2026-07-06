@@ -116,7 +116,7 @@ export function WatchNext() {
       {!current.length && !upcoming.length ? (
         <Empty
           title="Nothing on deck"
-          hint="Follow a show and its next episode lands here. Try the search — or start with what's trending."
+          hint="Follow a show and its next episode lands here. Try the search, or start with what's trending."
         />
       ) : (
         <>

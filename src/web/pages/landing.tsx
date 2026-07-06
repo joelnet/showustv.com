@@ -135,7 +135,7 @@ const SHOWCASE = [
   },
   {
     title: "Upcoming, on your radar",
-    body: "See what's airing next across everything you follow, soonest first — so premieres and finales never slip past you.",
+    body: "See what's airing next across everything you follow, soonest first, so premieres and finales never slip past you.",
     url: "showustv.com",
     shot: (
       <ul className="agenda">
@@ -162,7 +162,7 @@ const SHOWCASE = [
   },
   {
     title: "Lists worth sharing",
-    body: "Group shows and movies into lists — “Comfort rewatches”, “Watch with Sam” — then flip any of them public and share a link. No account needed to view.",
+    body: "Group shows and movies into lists (“Comfort rewatches”, “Watch with Sam”), then flip any of them public and share a link. No account needed to view.",
     url: "showustv.com/u/you/lists",
     shot: (
       <div className="lists-grid">
@@ -218,13 +218,13 @@ export function Landing() {
       <main className="landing-main">
         <section className="landing-hero">
           <Link to="/import-help" className="landing-eyebrow landing-eyebrow--warn landing-eyebrow--link">
-            <IconWarning size={13} /> TV Time is shutting down July 15 — import your data here
+            <IconWarning size={13} /> TV Time is shutting down July 15: import your data here
           </Link>
           <h1>
             Track your shows. Pickup where you <em className="landing-bug">left off</em>.
           </h1>
           <p className="landing-sub">
-            Show Us TV keeps track of every show and movie you watch — what&rsquo;s next, what&rsquo;s
+            Show Us TV keeps track of every show and movie you watch: what&rsquo;s next, what&rsquo;s
             airing soon, and everything you&rsquo;ve finished.
           </p>
           <p className="landing-freebadge">
@@ -252,7 +252,7 @@ export function Landing() {
                 width={1086}
                 height={1038}
                 decoding="async"
-                alt="The Show Us TV library — a grid of followed shows with cover art and watch-progress bars."
+                alt="The Show Us TV library: a grid of followed shows with cover art and watch-progress bars."
               />
             </div>
           </figure>

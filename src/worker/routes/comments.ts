@@ -363,7 +363,7 @@ comments.post("/", async (c) => {
     )
       .bind(parentId, WRITE_DEPTH_CAP + 1)
       .first<{ d: number }>();
-    if ((depth?.d ?? 0) >= WRITE_DEPTH_CAP) return c.json({ error: "This thread is too deep — reply higher up" }, 400);
+    if ((depth?.d ?? 0) >= WRITE_DEPTH_CAP) return c.json({ error: "This thread is too deep. Reply higher up" }, 400);
   }
 
   const since = new Date(Date.now() - RATE_LIMIT.windowMs).toISOString();
@@ -371,7 +371,7 @@ comments.post("/", async (c) => {
     .bind(uid, since)
     .first<{ n: number }>();
   if ((recent?.n ?? 0) >= RATE_LIMIT.count)
-    return c.json({ error: "You're commenting too fast — give it a minute" }, 429);
+    return c.json({ error: "You're commenting too fast. Give it a minute" }, 429);
 
   const row = await c.env.DB.prepare(
     "INSERT INTO comments (target_type, target_id, user_id, body, parent_id) VALUES (?1, ?2, ?3, ?4, ?5) RETURNING id, created_at"

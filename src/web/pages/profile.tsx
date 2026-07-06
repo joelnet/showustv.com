@@ -144,7 +144,7 @@ function UsernameEditor({ username, isPublic, reload }: { username: string; isPu
       >
         Edit
       </button>
-      {!isPublic && <span className="settings-user-note"> · your profile is private — only you can see it</span>}
+      {!isPublic && <span className="settings-user-note"> · your profile is private: only you can see it</span>}
     </p>
   );
 }
@@ -239,7 +239,7 @@ export function ProfilePage() {
             className="btn btn-ghost"
             disabled={busy}
             aria-pressed={data.isPublic}
-            title={data.isPublic ? "Public — anyone with the link can view" : "Private — only you can view"}
+            title={data.isPublic ? "Public: anyone with the link can view" : "Private: only you can view"}
             onClick={act(() => put("/profile/visibility", { public: !data.isPublic }))}
           >
             {data.isPublic ? <IconEye size={15} /> : <IconEyeSlash size={15} />}
@@ -286,7 +286,7 @@ export function ProfilePage() {
                 </span>
                 <span className="mono list-count">
                   {l.count} {l.count === 1 ? "title" : "titles"}
-                  {!l.is_shared && " · private — hidden on your public profile"}
+                  {!l.is_shared && " · private, hidden on your public profile"}
                 </span>
               </Link>
               <div className="list-item-actions">

@@ -101,7 +101,7 @@ function Header() {
   const { available, ios, install } = useInstallPrompt();
   return (
     <header className="header">
-      <Link to="/" className="header-brand" aria-label="Show Us TV — home">
+      <Link to="/" className="header-brand" aria-label="Show Us TV, home">
         <Wordmark />
       </Link>
       <nav className="header-nav" aria-label="Primary">
@@ -142,7 +142,7 @@ function NetBanner() {
   if (!online)
     return (
       <div className="net-banner is-offline" role="status">
-        Offline — showing saved data{pending > 0 && ` · ${n(pending)} waiting to sync`}
+        Offline, showing saved data{pending > 0 && ` · ${n(pending)} waiting to sync`}
       </div>
     );
   if (syncing || pending > 0)

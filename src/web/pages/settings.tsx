@@ -39,7 +39,7 @@ function EmailVerification({ data, reload }: { data: EmailData; reload: () => vo
     setNote(null);
     try {
       await post("/profile/email", { email: email.trim() });
-      setNote(`Verification link sent to ${email.trim()} — check your inbox.`);
+      setNote(`Verification link sent to ${email.trim()}. Check your inbox.`);
       // Success starts a fresh pending verification (reload surfaces it). Fold
       // the change form away so the new pending state — not a stale open input —
       // is what the user sees.
@@ -98,7 +98,7 @@ function EmailVerification({ data, reload }: { data: EmailData; reload: () => vo
         // in progress, so no "Change email" toggle is offered here.
         <>
           <p className="email-status">
-            Verification pending for {data.pendingEmail} — click the link in your inbox.
+            Verification pending for {data.pendingEmail}. Click the link in your inbox.
           </p>
           {emailForm(email.trim() === data.pendingEmail ? "Resend link" : "Verify")}
         </>
@@ -128,7 +128,7 @@ function EmailVerification({ data, reload }: { data: EmailData; reload: () => vo
       ) : (
         // First-time verification, no pending change.
         <>
-          <p className="email-status">Not validated — verify your email to comment and vote.</p>
+          <p className="email-status">Not validated. Verify your email to comment and vote.</p>
           {emailForm("Verify")}
         </>
       )}
@@ -208,7 +208,7 @@ export function SettingsPage() {
           <hr className="settings-rule" />
           <h2 className="settings-subtitle">Install app</h2>
           <p className="settings-hint">
-            Put Show Us TV on your home screen — it opens full screen, like a native app.
+            Put Show Us TV on your home screen. It opens full screen, like a native app.
           </p>
           <InstallAppButton buttonClass="btn btn-ghost" />
         </>

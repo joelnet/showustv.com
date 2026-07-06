@@ -29,7 +29,7 @@ export function PublicListPage() {
   return (
     <div className="public-page">
       <header className="header">
-        <Link to="/" className="header-brand" aria-label="Show Us TV — home">
+        <Link to="/" className="header-brand" aria-label="Show Us TV, home">
           <Wordmark />
         </Link>
       </header>
