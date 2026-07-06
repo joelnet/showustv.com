@@ -50,7 +50,7 @@ function ShotRequest() {
 
 function ShotEmail() {
   return (
-    <Frame url="mail — Your TV Time data is ready">
+    <Frame url="mail: Your TV Time data is ready">
       <svg viewBox="0 0 320 190" role="img" aria-label="Illustration of the email from TV Time containing a download link for your data archive.">
         <rect width="320" height="190" fill="var(--surface, #14181f)" />
         <circle cx="36" cy="40" r="14" fill="var(--amber, #f5a623)" fillOpacity="0.25" />
@@ -101,7 +101,7 @@ const STEPS = [
     body: (
       <>
         Enter your account email and choose <strong>Request my data</strong>. TV Time assembles a zip
-        archive of your shows, watched episodes, follows and favorites — this can take anywhere from a
+        archive of your shows, watched episodes, follows and favorites. This can take anywhere from a
         few minutes to a day.
       </>
     ),
@@ -112,7 +112,7 @@ const STEPS = [
     body: (
       <>
         When it's ready, TV Time emails you a download link. Open it and save the{" "}
-        <strong>.zip</strong> file to your device. No need to unzip it — keep it as-is.
+        <strong>.zip</strong> file to your device. No need to unzip it. Keep it as-is.
       </>
     ),
     shot: <ShotEmail />,
@@ -122,7 +122,7 @@ const STEPS = [
     body: (
       <>
         Head to the import screen and pick that zip file. Everything is unpacked{" "}
-        <strong>right in your browser</strong> — only the shows, episodes, movies and favorites we can
+        <strong>right in your browser</strong>: only the shows, episodes, movies and favorites we can
         match are sent to the server, and you'll see a full preview before anything is imported.
       </>
     ),
@@ -137,7 +137,7 @@ export function ImportHelpPage() {
   return (
     <div className="landing import-help">
       <header className="landing-header">
-        <Link to="/" className="header-brand" aria-label="Show Us TV — home">
+        <Link to="/" className="header-brand" aria-label="Show Us TV, home">
           <Wordmark />
         </Link>
         <Link to={user ? "/settings/import" : "/login"} className="btn btn-ghost">
@@ -155,7 +155,7 @@ export function ImportHelpPage() {
           </h1>
           <p className="landing-sub">
             Don&rsquo;t lose years of tracked shows and episodes. Export your data from TV Time and
-            import it into Show Us TV in a few steps — your watch history, follows and favorites come
+            import it into Show Us TV in a few steps: your watch history, follows and favorites come
             along, with their original watch dates.
           </p>
           <div className="landing-cta-row">
@@ -187,7 +187,7 @@ export function ImportHelpPage() {
             ))}
           </ol>
           <p className="settings-hint help-note">
-            The screens above are illustrations of the TV Time export flow — the real pages may look a
+            The screens above are illustrations of the TV Time export flow. The real pages may look a
             little different.
           </p>
         </section>

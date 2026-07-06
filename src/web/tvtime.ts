@@ -395,7 +395,7 @@ export function parseTvTimeZip(data: Uint8Array): ParseResult {
     else if (hasMovieShape) kind = "movies";
     else if (hasShowShape) kind = "follows";
     else {
-      unrecognized.push({ name, reason: "Unrecognized columns — nothing importable found" });
+      unrecognized.push({ name, reason: "Unrecognized columns: nothing importable found" });
       continue;
     }
 

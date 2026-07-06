@@ -27,7 +27,7 @@ function LegalLayout({
   return (
     <div className="landing legal-page">
       <header className="landing-header">
-        <Link to="/" className="header-brand" aria-label="Show Us TV — home">
+        <Link to="/" className="header-brand" aria-label="Show Us TV, home">
           <Wordmark />
         </Link>
         <Link to={user ? "/" : "/login"} className="btn btn-ghost">
@@ -64,19 +64,19 @@ export function PrivacyPage() {
       <p>When you create an account we store:</p>
       <ul>
         <li>
-          <strong>Your email address</strong> — it&rsquo;s how you sign in and how we send account
+          <strong>Your email address</strong>: it&rsquo;s how you sign in and how we send account
           email such as verification links.
         </li>
         <li>
-          <strong>Your password</strong> — never in plain text. We store only a salted hash
+          <strong>Your password</strong>: never in plain text. We store only a salted hash
           (PBKDF2), which cannot be reversed back into your password.
         </li>
         <li>
-          <strong>A username</strong> — we generate a random, friendly handle for you at sign-up.
+          <strong>A username</strong>: we generate a random, friendly handle for you at sign-up.
           You can change it later.
         </li>
         <li>
-          <strong>Your time zone</strong> — so air dates and &ldquo;watched&rdquo; dates line up with
+          <strong>Your time zone</strong>: so air dates and &ldquo;watched&rdquo; dates line up with
           your local time.
         </li>
       </ul>
@@ -97,8 +97,8 @@ export function PrivacyPage() {
       <h3>Technical information</h3>
       <p>
         To keep you signed in we set a single essential cookie (see{" "}
-        <a href="#cookies">Cookies</a> below). Our servers keep short-lived operational logs — the
-        kind any web server produces — to run the service and investigate abuse or errors. We do{" "}
+        <a href="#cookies">Cookies</a> below). Our servers keep short-lived operational logs (the
+        kind any web server produces) to run the service and investigate abuse or errors. We do{" "}
         <strong>not</strong> use Google Analytics, advertising trackers, or third-party profiling
         tools.
       </p>
@@ -108,7 +108,7 @@ export function PrivacyPage() {
         We use exactly one cookie, named <code>sess</code>. It holds a signed session token (your
         account id and time zone) so you don&rsquo;t have to log in on every request. It is{" "}
         <code>HttpOnly</code>, sent over HTTPS, and expires after 30 days. It is strictly necessary
-        for the site to function — it is not used for advertising or cross-site tracking, so no cookie
+        for the site to function. It is not used for advertising or cross-site tracking, so no cookie
         banner is required.
       </p>
       <p>
@@ -119,7 +119,7 @@ export function PrivacyPage() {
 
       <h2>How we use your information</h2>
       <ul>
-        <li>To provide the tracker — keep your place, show what&rsquo;s next, and sync across devices.</li>
+        <li>To provide the tracker: keep your place, show what&rsquo;s next, and sync across devices.</li>
         <li>To sign you in and keep your account secure.</li>
         <li>To send account email you ask for, such as email-verification links.</li>
         <li>To display content you choose to make public, like shared lists and your public profile.</li>
@@ -130,20 +130,20 @@ export function PrivacyPage() {
       <p>To run Show Us TV we rely on a small number of service providers:</p>
       <ul>
         <li>
-          <strong>The Movie Database (TMDB)</strong> — supplies show and movie metadata and imagery.
+          <strong>The Movie Database (TMDB)</strong>: supplies show and movie metadata and imagery.
           When the app loads posters or details it requests them from TMDB. This product uses the TMDB
           API but is not endorsed or certified by TMDB.
         </li>
         <li>
-          <strong>JustWatch</strong> — provides the &ldquo;where to watch&rdquo; streaming
+          <strong>JustWatch</strong>: provides the &ldquo;where to watch&rdquo; streaming
           availability shown on some pages.
         </li>
         <li>
-          <strong>Resend</strong> — delivers our outbound email. Your email address is shared with
+          <strong>Resend</strong>: delivers our outbound email. Your email address is shared with
           Resend only to send messages you&rsquo;ve triggered, such as verification links.
         </li>
         <li>
-          <strong>Cloudflare</strong> — hosts the application and database. Your data is processed and
+          <strong>Cloudflare</strong>: hosts the application and database. Your data is processed and
           stored on Cloudflare&rsquo;s infrastructure.
         </li>
       </ul>
@@ -255,7 +255,7 @@ export function TermsPage() {
       <p>
         You keep ownership of the lists, comments, and other content you create. By posting it, you
         grant us a non-exclusive license to store, display, and share it as needed to operate the
-        Service — for example, showing a list you&rsquo;ve made public to people with the link. You
+        Service, for example, showing a list you&rsquo;ve made public to people with the link. You
         are responsible for the content you post and confirm you have the right to share it.
       </p>
 
@@ -302,8 +302,8 @@ export function TermsPage() {
       <p>
         You can stop using the Service and delete your account at any time. We may suspend or terminate
         your access if you violate these Terms or use the Service in a way that could harm it or other
-        users. Provisions that by their nature should survive termination — such as disclaimers and
-        limitation of liability — will continue to apply.
+        users. Provisions that by their nature should survive termination, such as disclaimers and
+        limitation of liability, will continue to apply.
       </p>
 
       <h2>Changes to these Terms</h2>

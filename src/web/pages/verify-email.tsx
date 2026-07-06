@@ -9,7 +9,7 @@ import { post } from "../api";
 import { Wordmark } from "../components/ui";
 
 const RESULT_MSG: Record<string, string> = {
-  verified: "Email verified ✓ — you're all set.",
+  verified: "Email verified ✓. You're all set.",
   expired: "This verification link has expired. Send a fresh one from your settings.",
   invalid: "This verification link isn't valid. Send a fresh one from your settings.",
   taken: "That email address was verified by another account in the meantime.",

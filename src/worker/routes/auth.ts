@@ -58,7 +58,7 @@ auth.post("/register", async (c) => {
       throw e;
     }
   }
-  return c.json({ error: "Couldn't create your account — please try again" }, 500);
+  return c.json({ error: "Couldn't create your account. Please try again" }, 500);
 });
 
 auth.post("/login", async (c) => {

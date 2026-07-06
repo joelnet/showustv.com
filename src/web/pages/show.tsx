@@ -108,7 +108,7 @@ function AlsoWatching({ showId }: { showId: string }) {
     <div className="also-watching">
       <span className="also-watching-label">People you follow also watching</span>
       {data.following.map((f) => (
-        <Link key={f.username} to={`/u/${f.username}`} className="friend-chip" title={`${f.username} — ${label(f.state)}`}>
+        <Link key={f.username} to={`/u/${f.username}`} className="friend-chip" title={`${f.username}: ${label(f.state)}`}>
           {f.username}
         </Link>
       ))}

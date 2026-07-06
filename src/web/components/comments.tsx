@@ -168,7 +168,7 @@ export function Comments({ targetType, targetId }: { targetType: "episode" | "mo
         <Composer placeholder="What did you think?" submitLabel="Comment" onSubmit={postTopLevel} />
       ) : (
         <p className="comments-gate">
-          Verify your email to join the conversation — <Link to="/profile">go to your profile</Link>.
+          Verify your email to join the conversation: <Link to="/profile">go to your profile</Link>.
         </p>
       )}
       {error ? (
@@ -178,7 +178,7 @@ export function Comments({ targetType, targetId }: { targetType: "episode" | "mo
           <Spinner />
         ) : null
       ) : thread.comments.length === 0 ? (
-        <p className="comments-empty">No comments yet — start the thread.</p>
+        <p className="comments-empty">No comments yet. Start the thread.</p>
       ) : (
         <div className="comment-list">
           {thread.comments.map((n) => (
