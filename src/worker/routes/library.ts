@@ -86,14 +86,23 @@ library.get("/watch-next", async (c) => {
     .bind(uid, today, recentSince)
     .all();
 
-  // Upcoming: the next episodes to air across followed shows, soonest first.
+  // Upcoming: the next episode to air for each followed show, soonest first.
+  // One row per show (its soonest unaired episode) so a show with several
+  // scheduled episodes doesn't crowd out others — the LIMIT then applies to
+  // distinct shows. Users click through to a show for its full schedule.
   const { results: upcoming } = await c.env.DB.prepare(
-    `SELECT e.id AS episode_id, e.show_id, e.season_number, e.number, e.title AS episode_title, e.air_date,
-            s.title AS show_title, s.poster_url
-     FROM episodes e JOIN shows s ON s.tmdb_id = e.show_id
-     WHERE e.show_id IN (SELECT show_id FROM user_shows WHERE user_id = ?1 AND state = 'watching')
-       AND e.season_number > 0 AND e.air_date IS NOT NULL AND e.air_date > ?2
-     ORDER BY e.air_date, show_title, e.season_number, e.number
+    `WITH upc AS (
+       SELECT e.id AS episode_id, e.show_id, e.season_number, e.number, e.title AS episode_title, e.air_date,
+              s.title AS show_title, s.poster_url,
+              ROW_NUMBER() OVER (PARTITION BY e.show_id ORDER BY e.air_date, e.season_number, e.number) AS rn
+       FROM episodes e JOIN shows s ON s.tmdb_id = e.show_id
+       WHERE e.show_id IN (SELECT show_id FROM user_shows WHERE user_id = ?1 AND state = 'watching')
+         AND e.season_number > 0 AND e.air_date IS NOT NULL AND e.air_date > ?2
+     )
+     SELECT episode_id, show_id, season_number, number, episode_title, air_date, show_title, poster_url
+     FROM upc
+     WHERE rn = 1
+     ORDER BY air_date, show_title, season_number, number
      LIMIT 20`
   )
     .bind(uid, today)

@@ -520,7 +520,46 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .wn-tile-date { font-size: 11.5px; }
 .wn-tile-btn { justify-content: center; margin-top: auto; }
 
-.wn-divider { margin-top: 34px; }
+/* Watch Now / Upcoming tabs (issue #69). Page-title-scale tabs; the active one
+   gets an amber underline that sits on the tablist's hairline border. */
+.wn-tabs {
+  display: flex;
+  gap: 24px;
+  margin: 4px 0 20px;
+  border-bottom: 1px solid var(--line);
+}
+.wn-tab {
+  appearance: none;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  padding: 0 2px 10px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(22px, 5.5vw, 28px);
+  letter-spacing: -0.02em;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.wn-tab:hover { color: var(--text); }
+.wn-tab.is-active { color: var(--text); border-bottom-color: var(--amber); }
+
+/* Upcoming tiles reuse .wn-tile but lead with the air date, so accent it. */
+.wn-tile--upcoming .wn-tile-date { color: var(--amber); }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 
 .btn-mark span { display: inline; }
 

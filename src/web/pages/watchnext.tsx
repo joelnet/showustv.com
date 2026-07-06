@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type KeyboardEvent } from "react";
 import { Link } from "react-router-dom";
 import { useApi } from "../hooks";
 import { post } from "../api";
@@ -74,6 +74,28 @@ function Tile({
   );
 }
 
+// Upcoming episodes reuse the Watch Now tile shape (poster + body) but lead
+// with the air date and drop the mark/count chrome, since nothing here has
+// aired yet.
+function UpcomingTile({ item, tz }: { item: UpcomingItem; tz: string }) {
+  const src = poster(item.poster);
+  return (
+    <article className="wn-tile wn-tile--upcoming">
+      <Link to={mediaPath("show", item.showId, item.showTitle)} className="wn-tile-poster">
+        {src ? <img src={src} alt="" loading="lazy" /> : <div className="poster-fallback">{item.showTitle}</div>}
+      </Link>
+      <div className="wn-tile-body">
+        <span className="wn-tile-date mono">{fmtAirDate(item.airDate, tz)}</span>
+        <Link to={mediaPath("show", item.showId, item.showTitle)} className="wn-tile-show">{item.showTitle}</Link>
+        <div className="wn-tile-ep">
+          <Slate season={item.season} number={item.number} />
+          <Link to={mediaPath("episode", item.episodeId, item.title)}>{item.title ?? `Episode ${item.number}`}</Link>
+        </div>
+      </div>
+    </article>
+  );
+}
+
 export function WatchNext() {
   const { user } = useAuth();
   const celebrate = useCelebrate();
@@ -82,6 +104,7 @@ export function WatchNext() {
     upcoming: UpcomingItem[];
   }>("/watch-next");
   const [marking, setMarking] = useState(false);
+  const [tab, setTab] = useState<"now" | "upcoming">("now");
   // Episodes whose watch is queued offline — hidden locally, since a
   // refetch would just serve the stale pre-change cache and resurrect them.
   const [hidden, setHidden] = useState<Set<number>>(new Set());
@@ -106,47 +129,92 @@ export function WatchNext() {
   if (loading) return <Spinner />;
   if (error) return <ErrorNote message={error} />;
   const current = (data?.watchNext ?? []).filter((i) => !hidden.has(i.episode.id));
-  const upcoming = data?.upcoming ?? [];
+  // The backend already returns one soonest episode per show; dedupe again
+  // defensively so a stale cache can't surface the same show twice.
+  const seenShows = new Set<number>();
+  const upcoming = (data?.upcoming ?? []).filter((u) =>
+    seenShows.has(u.showId) ? false : (seenShows.add(u.showId), true)
+  );
   const tz = user!.tz;
+
+  // Full ARIA tabs keyboard support: Arrow/Home/End move selection and focus
+  // between the two tabs (selection follows focus — switching is cheap).
+  function onTabKeyDown(e: KeyboardEvent<HTMLButtonElement>) {
+    const order = ["now", "upcoming"] as const;
+    const i = order.indexOf(tab);
+    let next: (typeof order)[number] | null = null;
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") next = order[(i + 1) % order.length];
+    else if (e.key === "ArrowLeft" || e.key === "ArrowUp") next = order[(i + order.length - 1) % order.length];
+    else if (e.key === "Home") next = order[0];
+    else if (e.key === "End") next = order[order.length - 1];
+    if (!next) return;
+    e.preventDefault();
+    setTab(next);
+    document.getElementById(`wn-tab-${next}`)?.focus();
+  }
 
   return (
     <div>
-      <h1 className="page-title">Watch now</h1>
+      <h1 className="sr-only">Watch Now</h1>
+      <div className="wn-tabs" role="tablist" aria-label="Watch Now and Upcoming">
+        <button
+          type="button"
+          role="tab"
+          id="wn-tab-now"
+          aria-selected={tab === "now"}
+          aria-controls="wn-panel-now"
+          className={`wn-tab${tab === "now" ? " is-active" : ""}`}
+          tabIndex={tab === "now" ? 0 : -1}
+          onClick={() => setTab("now")}
+          onKeyDown={onTabKeyDown}
+        >
+          Watch Now
+        </button>
+        <button
+          type="button"
+          role="tab"
+          id="wn-tab-upcoming"
+          aria-selected={tab === "upcoming"}
+          aria-controls="wn-panel-upcoming"
+          className={`wn-tab${tab === "upcoming" ? " is-active" : ""}`}
+          tabIndex={tab === "upcoming" ? 0 : -1}
+          onClick={() => setTab("upcoming")}
+          onKeyDown={onTabKeyDown}
+        >
+          Upcoming
+        </button>
+      </div>
 
-      {!current.length && !upcoming.length ? (
-        <Empty
-          title="Nothing on deck"
-          hint="Follow a show and its next episode lands here. Try the search, or start with what's trending."
-        />
-      ) : (
-        <>
-          {current.length > 0 && (
+      {tab === "now" ? (
+        <div id="wn-panel-now" role="tabpanel" aria-labelledby="wn-tab-now">
+          {current.length > 0 ? (
             <div className="wn-grid">
               {current.map((item) => (
                 <Tile key={item.show.id} item={item} tz={tz} marking={marking} onMark={markWatched} />
               ))}
             </div>
+          ) : (
+            <Empty
+              title="Nothing on deck"
+              hint="Follow a show and its next episode lands here. Try the search, or start with what's trending."
+            />
           )}
-
-          {upcoming.length > 0 && (
-            <>
-              <h2 className="section-title wn-divider">Upcoming</h2>
-              <ul className="agenda">
-                {upcoming.map((u) => (
-                  <li key={u.episodeId}>
-                    <span className="mono agenda-date">{fmtAirDate(u.airDate, tz)}</span>
-                    <Link to={mediaPath("show", u.showId, u.showTitle)} className="agenda-show">{u.showTitle}</Link>
-                    <Slate season={u.season} number={u.number} />
-                    <Link to={mediaPath("episode", u.episodeId, u.title)} className="agenda-ep">
-                      {u.title ?? `Episode ${u.number}`}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </>
+        </div>
+      ) : (
+        <div id="wn-panel-upcoming" role="tabpanel" aria-labelledby="wn-tab-upcoming">
+          {upcoming.length > 0 ? (
+            <div className="wn-grid">
+              {upcoming.map((u) => (
+                <UpcomingTile key={u.showId} item={u} tz={tz} />
+              ))}
+            </div>
+          ) : (
+            <Empty
+              title="Nothing scheduled"
+              hint="Upcoming episodes of the shows you follow will show up here."
+            />
           )}
-
-        </>
+        </div>
       )}
     </div>
   );
