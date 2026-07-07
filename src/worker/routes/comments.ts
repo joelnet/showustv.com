@@ -38,7 +38,21 @@ const TARGET_TABLE: Record<string, { table: string; pk: string }> = {
   episode: { table: "episodes", pk: "id" },
   movie: { table: "movies", pk: "tmdb_id" },
   show: { table: "shows", pk: "tmdb_id" },
+  list: { table: "custom_lists", pk: "id" },
 };
+
+// List comments are only open when the owner made the list public AND turned
+// comments on; a private or comments-off list must not accept or serve comments
+// (issue #98). Other target types have no such gate.
+async function listCommentsClosed(c: Context<AppEnv>, targetType: string, targetId: number): Promise<boolean> {
+  if (targetType !== "list") return false;
+  const open = await c.env.DB.prepare(
+    "SELECT 1 FROM custom_lists WHERE id = ?1 AND is_shared = 1 AND comments_enabled = 1"
+  )
+    .bind(targetId)
+    .first();
+  return !open;
+}
 
 const MAX_DEPTH = 6; // replies below this render as "continue this thread"
 const PAGE_BUDGET = 150; // max comment nodes serialized per response
@@ -289,6 +303,7 @@ comments.get("/:type/:id", async (c) => {
   const targetType = c.req.param("type");
   const targetId = Number(c.req.param("id"));
   if (badTarget(targetType, targetId)) return c.json({ error: "bad target" }, 400);
+  if (await listCommentsClosed(c, targetType, targetId)) return c.json({ comments: [], more: null, count: 0 });
   const sort = parseSort(c.req.query("sort"));
   const { roots, total } = await loadTree(c, targetType, targetId);
   const { list, more } = shapeLevel(c.get("uid"), roots, 0, { budget: PAGE_BUDGET }, sort);
@@ -303,6 +318,7 @@ comments.post("/more", async (c) => {
   const targetType = String(b.target_type ?? "");
   const targetId = Number(b.target_id);
   if (badTarget(targetType, targetId)) return c.json({ error: "bad target" }, 400);
+  if (await listCommentsClosed(c, targetType, targetId)) return c.json({ comments: [], more: null });
   const sort = parseSort(typeof b.sort === "string" ? b.sort : undefined);
   const rawIds: unknown[] = Array.isArray(b.ids) ? b.ids : [];
   const ids = [...new Set(rawIds.map(Number))].filter((n) => Number.isInteger(n) && n > 0).slice(0, MORE_IDS_CAP);
@@ -332,9 +348,14 @@ comments.post("/", async (c) => {
   const bodyErr = bodyError(body);
   if (bodyErr) return c.json({ error: bodyErr }, 400);
 
-  const t = TARGET_TABLE[targetType];
-  const exists = await c.env.DB.prepare(`SELECT 1 FROM ${t.table} WHERE ${t.pk} = ?1`).bind(targetId).first();
-  if (!exists) return c.json({ error: `no such ${targetType}` }, 404);
+  if (targetType === "list") {
+    if (await listCommentsClosed(c, targetType, targetId))
+      return c.json({ error: "Comments are closed for this list" }, 403);
+  } else {
+    const t = TARGET_TABLE[targetType];
+    const exists = await c.env.DB.prepare(`SELECT 1 FROM ${t.table} WHERE ${t.pk} = ?1`).bind(targetId).first();
+    if (!exists) return c.json({ error: `no such ${targetType}` }, 404);
+  }
 
   let parentUserId: number | null = null;
   if (parentId != null) {

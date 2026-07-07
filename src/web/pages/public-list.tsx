@@ -3,12 +3,21 @@
 import { useEffect } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useApi } from "../hooks";
+import { useAuth } from "../app";
 import { Spinner, Wordmark, SmpteBars, SiteFooter } from "../components/ui";
+import { Comments } from "../components/comments";
 import { poster } from "../img";
 import { mediaPath, idFromParam, publicListPath } from "../paths";
 
 interface PublicList {
-  list: { id: number; name: string; username: string; profilePublic: boolean; preamble: string | null };
+  list: {
+    id: number;
+    name: string;
+    username: string;
+    profilePublic: boolean;
+    preamble: string | null;
+    commentsEnabled: boolean;
+  };
   items: { type: "show" | "movie"; id: number; title: string; poster: string | null; overview: string | null }[];
 }
 
@@ -18,6 +27,7 @@ export function PublicListPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const { data, loading, error } = useApi<PublicList>(`/public/lists/${encodeURIComponent(username!)}/${id}`);
+  const { user } = useAuth();
 
   // Canonicalize the address bar to the slugged URL once the name is known,
   // matching the show/movie detail pages.
@@ -80,6 +90,17 @@ export function PublicListPage() {
                 );
               })}
             </ul>
+            {data.list.commentsEnabled &&
+              (user ? (
+                <section className="list-comments">
+                  <h2 className="section-title">Comments</h2>
+                  <Comments targetType="list" targetId={data.list.id} />
+                </section>
+              ) : (
+                <p className="settings-hint list-comments-note">
+                  <Link to="/login">Sign in</Link> to read and post comments on this list.
+                </p>
+              ))}
           </>
         )}
       </main>

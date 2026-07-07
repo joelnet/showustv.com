@@ -25,6 +25,7 @@ import {
   faTriangleExclamation,
   faDownload,
   faArrowUpRightFromSquare,
+  faComment,
   faXmark,
 } from "@fortawesome/free-solid-svg-icons";
 import { faHeart as faHeartOutline } from "@fortawesome/free-regular-svg-icons";
@@ -57,6 +58,7 @@ export const IconUsers = wrap(faUserGroup);
 export const IconWarning = wrap(faTriangleExclamation);
 export const IconDownload = wrap(faDownload);
 export const IconExternal = wrap(faArrowUpRightFromSquare);
+export const IconComment = wrap(faComment);
 export const IconClose = wrap(faXmark);
 
 // Brand glyphs — not in the Font Awesome free-solid/regular sets, so inlined

@@ -984,6 +984,11 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 }
 .list-preamble-actions { display: flex; gap: 8px; margin-top: 8px; }
 
+/* List comments (issue #98): owner toggles them; they render here and on the
+   public list page when the list is public + comments are on. */
+.list-comments { margin-top: 34px; }
+.list-comments-note { margin-top: 24px; }
+
 .list-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .list-items li {
   display: flex;

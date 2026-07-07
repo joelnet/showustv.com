@@ -15,7 +15,9 @@ import {
   IconEyeSlash,
   IconArrowUp,
   IconArrowDown,
+  IconComment,
 } from "../components/icons";
+import { Comments } from "../components/comments";
 import { useConfirm } from "../components/dialog";
 
 interface ListSummary {
@@ -169,6 +171,7 @@ export function ListDetailPage() {
       is_shared: number;
       profile_position: number | null;
       preamble: string | null;
+      comments_enabled: number;
     };
     items: ListItem[];
   }>(`/lists/${id}`);
@@ -238,6 +241,15 @@ export function ListDetailPage() {
           >
             {data.list.is_shared ? <IconEye size={15} /> : <IconEyeSlash size={15} />}
             {data.list.is_shared ? "Public" : "Private"}
+          </button>
+          <button
+            className="btn btn-ghost"
+            disabled={busy}
+            aria-pressed={!!data.list.comments_enabled}
+            title={data.list.comments_enabled ? "Comments are on for this list" : "Comments are off"}
+            onClick={act(() => put(`/lists/${id}/comments`, { enabled: !data.list.comments_enabled }))}
+          >
+            <IconComment size={15} /> {data.list.comments_enabled ? "Comments on" : "Comments off"}
           </button>
           <button
             className="btn btn-ghost btn-danger"
@@ -310,6 +322,18 @@ export function ListDetailPage() {
             </li>
           ))}
         </ul>
+      )}
+
+      {!!data.list.comments_enabled && !!data.list.is_shared && (
+        <section className="list-comments">
+          <h2 className="section-title">Comments</h2>
+          <Comments targetType="list" targetId={data.list.id} />
+        </section>
+      )}
+      {!!data.list.comments_enabled && !data.list.is_shared && (
+        <p className="settings-hint list-comments-note">
+          Comments are on, but they only appear once this list is public.
+        </p>
       )}
     </div>
   );

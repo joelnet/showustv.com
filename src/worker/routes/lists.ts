@@ -54,7 +54,9 @@ lists.get("/:id", async (c) => {
   const id = Number(c.req.param("id"));
   if (!(await ownList(c, id))) return c.json({ error: "not found" }, 404);
   const [metaR, itemsR] = await c.env.DB.batch([
-    c.env.DB.prepare("SELECT id, name, kind, is_shared, profile_position, preamble FROM custom_lists WHERE id = ?1").bind(id),
+    c.env.DB.prepare(
+      "SELECT id, name, kind, is_shared, profile_position, preamble, comments_enabled FROM custom_lists WHERE id = ?1"
+    ).bind(id),
     c.env.DB.prepare(
       `SELECT li.target_type AS type, li.target_id AS id, li.position,
               COALESCE(s.title, m.title) AS title, COALESCE(s.poster_url, m.poster_url) AS poster
@@ -85,6 +87,17 @@ lists.put("/:id/preamble", async (c) => {
   const preamble = body.preamble == null ? null : String(body.preamble).trim().slice(0, 2000) || null;
   if (!(await ownList(c, id))) return c.json({ error: "not found" }, 404);
   await c.env.DB.prepare("UPDATE custom_lists SET preamble = ?2 WHERE id = ?1").bind(id, preamble).run();
+  return c.json({ ok: true });
+});
+
+// Per-list comments on/off toggle, owner-controlled (issue #98). Comments only
+// surface on shared lists; the flag is stored regardless so it's remembered.
+lists.put("/:id/comments", async (c) => {
+  const id = Number(c.req.param("id"));
+  const body = await c.req.json().catch(() => ({}));
+  const enabled = body.enabled ? 1 : 0;
+  if (!(await ownList(c, id))) return c.json({ error: "not found" }, 404);
+  await c.env.DB.prepare("UPDATE custom_lists SET comments_enabled = ?2 WHERE id = ?1").bind(id, enabled).run();
   return c.json({ ok: true });
 });
 

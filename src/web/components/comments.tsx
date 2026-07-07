@@ -73,7 +73,7 @@ function hiddenCount(n: CommentNode): number {
   return c;
 }
 
-export function Comments({ targetType, targetId }: { targetType: "episode" | "movie" | "show"; targetId: number }) {
+export function Comments({ targetType, targetId }: { targetType: "episode" | "movie" | "show" | "list"; targetId: number }) {
   const { user } = useAuth();
   const verified = !!user?.emailVerified; // server enforces too (403)
   const [sort, setSort] = useState<Sort>("top");
