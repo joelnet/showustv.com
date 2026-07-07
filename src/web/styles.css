@@ -1280,6 +1280,30 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .import-help .landing-final h2 { display: flex; align-items: center; justify-content: center; gap: 10px; }
 .import-help .landing-final h2 .svg-inline--fa { color: var(--green); }
 
+/* Real iOS screenshots on the install page (issue #74). Framed cleanly as
+   device captures rather than site-styled mockups. */
+.install-hero-shot { margin: 30px auto 0; max-width: 440px; }
+.install-hero-shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  box-shadow: 0 24px 60px -30px rgba(0, 0, 0, 0.8);
+}
+.install-shot { flex: 1 1 300px; margin: 0; display: flex; justify-content: center; }
+.install-shot img {
+  display: block;
+  max-width: 100%;
+  max-height: 460px;
+  width: auto;
+  height: auto;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  box-shadow: 0 16px 40px -24px rgba(0, 0, 0, 0.7);
+}
+.install-shot--wide img { width: 100%; max-height: none; }
+
 .landing-section { margin-top: 128px; }
 
 /* Section opener: short broadcast bar, cyan mono kicker, big slab headline.
