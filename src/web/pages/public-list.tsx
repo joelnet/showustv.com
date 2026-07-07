@@ -8,7 +8,7 @@ import { poster } from "../img";
 import { mediaPath, idFromParam, publicListPath } from "../paths";
 
 interface PublicList {
-  list: { id: number; name: string; username: string; profilePublic: boolean };
+  list: { id: number; name: string; username: string; profilePublic: boolean; preamble: string | null };
   items: { type: "show" | "movie"; id: number; title: string; poster: string | null; overview: string | null }[];
 }
 
@@ -55,6 +55,7 @@ export function PublicListPage() {
               )}{" "}
               · {data.items.length} {data.items.length === 1 ? "title" : "titles"}
             </p>
+            {data.list.preamble && <p className="list-preamble">{data.list.preamble}</p>}
             <ul className="pub-list">
               {data.items.map((it) => {
                 const src = poster(it.poster);

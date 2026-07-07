@@ -93,13 +93,83 @@ export function ListsPage() {
   );
 }
 
+// Optional list preamble (issue #94): the owner can add a short note about the
+// list. Shown here and on the public share page. Empty saves clear it.
+function ListPreamble({ id, preamble, onSaved }: { id: string; preamble: string | null; onSaved: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(preamble ?? "");
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await put(`/lists/${id}/preamble`, { preamble: draft.trim() || null });
+      setEditing(false);
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (editing) {
+    return (
+      <div className="list-preamble-edit">
+        <textarea
+          className="list-preamble-input"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          maxLength={2000}
+          rows={4}
+          placeholder="Say why you made this list or what makes it worth a look…"
+          aria-label="List preamble"
+        />
+        <div className="list-preamble-actions">
+          <button className="btn" disabled={saving} onClick={save}>
+            {saving ? "Saving…" : "Save"}
+          </button>
+          <button
+            className="btn btn-ghost"
+            disabled={saving}
+            onClick={() => {
+              setDraft(preamble ?? "");
+              setEditing(false);
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return preamble ? (
+    <p className="list-preamble">
+      {preamble}{" "}
+      <button className="link-btn" onClick={() => setEditing(true)}>
+        Edit
+      </button>
+    </p>
+  ) : (
+    <button className="link-btn list-preamble-add" onClick={() => setEditing(true)}>
+      + Add a preamble
+    </button>
+  );
+}
+
 export function ListDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const confirm = useConfirm();
   const { user } = useAuth();
   const { data, loading, error, reload } = useApi<{
-    list: { id: number; name: string; kind: "custom" | "favorites"; is_shared: number; profile_position: number | null };
+    list: {
+      id: number;
+      name: string;
+      kind: "custom" | "favorites";
+      is_shared: number;
+      profile_position: number | null;
+      preamble: string | null;
+    };
     items: ListItem[];
   }>(`/lists/${id}`);
   const [busy, setBusy] = useState(false);
@@ -205,6 +275,8 @@ export function ListDetailPage() {
           </button>
         </p>
       )}
+
+      <ListPreamble id={id!} preamble={data.list.preamble} onSaved={reload} />
 
       {!data.items.length ? (
         <Empty title="This list is empty" hint="Open any show or movie and use “Add to list”." />
