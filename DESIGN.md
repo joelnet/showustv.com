@@ -121,7 +121,7 @@ is warm and worn, not neon. Think CRT glow and a well-thumbed VHS spine, not
 synthwave. It should feel made by someone who genuinely loves television.
 
 Density is calm and legible. This is a tool people open in short bursts on the
-couch, so the working surfaces (library, watch next, show and episode pages) stay
+couch, so the working surfaces (library, watch now, show and episode pages) stay
 quiet and fast; the personality lives in the chrome, the empty states, the
 wordmark, and the copy, never in the path of the one tap that matters. The single
 tungsten amber is used sparingly and always means "act here" or "your progress."

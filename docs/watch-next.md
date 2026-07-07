@@ -1,37 +1,39 @@
 ---
-title: Watch Next page
-purpose: How the home page ("Watch Next") picks, orders, and updates the shows a user should watch.
+title: Watch Now page
+purpose: How the home page ("Watch Now") picks, orders, and updates the shows a user should watch. The route, component, and API keep their original "watch next" names in code.
 ---
 
 ## What it is
 
-The home page at `/`. Two sections:
+The home page at `/`. Two tabs (issue #69) under a shared "Watch Now" heading:
 
-1. **Current** — a grid of tiles, one per followed show, each showing the show's next unwatched aired episode. Ordered by most recent activity.
-2. **Upcoming** — a linear agenda of the next 20 episodes to air across followed shows, soonest first.
+1. **Watch Now** — a grid of tiles, one per followed show, each showing the show's next unwatched aired episode. Ordered by most recent activity.
+2. **Upcoming** — a grid of tiles (matching the Watch Now style) showing the next episode to air for each followed show, soonest first. One row per show, so a show with several scheduled episodes doesn't crowd out others; click through for its full schedule.
+
+The tab was renamed from "Watch next" to "Watch Now" in issue #68; the route, component, and API keep their original `watch-next` / `WatchNext` names.
 
 Route registration: `src/web/app.tsx` → `<Route path="/" element={<WatchNext />} />`.
-Component: `src/web/pages/watchnext.tsx`.
-API: `GET /watch-next`, handled in `src/worker/routes/library.ts:41`.
+Component: `src/web/pages/watchnext.tsx` (`WatchNext` at :99).
+API: `GET /watch-next`, handled in `src/worker/routes/library.ts:53`.
 
 ## Data flow
 
 ```
-WatchNext (watchnext.tsx:77)
+WatchNext (watchnext.tsx:99)
   useApi("/watch-next")           ← stale-while-revalidate; refetches after offline sync
     ↓
-GET /watch-next                   ← library.ts:41
-    Query 1: Current queue        (one row per followed show)
-    Query 2: Upcoming episodes    (next 20 aired-after-today)
+GET /watch-next                   ← library.ts:53
+    Query 1: Watch Now queue      (one row per followed show)
+    Query 2: Upcoming episodes    (soonest upcoming per show, aired-after-today)
     ↓
   { watchNext, upcoming }
     ↓
-  render grid + agenda
+  render Watch Now / Upcoming tabs (both tile grids)
 ```
 
-## Query 1: Current queue
+## Query 1: Watch Now queue
 
-Source: `library.ts:49–84`. Returns one row per followed show whose next unwatched aired episode should surface.
+Source: `library.ts:60–96`. Returns one row per followed show whose next unwatched aired episode should surface.
 
 CTE `cand` picks candidate episodes:
 
@@ -68,21 +70,21 @@ Bound parameters: `?1 = uid`, `?2 = today` (user timezone), `?3 = recentSince` (
 
 ## Query 2: Upcoming
 
-Straight scan of `episodes` for followed shows with `air_date > today`, ordered by air date, limit 20.
+`episodes` for followed shows with `air_date > today`, deduped to the **soonest upcoming episode per show** via `ROW_NUMBER() OVER (PARTITION BY show_id ORDER BY air_date, season_number, number)` keeping `rn = 1`, ordered by air date, `LIMIT 20` — so the limit applies to distinct shows (issue #69).
 
 ## Frontend behavior
 
-`WatchNext` (`watchnext.tsx:77`):
+`WatchNext` (`watchnext.tsx:99`):
 
 - Fetches with `useApi` — shows spinner on first load, keeps stale data on reload.
-- Renders tiles from `data.watchNext`; upcoming section from `data.upcoming`.
-- Empty state ("Nothing on deck") when both lists are empty.
+- A tab bar (`tab` state at :107) switches between the **Watch Now** grid (`data.watchNext`) and the **Upcoming** grid (`data.upcoming`, deduped client-side by show as a safety net). Full ARIA tabs pattern with roving `tabindex` + arrow/Home/End keyboard nav; a visually-hidden `<h1>` anchors the page.
+- Per-tab empty states: "Nothing on deck" (Watch Now) and "Nothing scheduled" (Upcoming).
 
-Tile (`watchnext.tsx:39`) shows poster (with `"N left"` pill overlay), show title, `SxxEyy` slate + episode title, formatted air date, and a "Watched" button. `fmtAirDate` (`src/web/format.ts`) renders "Today"/"Tomorrow"/short date in the user's timezone.
+`Tile` (`watchnext.tsx:39`) shows poster (with `"N left"` pill overlay), show title, `SxxEyy` slate + episode title, formatted air date, and a "Watched" button. `UpcomingTile` (`:80`) reuses the same shape but leads with the air date and drops the mark/count chrome (nothing has aired yet). `fmtAirDate` (`src/web/format.ts`) renders "Today"/"Tomorrow"/short date in the user's timezone.
 
 ## Mark-watched flow
 
-`markWatched` (`watchnext.tsx:91`) → `POST /episodes/:id/watch` (`library.ts:333`).
+`markWatched` (`watchnext.tsx:114`) → `POST /episodes/:id/watch` (`library.ts:370`).
 
 Server:
 
@@ -96,7 +98,7 @@ Client:
 - Otherwise calls `reload()` to refetch `/watch-next`.
 - If `caughtUp`, calls `useCelebrate()` to trigger the confetti overlay (issue #53).
 
-The `hidden` set is reset whenever fresh server data arrives (`watchnext.tsx:89`) so it never overrides authoritative state.
+The `hidden` set is reset whenever fresh server data arrives (`watchnext.tsx:112`) so it never overrides authoritative state.
 
 ## Tables involved
 
@@ -114,5 +116,5 @@ All "aired?" and "recent window" comparisons use the user's IANA timezone via `t
 ## Tuning knobs
 
 - `RECENT_WINDOW_DAYS` (`src/shared/constants.ts:19`) — recency cutoff for both filters: how long a newly followed but never-watched show stays surfaced, and how long dormant shows keep appearing after their last watch/air.
-- Upcoming `LIMIT 20` in the second SQL query.
+- Upcoming `LIMIT 20` in the second SQL query (one row per show).
 - Sort order in the outer query's `ORDER BY`.

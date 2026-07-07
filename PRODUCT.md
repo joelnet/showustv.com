@@ -70,7 +70,7 @@ the copy, and the empty states, never in the way of the one tap that matters.
   finding what's next, is a single action. Personality and detail never add a
   step to it.
 - **Playful in the chrome, precise in the work.** Charm belongs in empty states,
-  wordmark, and copy; the working surfaces (library, watch next, detail) stay
+  wordmark, and copy; the working surfaces (library, watch now, detail) stay
   legible, fast, and calm.
 
 ## Accessibility & Inclusion

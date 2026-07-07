@@ -19,13 +19,13 @@ The whole app is a single Cloudflare Worker: it serves a React SPA as static ass
 ```
 src/
   web/            React SPA (Vite root)
-    pages/        Route components (watch next, search, show, episode, library, lists, settings, ...)
+    pages/        Route components (watch now, search, show, episode, library, lists, settings, ...)
     components/   Shared UI (dialogs, icons, primitives)
     api.ts        Fetch wrapper for /api/*
   worker/         Cloudflare Worker
     index.ts      Hono app (basePath /api) + nightly cron handler
     env.ts        Bindings/vars types
-    routes/       auth, catalog, library, ratings, lists, public
+    routes/       auth, catalog, library, ratings, lists, public, profile, social, comments, import, admin
     lib/          session (signed cookies), password (PBKDF2), tmdb client, date helpers
   shared/         Constants shared by web and worker
 migrations/       D1 SQL migrations
