@@ -150,29 +150,9 @@ a:hover { text-decoration: underline; }
   padding: 6px 11px;
   cursor: pointer;
   white-space: nowrap;
+  text-decoration: none;
 }
-.header-install:hover { background: rgba(255, 174, 46, 0.24); color: var(--amber); }
-
-/* iOS install affordance: the button plus a tap-to-reveal Add-to-Home-Screen
-   hint (iOS can't prompt programmatically). The wrapper anchors the popover
-   and stands in for the bare button in the header's flex layout. */
-.header-install-wrap { position: relative; display: inline-flex; }
-.header-install-hint {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  z-index: 30;
-  width: max-content;
-  max-width: 240px;
-  margin: 0;
-  padding: 9px 12px;
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  font: 500 12.5px/1.4 var(--font-body);
-  color: var(--text);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
-}
+.header-install:hover { background: rgba(255, 174, 46, 0.24); color: var(--amber); text-decoration: none; }
 
 .tabbar {
   display: none;
@@ -355,7 +335,6 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 /* ---------- Install app (PWA) ---------- */
 
 .install-app { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
-.install-hint { color: var(--muted); font-size: 13px; margin: 0; }
 .landing-cta-row .install-app { align-items: center; }
 
 /* ---------- Offline / sync banner (PWA) ---------- */
@@ -1412,11 +1391,8 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
      stay grouped. The nav and search are gone at this width, so the "Install
      App" words still fit — and mobile Chromium is exactly where we want the
      install nudge to read clearly. */
-  .header-install, .header-install-wrap { margin-left: auto; }
-  .header-install { padding: 10px 12px; }
-  .header-install-wrap .header-install { margin-left: 0; }
-  .header-install ~ .header-gear,
-  .header-install-wrap ~ .header-gear { margin-left: 0; }
+  .header-install { margin-left: auto; padding: 10px 12px; }
+  .header-install ~ .header-gear { margin-left: 0; }
   .tabbar { display: grid; }
   .main { padding-bottom: 90px; }
   .footer { margin-bottom: 62px; }

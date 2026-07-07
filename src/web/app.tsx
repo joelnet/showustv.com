@@ -24,6 +24,7 @@ import { FollowingPage } from "./pages/following";
 import { SettingsPage } from "./pages/settings";
 import { ImportPage } from "./pages/import";
 import { ImportHelpPage } from "./pages/import-help";
+import { InstallPage } from "./pages/install";
 import { AboutPage } from "./pages/about";
 import { PrivacyPage, TermsPage } from "./pages/legal";
 
@@ -103,7 +104,6 @@ function Header() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { available, ios, install } = useInstallPrompt();
-  const [iosHint, setIosHint] = useState(false);
   // Show the install affordance until the app is installed. Chromium gets a
   // one-tap prompt; iOS has no programmatic install, so the button reveals the
   // Safari "Add to Home Screen" steps. iOS also fires no appinstalled event, so
@@ -135,22 +135,9 @@ function Header() {
       </form>
       {showInstall &&
         (ios ? (
-          <div className="header-install-wrap">
-            <button
-              type="button"
-              className="header-install"
-              onClick={() => setIosHint((v) => !v)}
-              aria-expanded={iosHint}
-              aria-label="How to install the app"
-            >
-              <IconDownload size={14} /> <span>Install App</span>
-            </button>
-            {iosHint && (
-              <p className="header-install-hint" role="status">
-                In Safari: tap the Share button, then &ldquo;Add to Home Screen&rdquo;.
-              </p>
-            )}
-          </div>
+          <Link to="/install" className="header-install" aria-label="How to install the app">
+            <IconDownload size={14} /> <span>Install App</span>
+          </Link>
         ) : (
           <button type="button" className="header-install" onClick={install} aria-label="Install app">
             <IconDownload size={14} /> <span>Install App</span>
@@ -275,6 +262,8 @@ export function App() {
           <Route path="/verify-email" element={<VerifyEmailPage />} />
           {/* Public TV Time export/import how-to (linked from the landing banner). */}
           <Route path="/import-help" element={<ImportHelpPage />} />
+          {/* Public iOS install walkthrough (linked from the Install App button). */}
+          <Route path="/install" element={<InstallPage />} />
           {/* Legal pages — public so they're reachable signed in or out (footer). */}
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/terms" element={<TermsPage />} />

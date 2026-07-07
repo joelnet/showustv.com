@@ -4,8 +4,6 @@ import { post, put } from "../api";
 import { useApi } from "../hooks";
 import { clearQueue } from "../offline";
 import { useAuth } from "../app";
-import { useInstallPrompt } from "../pwa";
-import { InstallAppButton } from "../components/install";
 import { ErrorNote } from "../components/ui";
 import { IconCheck } from "../components/icons";
 
@@ -144,7 +142,6 @@ export function SettingsPage() {
   const [tz, setTz] = useState(user!.tz);
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
-  const install = useInstallPrompt();
   // Email lives on the auth User only as a bare `emailVerified` flag, so pull
   // the address and any pending verification from /profile (issue #55).
   const { data: emailData, error: emailError, reload: reloadEmail } = useApi<EmailData>("/profile");
@@ -202,17 +199,6 @@ export function SettingsPage() {
       <Link className="btn btn-ghost" to="/settings/import">
         Import from TV Time
       </Link>
-
-      {install.available && !user!.installed && (
-        <>
-          <hr className="settings-rule" />
-          <h2 className="settings-subtitle">Install app</h2>
-          <p className="settings-hint">
-            Put Show Us TV on your home screen. It opens full screen, like a native app.
-          </p>
-          <InstallAppButton buttonClass="btn btn-ghost" />
-        </>
-      )}
 
       <hr className="settings-rule" />
       <button
