@@ -197,6 +197,21 @@ a:hover { text-decoration: underline; }
 .footer-links a { color: var(--muted); }
 .footer-links a:hover { color: var(--text); }
 
+.footer-socials {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+.footer-socials a {
+  display: inline-flex;
+  color: var(--muted);
+  padding: 6px;
+  border-radius: 8px;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.footer-socials a:hover { color: var(--text); background: var(--surface); text-decoration: none; }
+
 /* ---------- Type & shared ---------- */
 
 .page-title {

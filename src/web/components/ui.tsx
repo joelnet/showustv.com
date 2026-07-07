@@ -2,7 +2,13 @@ import { Link } from "react-router-dom";
 import { poster } from "../img";
 import { epCode } from "../format";
 import { EMOJI_REACTIONS } from "../../shared/constants";
-import { IconCheck } from "./icons";
+import { IconCheck, IconX, IconDiscord } from "./icons";
+
+// External social links for the footer (issue #75).
+const SOCIALS = [
+  { label: "X", href: "https://x.com/joelnet", Icon: IconX },
+  { label: "Discord", href: "https://discord.gg/AxPcm4xjJC", Icon: IconDiscord },
+];
 
 export function Spinner() {
   return (
@@ -42,6 +48,13 @@ export function SiteFooter({ children }: { children?: React.ReactNode }) {
         This product uses the <a href="https://www.themoviedb.org">TMDB</a> API but is not endorsed
         or certified by TMDB.
       </span>
+      <nav className="footer-socials" aria-label="Social links">
+        {SOCIALS.map(({ label, href, Icon }) => (
+          <a key={label} href={href} target="_blank" rel="noreferrer" aria-label={`Show Us TV on ${label}`}>
+            <Icon size={18} />
+          </a>
+        ))}
+      </nav>
       <nav className="footer-links" aria-label="Footer">
         {children}
         <Link to="/privacy">Privacy</Link>
