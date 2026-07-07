@@ -1824,6 +1824,8 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 @media (max-width: 560px) {
   .main { padding-left: 10px; padding-right: 10px; }
   .wn-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 8px; }
+  /* Library poster grid matches the 3-up Watch Now layout on phones (#88). */
+  .poster-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 8px; }
 }
 
 /* ---------- Caught-up celebration (issue #53) ----------
