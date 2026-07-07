@@ -54,7 +54,7 @@ lists.get("/:id", async (c) => {
   const id = Number(c.req.param("id"));
   if (!(await ownList(c, id))) return c.json({ error: "not found" }, 404);
   const [metaR, itemsR] = await c.env.DB.batch([
-    c.env.DB.prepare("SELECT id, name, kind, is_shared, profile_position FROM custom_lists WHERE id = ?1").bind(id),
+    c.env.DB.prepare("SELECT id, name, kind, is_shared, profile_position, preamble FROM custom_lists WHERE id = ?1").bind(id),
     c.env.DB.prepare(
       `SELECT li.target_type AS type, li.target_id AS id, li.position,
               COALESCE(s.title, m.title) AS title, COALESCE(s.poster_url, m.poster_url) AS poster
@@ -74,6 +74,17 @@ lists.put("/:id", async (c) => {
   if (!name || name.length > 60) return c.json({ error: "bad name" }, 400);
   if (!(await ownList(c, id))) return c.json({ error: "not found" }, 404);
   await c.env.DB.prepare("UPDATE custom_lists SET name = ?2 WHERE id = ?1").bind(id, name).run();
+  return c.json({ ok: true });
+});
+
+// Optional preamble (issue #94): a short note the owner writes about the list.
+// Separate from rename so it can be edited on its own; empty trims to NULL.
+lists.put("/:id/preamble", async (c) => {
+  const id = Number(c.req.param("id"));
+  const body = await c.req.json().catch(() => ({}));
+  const preamble = body.preamble == null ? null : String(body.preamble).trim().slice(0, 2000) || null;
+  if (!(await ownList(c, id))) return c.json({ error: "not found" }, 404);
+  await c.env.DB.prepare("UPDATE custom_lists SET preamble = ?2 WHERE id = ?1").bind(id, preamble).run();
   return c.json({ ok: true });
 });
 

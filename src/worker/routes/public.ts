@@ -105,7 +105,7 @@ pub.get("/lists/:username/:id", async (c) => {
   if (!Number.isInteger(id) || id <= 0) return c.json({ error: "not found" }, 404);
 
   const meta = await c.env.DB.prepare(
-    `SELECT l.id, l.name, u.username, u.profile_public
+    `SELECT l.id, l.name, l.preamble, u.username, u.profile_public
      FROM custom_lists l JOIN users u ON u.id = l.user_id
      WHERE l.id = ?1 AND u.username = ?2 AND l.is_shared = 1 AND u.deleted_at IS NULL`
   )
@@ -126,7 +126,13 @@ pub.get("/lists/:username/:id", async (c) => {
     .all();
 
   return c.json({
-    list: { id: meta.id, name: meta.name, username: meta.username, profilePublic: !!meta.profile_public },
+    list: {
+      id: meta.id,
+      name: meta.name,
+      preamble: meta.preamble ?? null,
+      username: meta.username,
+      profilePublic: !!meta.profile_public,
+    },
     items,
   });
 });
