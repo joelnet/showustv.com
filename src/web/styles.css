@@ -1753,6 +1753,14 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   .comments-head { flex-wrap: wrap; }
 }
 
+/* Issue #79: on phones, fit 3 posters per row (was 2) so more shows are
+   visible at once. A tighter gutter and slightly trimmed page padding buy the
+   extra column; wider phones/tablets (561px+) keep the auto-fill layout. */
+@media (max-width: 560px) {
+  .main { padding-left: 15px; padding-right: 15px; }
+  .wn-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 8px; }
+}
+
 /* ---------- Caught-up celebration (issue #53) ----------
    A brief confetti shower in the brand colors plus a congratulations toast,
    shown once when a watch action finishes a show. The overlay never captures
