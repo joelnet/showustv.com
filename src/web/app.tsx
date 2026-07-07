@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, NavLink, Link, Outlet, Navigate, useNavigate } from "react-router-dom";
-import { api, post, ApiError } from "./api";
+import { api, ApiError } from "./api";
 import { setOfflineUser, useOffline } from "./offline";
 import { Spinner, Wordmark, SiteFooter } from "./components/ui";
 import { ConfirmProvider } from "./components/dialog";
@@ -34,11 +34,6 @@ export interface User {
   tz: string;
   emailVerified: boolean;
   isAdmin: boolean;
-  // True once the user has launched the app as an installed PWA at least once.
-  // Drives the install button's Android-style auto-hide (see the standalone
-  // ping in App and the Header gate). Older cached users may lack it — treat
-  // a missing value as false.
-  installed: boolean;
 }
 
 // Last-known signed-in identity, mirrored to localStorage (issue #51). On an
@@ -102,14 +97,14 @@ function Shell() {
 
 function Header() {
   const navigate = useNavigate();
-  const { user } = useAuth();
   const { available, ios, install } = useInstallPrompt();
-  // Show the install affordance until the app is installed. Chromium gets a
-  // one-tap prompt; iOS has no programmatic install, so the button reveals the
-  // Safari "Add to Home Screen" steps. iOS also fires no appinstalled event, so
-  // we hide it on `user.installed` (set once the installed app first boots) —
-  // that's what makes it disappear post-install, like Chromium's does.
-  const showInstall = available && (!ios || !user?.installed);
+  // Show the install affordance unless the app is already running installed.
+  // `available` is false in standalone mode (isStandalone()), so this naturally
+  // hides inside the installed PWA and returns in a browser tab after an
+  // uninstall — no persisted per-user flag to go stale (issue #82). Chromium
+  // additionally drops `available` once beforeinstallprompt is consumed; on iOS
+  // the button just links to the /install instructions.
+  const showInstall = available;
   return (
     <header className="header">
       <Link to="/" className="header-brand" aria-label="Show Us TV, home">
@@ -228,18 +223,6 @@ export function App() {
   useEffect(() => {
     setOfflineUser(user?.id ?? null);
   }, [user]);
-
-  // When the signed-in app boots as an installed PWA (standalone / home-screen),
-  // record it once. iOS never tells the browser tab that an install happened,
-  // so the installed app self-reports here; the browser tab then hides its
-  // install button for this user (Android-style). No-ops after the flag flips,
-  // and best-effort — a failure just retries on the next standalone launch.
-  useEffect(() => {
-    if (!user || user.installed || !isStandalone()) return;
-    post("/auth/installed")
-      .then(() => setUser({ ...user, installed: true }))
-      .catch(() => {});
-  }, [user, setUser]);
 
   if (!booted) return <Spinner />;
 
