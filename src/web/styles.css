@@ -906,7 +906,56 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 }
 
 .public-byline { color: var(--muted); margin: -8px 0 20px; }
+.public-byline a { color: var(--cyan); }
+.public-byline a:hover { color: var(--text); }
 .public-page .header { justify-content: center; }
+
+/* Public list: detailed cards with poster + overview so a shared list reads
+   like a recommendation, not a bare thumbnail wall (issue #87). */
+.pub-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.pub-list-item {
+  display: flex;
+  gap: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px;
+}
+.pub-list-poster { flex-shrink: 0; width: 84px; display: block; }
+.pub-list-poster img,
+.pub-list-poster .poster-fallback {
+  width: 84px;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: 8px;
+  display: block;
+}
+.pub-list-body { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.pub-list-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 17px;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+.pub-list-title:hover { color: var(--amber); text-decoration: none; }
+.pub-list-type {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+.pub-list-overview {
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.5;
+  margin: 2px 0 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 .list-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .list-items li {
   display: flex;

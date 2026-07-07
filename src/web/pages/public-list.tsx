@@ -3,12 +3,13 @@
 import { useEffect } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useApi } from "../hooks";
-import { Spinner, PosterCard, Wordmark, SmpteBars, SiteFooter } from "../components/ui";
+import { Spinner, Wordmark, SmpteBars, SiteFooter } from "../components/ui";
+import { poster } from "../img";
 import { mediaPath, idFromParam, publicListPath } from "../paths";
 
 interface PublicList {
-  list: { id: number; name: string; username: string };
-  items: { type: "show" | "movie"; id: number; title: string; poster: string | null }[];
+  list: { id: number; name: string; username: string; profilePublic: boolean };
+  items: { type: "show" | "movie"; id: number; title: string; poster: string | null; overview: string | null }[];
 }
 
 export function PublicListPage() {
@@ -46,20 +47,38 @@ export function PublicListPage() {
           <>
             <h1 className="page-title">{data.list.name}</h1>
             <p className="public-byline">
-              A list by <strong>{data.list.username}</strong> · {data.items.length}{" "}
-              {data.items.length === 1 ? "title" : "titles"}
+              A list by{" "}
+              {data.list.profilePublic ? (
+                <Link to={`/u/${data.list.username}`}>{data.list.username}</Link>
+              ) : (
+                <strong>{data.list.username}</strong>
+              )}{" "}
+              · {data.items.length} {data.items.length === 1 ? "title" : "titles"}
             </p>
-            <div className="poster-grid">
-              {data.items.map((it) => (
-                <PosterCard
-                  key={`${it.type}-${it.id}`}
-                  to={mediaPath(it.type, it.id, it.title)}
-                  posterPath={it.poster}
-                  title={it.title}
-                  sub={it.type === "show" ? "TV" : "Movie"}
-                />
-              ))}
-            </div>
+            <ul className="pub-list">
+              {data.items.map((it) => {
+                const src = poster(it.poster);
+                const to = mediaPath(it.type, it.id, it.title);
+                return (
+                  <li key={`${it.type}-${it.id}`} className="pub-list-item">
+                    <Link to={to} className="pub-list-poster" aria-label={`View ${it.title}`}>
+                      {src ? (
+                        <img src={src} alt="" loading="lazy" />
+                      ) : (
+                        <div className="poster-fallback">{it.title}</div>
+                      )}
+                    </Link>
+                    <div className="pub-list-body">
+                      <Link to={to} className="pub-list-title">
+                        {it.title}
+                      </Link>
+                      <span className="pub-list-type">{it.type === "show" ? "TV" : "Movie"}</span>
+                      {it.overview && <p className="pub-list-overview">{it.overview}</p>}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
           </>
         )}
       </main>
