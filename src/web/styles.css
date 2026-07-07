@@ -476,11 +476,12 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .wn-tile {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 10px;
+  overflow: hidden;
+  padding: 0;
 }
 .wn-tile-poster { position: relative; display: block; }
 .wn-tile-poster img,
@@ -492,7 +493,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   display: block;
 }
 .wn-tile-count { position: absolute; bottom: 7px; right: 7px; background: rgba(15, 18, 24, 0.85); color: var(--text); }
-.wn-tile-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.wn-tile-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 6px; }
 .wn-tile-show {
   font-family: var(--font-display);
   font-weight: 700;
@@ -512,7 +513,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   white-space: nowrap;
 }
 .wn-tile-date { font-size: 11.5px; }
-.wn-tile-btn { justify-content: center; margin-top: auto; }
+.wn-tile-btn { justify-content: center; margin: auto 6px 6px; }
 
 /* Watch Now / Upcoming tabs (issue #69). Page-title-scale tabs; the active one
    gets an amber underline that sits on the tablist's hairline border. */
@@ -1772,7 +1773,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
    visible at once. A tighter gutter and slightly trimmed page padding buy the
    extra column; wider phones/tablets (561px+) keep the auto-fill layout. */
 @media (max-width: 560px) {
-  .main { padding-left: 15px; padding-right: 15px; }
+  .main { padding-left: 10px; padding-right: 10px; }
   .wn-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 8px; }
 }
 
