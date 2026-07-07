@@ -42,20 +42,17 @@ interface ProfileData {
   otherLists: Omit<ProfileList, "posters">[];
 }
 
-// The full catalog, unlocked ones lit (issue #19). Locked entries show
-// their goal as the hint — chasing them is the point.
+// Only the earned achievements, lit up (issue #19, #86). The locked catalog
+// is clutter on your own profile — a brag wall, not a checklist. Kept in
+// catalog order (grouped by category) so it stays visually coherent.
 export function AchievementGrid({ unlocked, tz }: { unlocked: Map<string, string | null>; tz?: string }) {
+  const earned = ACHIEVEMENTS.filter((a) => unlocked.has(a.id));
   return (
     <div className="ach-grid">
-      {ACHIEVEMENTS.map((a) => {
-        const has = unlocked.has(a.id);
+      {earned.map((a) => {
         const at = unlocked.get(a.id);
         return (
-          <div
-            key={a.id}
-            className={`ach${has ? " is-unlocked" : ""}`}
-            title={has && at && tz ? `Unlocked ${fmtDateTime(at, tz)}` : a.desc}
-          >
+          <div key={a.id} className="ach is-unlocked" title={at && tz ? `Unlocked ${fmtDateTime(at, tz)}` : a.desc}>
             <span className="ach-emoji" aria-hidden="true">
               {a.emoji}
             </span>
@@ -270,7 +267,11 @@ export function ProfilePage() {
       <h2 className="section-title">
         Achievements <span className="mono ach-count">({data.achievements.length}/{ACHIEVEMENTS.length})</span>
       </h2>
-      <AchievementGrid unlocked={new Map(data.achievements.map((a) => [a.id, a.unlockedAt]))} tz={user!.tz} />
+      {data.achievements.length ? (
+        <AchievementGrid unlocked={new Map(data.achievements.map((a) => [a.id, a.unlockedAt]))} tz={user!.tz} />
+      ) : (
+        <Empty title="No achievements yet" hint="Watch episodes, post comments, and build lists to start earning them." />
+      )}
 
       <h2 className="section-title">Lists on your profile</h2>
       {!data.lists.length ? (
