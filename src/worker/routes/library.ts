@@ -4,12 +4,24 @@ import type { AppEnv } from "../env";
 import { ensureShow, ensureMovie } from "../lib/tmdb";
 import { nowIso, todayInTz, daysAgoInTz } from "../lib/dates";
 import { RECENT_WINDOW_DAYS, STORED_SHOW_STATES, type DerivedShowState } from "../../shared/constants";
+import { isAnime } from "../../shared/anime";
 
 export const library = new Hono<AppEnv>();
 
 function intParam(v: string): number | null {
   const n = Number(v);
   return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+// genres_json is a JSON array of TMDB genre names (e.g. ["Animation","Comedy"]);
+// always a valid array (NOT NULL DEFAULT '[]'), but parse defensively.
+function parseGenres(json: unknown): string[] {
+  try {
+    const g = JSON.parse(String(json ?? "[]"));
+    return Array.isArray(g) ? g : [];
+  } catch {
+    return [];
+  }
 }
 
 // Client may send an explicit watched_at (import, backdating); defaults to now.
@@ -145,6 +157,7 @@ library.get("/library", async (c) => {
   const [showsR, moviesR] = await c.env.DB.batch([
     c.env.DB.prepare(
       `SELECT us.show_id AS id, us.state, s.title, s.poster_url AS poster, s.status,
+         s.genres_json, s.original_language,
          (SELECT COUNT(*) FROM episodes e WHERE e.show_id = us.show_id AND e.season_number > 0
             AND e.air_date IS NOT NULL AND e.air_date <= ?2) AS aired,
          (SELECT COUNT(*) FROM episodes e WHERE e.show_id = us.show_id AND e.season_number > 0) AS total,
@@ -161,7 +174,8 @@ library.get("/library", async (c) => {
        ORDER BY s.title`
     ).bind(uid, today),
     c.env.DB.prepare(
-      `SELECT um.movie_id AS id, m.title, m.poster_url AS poster, um.watched_at, um.play_count
+      `SELECT um.movie_id AS id, m.title, m.poster_url AS poster, m.genres_json, m.original_language,
+         um.watched_at, um.play_count
        FROM user_movies um JOIN movies m ON m.tmdb_id = um.movie_id
        WHERE um.user_id = ?1 AND um.state = 'watched'
        ORDER BY um.watched_at DESC`
@@ -172,17 +186,31 @@ library.get("/library", async (c) => {
   // window is "stale" — the library surfaces it under "Haven't watched for a
   // while". Only meaningful for the watching state; other states aren't behind.
   const recentSince = daysAgoInTz(c.get("tz"), RECENT_WINDOW_DAYS);
-  return c.json({
-    shows: (showsR.results as any[]).map((r) => {
-      const derivedState = deriveState(r);
-      return {
-        ...r,
-        derivedState,
-        stale: derivedState === "watching" && !recentlyActive(r.last_watched_at, r.last_aired, recentSince),
-      };
-    }),
-    movies: moviesR.results,
-  });
+
+  // Anime (Animation genre + Japanese origin) gets its own tab, so it must not
+  // also appear under Shows or Movies. Partition each set with the shared
+  // isAnime helper, stripping the classification-only columns from the payload.
+  const shows: any[] = [];
+  const animeShows: any[] = [];
+  for (const r of showsR.results as any[]) {
+    const { genres_json, original_language, ...rest } = r;
+    const derivedState = deriveState(r);
+    const item = {
+      ...rest,
+      derivedState,
+      stale: derivedState === "watching" && !recentlyActive(r.last_watched_at, r.last_aired, recentSince),
+    };
+    (isAnime(parseGenres(genres_json), original_language) ? animeShows : shows).push(item);
+  }
+
+  const movies: any[] = [];
+  const animeMovies: any[] = [];
+  for (const r of moviesR.results as any[]) {
+    const { genres_json, original_language, ...rest } = r;
+    (isAnime(parseGenres(genres_json), original_language) ? animeMovies : movies).push(rest);
+  }
+
+  return c.json({ shows, movies, animeShows, animeMovies });
 });
 
 library.get("/watchlist", async (c) => {

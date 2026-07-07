@@ -68,13 +68,13 @@ export async function ensureShow(env: Env, tmdbId: number, force = false): Promi
 
   stmts.push(
     env.DB.prepare(
-      `INSERT INTO shows (tmdb_id, tvdb_id, imdb_id, title, status, first_air_date, poster_url, backdrop_url, overview, genres_json, synced_at)
-       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)
+      `INSERT INTO shows (tmdb_id, tvdb_id, imdb_id, title, status, first_air_date, poster_url, backdrop_url, overview, genres_json, original_language, synced_at)
+       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)
        ON CONFLICT (tmdb_id) DO UPDATE SET
          tvdb_id=excluded.tvdb_id, imdb_id=excluded.imdb_id, title=excluded.title, status=excluded.status,
          first_air_date=excluded.first_air_date, poster_url=excluded.poster_url,
          backdrop_url=excluded.backdrop_url, overview=excluded.overview,
-         genres_json=excluded.genres_json, synced_at=excluded.synced_at`
+         genres_json=excluded.genres_json, original_language=excluded.original_language, synced_at=excluded.synced_at`
     ).bind(
       tmdbId,
       base.external_ids?.tvdb_id ?? null,
@@ -86,6 +86,7 @@ export async function ensureShow(env: Env, tmdbId: number, force = false): Promi
       base.backdrop_path ?? null,
       base.overview ?? null,
       JSON.stringify((base.genres ?? []).map((g: any) => g.name)),
+      base.original_language ?? null,
       nowIso()
     )
   );
@@ -171,12 +172,12 @@ export async function ensureMovie(env: Env, tmdbId: number, force = false): Prom
   }
   const m = await tmdb(env, `/movie/${tmdbId}`, {}, 600);
   await env.DB.prepare(
-    `INSERT INTO movies (tmdb_id, imdb_id, title, release_date, runtime_min, poster_url, overview, genres_json, synced_at)
-     VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)
+    `INSERT INTO movies (tmdb_id, imdb_id, title, release_date, runtime_min, poster_url, overview, genres_json, original_language, synced_at)
+     VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)
      ON CONFLICT (tmdb_id) DO UPDATE SET
        imdb_id=excluded.imdb_id, title=excluded.title, release_date=excluded.release_date, runtime_min=excluded.runtime_min,
        poster_url=excluded.poster_url, overview=excluded.overview, genres_json=excluded.genres_json,
-       synced_at=excluded.synced_at`
+       original_language=excluded.original_language, synced_at=excluded.synced_at`
   )
     .bind(
       tmdbId,
@@ -187,6 +188,7 @@ export async function ensureMovie(env: Env, tmdbId: number, force = false): Prom
       m.poster_path ?? null,
       m.overview ?? null,
       JSON.stringify((m.genres ?? []).map((g: any) => g.name)),
+      m.original_language ?? null,
       nowIso()
     )
     .run();

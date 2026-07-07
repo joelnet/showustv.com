@@ -260,6 +260,7 @@ export function App() {
             <Route path="/movie/:id" element={<MoviePage />} />
             <Route path="/library" element={<LibraryPage tab="shows" />} />
             <Route path="/library/movies" element={<LibraryPage tab="movies" />} />
+            <Route path="/library/anime" element={<LibraryPage tab="anime" />} />
             <Route path="/library/watchlist" element={<LibraryPage tab="watchlist" />} />
             <Route path="/lists" element={<ListsPage />} />
             <Route path="/lists/:id" element={<ListDetailPage />} />

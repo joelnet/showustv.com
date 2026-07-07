@@ -127,9 +127,9 @@ function ShowsLibrary({ shows }: { shows: LibShow[] }) {
   );
 }
 
-export function LibraryPage({ tab }: { tab: "shows" | "movies" | "watchlist" }) {
+export function LibraryPage({ tab }: { tab: "shows" | "movies" | "anime" | "watchlist" }) {
   const { user } = useAuth();
-  const lib = useApi<{ shows: LibShow[]; movies: LibMovie[] }>(
+  const lib = useApi<{ shows: LibShow[]; movies: LibMovie[]; animeShows: LibShow[]; animeMovies: LibMovie[] }>(
     tab !== "watchlist" ? "/library" : null
   );
   const wl = useApi<{ shows: WatchlistItem[]; movies: WatchlistItem[] }>(tab === "watchlist" ? "/watchlist" : null);
@@ -140,6 +140,7 @@ export function LibraryPage({ tab }: { tab: "shows" | "movies" | "watchlist" }) 
       <nav className="tabs" aria-label="Library sections">
         <NavLink to="/library" end>Shows</NavLink>
         <NavLink to="/library/movies">Movies</NavLink>
+        <NavLink to="/library/anime">Anime</NavLink>
         <NavLink to="/library/watchlist">Watchlist</NavLink>
       </nav>
 
@@ -173,6 +174,52 @@ export function LibraryPage({ tab }: { tab: "shows" | "movies" | "watchlist" }) 
               />
             ))}
           </div>
+        ))}
+
+      {tab === "anime" &&
+        (lib.loading ? (
+          <Spinner />
+        ) : lib.error ? (
+          <ErrorNote message={lib.error} />
+        ) : !lib.data?.animeShows.length && !lib.data?.animeMovies.length ? (
+          <Empty title="No anime yet" hint="Follow an anime show or mark an anime movie watched and it lands here." />
+        ) : (
+          <>
+            {lib.data!.animeShows.length > 0 && (
+              <section>
+                <h2 className="section-title">Shows</h2>
+                <div className="poster-grid">
+                  {lib.data!.animeShows.map((s) => (
+                    <div key={s.id} className="lib-card">
+                      <PosterCard
+                        to={mediaPath("show", s.id, s.title)}
+                        posterPath={s.poster}
+                        title={s.title}
+                        sub={`${s.watched}/${s.aired}`}
+                      />
+                      <Progress watched={s.watched} total={s.aired} />
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+            {lib.data!.animeMovies.length > 0 && (
+              <section>
+                <h2 className="section-title">Movies</h2>
+                <div className="poster-grid">
+                  {lib.data!.animeMovies.map((m) => (
+                    <PosterCard
+                      key={m.id}
+                      to={mediaPath("movie", m.id, m.title)}
+                      posterPath={m.poster}
+                      title={m.title}
+                      sub={fmtDateTime(m.watched_at, user!.tz)}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
+          </>
         ))}
 
       {tab === "watchlist" &&
