@@ -171,6 +171,12 @@ const commands = {
     });
   },
 
+  usercount() {
+    // Single COUNT — the cheap query behind the new-signup cron notifier.
+    const [r] = rows(`SELECT COUNT(*) AS users FROM users WHERE deleted_at IS NULL`);
+    emit(r, (d) => console.log(d.users));
+  },
+
   sql() {
     const query = positional.join(" ");
     if (!query) fail('usage: sql "SELECT ..."  (read-only)');
@@ -196,6 +202,7 @@ Commands:
   admin <username> [--revoke]        grant or revoke admin
   ban <username> [--unban]           shadow-ban or un-ban a user
   stats                      quick counts across the whole instance
+  usercount                  just the active-user count (fast; used by cron)
   sql "SELECT …"             run a single read-only query
   help                       this text
 
