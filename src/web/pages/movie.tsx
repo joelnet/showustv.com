@@ -7,7 +7,7 @@ import { useAuth } from "../app";
 import { poster, providerLogo } from "../img";
 import { fmtAirDate, fmtDateTime, runtimeStr } from "../format";
 import { Spinner, ErrorNote, ScorePicker, EmojiPicker, ExternalLinks } from "../components/ui";
-import { IconCheck, IconBookmark } from "../components/icons";
+import { IconCheck, IconBookmark, IconHeart, IconHeartOutline } from "../components/icons";
 import { AddToList } from "./lists";
 
 interface MoviePayload {
@@ -26,6 +26,7 @@ interface MoviePayload {
     watchedAt: string | null;
     playCount: number;
     rating: { score: number | null; emoji: string | null } | null;
+    favorited: boolean;
   };
   providers: { name: string; logo: string | null }[];
 }
@@ -40,8 +41,13 @@ export function MoviePage() {
   // Watched-state override while a change is queued offline — refetching
   // would just serve the stale pre-change cache and visually revert it.
   const [queuedState, setQueuedState] = useState<"watched" | "unwatched" | null>(null);
+  // Optimistic favorite state while an offline toggle is queued (matches shows).
+  const [favedOverride, setFavedOverride] = useState<boolean | null>(null);
 
-  useEffect(() => setQueuedState(null), [data]); // fresh data supersedes the override
+  useEffect(() => {
+    setQueuedState(null); // fresh data supersedes the overrides
+    setFavedOverride(null);
+  }, [data]);
 
   // Canonicalize the address bar to the slugged URL (issue #11) so bare or
   // stale-slug links become shareable SEO-friendly ones once the title loads.
@@ -58,6 +64,19 @@ export function MoviePage() {
   const { movie, user: mine, providers } = data;
   const tz = user!.tz;
   const state = queuedState ? (queuedState === "watched" ? "watched" : null) : mine.state;
+  const favorited = favedOverride ?? mine.favorited;
+
+  async function toggleFavorite() {
+    setBusy(true);
+    const next = !favorited;
+    try {
+      const r = await (favorited ? del(`/movies/${movie.id}/favorite`) : put(`/movies/${movie.id}/favorite`));
+      if (r?.queued) setFavedOverride(next); // offline: reflect it locally until sync
+      else reload();
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const act = (fn: () => Promise<any>, queuedAs?: "watched" | "unwatched") => async () => {
     setBusy(true);
@@ -111,6 +130,16 @@ export function MoviePage() {
                 )}
               </>
             )}
+            <button
+              className={`heart-btn${favorited ? " is-on" : ""}`}
+              aria-pressed={favorited}
+              aria-label={favorited ? "Remove from favorites" : "Add to favorites"}
+              title={favorited ? "Remove from favorites" : "Add to favorites"}
+              disabled={busy}
+              onClick={toggleFavorite}
+            >
+              {favorited ? <IconHeart size={18} /> : <IconHeartOutline size={18} />}
+            </button>
             <AddToList type="movie" id={movie.id} />
           </div>
           {state === "watched" && mine.watchedAt && (

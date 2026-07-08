@@ -59,7 +59,9 @@ lists.get("/:id", async (c) => {
     ).bind(id),
     c.env.DB.prepare(
       `SELECT li.target_type AS type, li.target_id AS id, li.position,
-              COALESCE(s.title, m.title) AS title, COALESCE(s.poster_url, m.poster_url) AS poster
+              COALESCE(s.title, m.title) AS title, COALESCE(s.poster_url, m.poster_url) AS poster,
+              COALESCE(s.genres_json, m.genres_json) AS genres_json,
+              COALESCE(s.original_language, m.original_language) AS original_language
        FROM custom_list_items li
        LEFT JOIN shows s ON li.target_type = 'show' AND s.tmdb_id = li.target_id
        LEFT JOIN movies m ON li.target_type = 'movie' AND m.tmdb_id = li.target_id

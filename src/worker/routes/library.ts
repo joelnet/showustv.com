@@ -365,6 +365,33 @@ library.delete("/shows/:id/favorite", async (c) => {
   return c.json({ ok: true });
 });
 
+library.put("/movies/:id/favorite", async (c) => {
+  const id = intParam(c.req.param("id"));
+  if (!id) return c.json({ error: "bad id" }, 400);
+  await ensureMovie(c.env, id);
+  const listId = await favoritesListId(c, true);
+  await c.env.DB.prepare(
+    `INSERT INTO custom_list_items (list_id, target_type, target_id, position)
+     SELECT ?1, 'movie', ?2, COALESCE(MAX(position) + 1, 0) FROM custom_list_items WHERE list_id = ?1
+     ON CONFLICT (list_id, target_type, target_id) DO NOTHING`
+  )
+    .bind(listId, id)
+    .run();
+  return c.json({ ok: true });
+});
+
+library.delete("/movies/:id/favorite", async (c) => {
+  const id = intParam(c.req.param("id"));
+  if (!id) return c.json({ error: "bad id" }, 400);
+  const listId = await favoritesListId(c, false);
+  if (listId != null) {
+    await c.env.DB.prepare("DELETE FROM custom_list_items WHERE list_id = ?1 AND target_type = 'movie' AND target_id = ?2")
+      .bind(listId, id)
+      .run();
+  }
+  return c.json({ ok: true });
+});
+
 // ---------- Mark watched: episode / season / show ----------
 
 library.post("/episodes/:id/watch", async (c) => {

@@ -18,6 +18,7 @@ import {
   IconComment,
 } from "../components/icons";
 import { Comments } from "../components/comments";
+import { isAnime } from "../../shared/anime";
 import { useConfirm } from "../components/dialog";
 
 interface ListSummary {
@@ -33,6 +34,9 @@ interface ListItem {
   id: number;
   title: string;
   poster: string | null;
+  // Present for the favorites view's Shows/Movies/Anime split (issue #103).
+  genres_json?: string | null;
+  original_language?: string | null;
 }
 
 export function ListsPage() {
@@ -290,7 +294,62 @@ export function ListDetailPage() {
 
       <ListPreamble id={id!} preamble={data.list.preamble} onSaved={reload} />
 
-      {!data.items.length ? (
+      {data.list.kind === "favorites" ? (
+        !data.items.length ? (
+          <Empty title="No favorites yet" hint="Tap the heart on any show or movie to add it here." />
+        ) : (
+          (() => {
+            // Split favorites into Shows / Movies / Anime (issue #103); anime is
+            // Animation genre + Japanese origin, matching the Library's Anime tab.
+            const groups: Record<"shows" | "movies" | "anime", ListItem[]> = { shows: [], movies: [], anime: [] };
+            for (const it of data!.items) {
+              let g: string[] = [];
+              try {
+                const p = JSON.parse(it.genres_json ?? "[]");
+                if (Array.isArray(p)) g = p;
+              } catch {
+                /* ignore malformed genres */
+              }
+              if (isAnime(g, it.original_language)) groups.anime.push(it);
+              else if (it.type === "movie") groups.movies.push(it);
+              else groups.shows.push(it);
+            }
+            const favSection = (title: string, items: ListItem[]) =>
+              items.length > 0 ? (
+                <section key={title} className="fav-section">
+                  <h2 className="section-title">{title}</h2>
+                  <div className="poster-grid">
+                    {items.map((it) => (
+                      <div key={`${it.type}-${it.id}`} className="lib-card fav-card">
+                        <PosterCard
+                          to={mediaPath(it.type, it.id, it.title)}
+                          posterPath={it.poster}
+                          title={it.title}
+                          sub={it.type === "show" ? "TV" : "Movie"}
+                        />
+                        <button
+                          className="btn btn-ghost btn-danger fav-remove"
+                          disabled={busy}
+                          onClick={act(() => del(`/lists/${id}/items/${it.type}/${it.id}`))}
+                          aria-label={`Remove ${it.title} from favorites`}
+                        >
+                          <IconTrash size={14} /> Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ) : null;
+            return (
+              <>
+                {favSection("Favorite Shows", groups.shows)}
+                {favSection("Favorite Movies", groups.movies)}
+                {favSection("Favorite Anime", groups.anime)}
+              </>
+            );
+          })()
+        )
+      ) : !data.items.length ? (
         <Empty title="This list is empty" hint="Open any show or movie and use “Add to list”." />
       ) : (
         <ul className="list-items">

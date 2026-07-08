@@ -989,6 +989,11 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .list-comments { margin-top: 34px; }
 .list-comments-note { margin-top: 24px; }
 
+/* Favorites split into Shows / Movies / Anime sections (issue #103). */
+.fav-section { margin-bottom: 10px; }
+.fav-card { gap: 6px; }
+.fav-remove { justify-content: center; width: 100%; }
+
 .list-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .list-items li {
   display: flex;

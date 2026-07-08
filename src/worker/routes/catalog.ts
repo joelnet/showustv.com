@@ -125,11 +125,15 @@ catalog.get("/movies/:id", async (c) => {
   await ensureMovie(c.env, id);
 
   const uid = c.get("uid");
-  const [movieR, userR, ratingR] = await c.env.DB.batch([
+  const [movieR, userR, ratingR, favR] = await c.env.DB.batch([
     c.env.DB.prepare("SELECT * FROM movies WHERE tmdb_id = ?1").bind(id),
     c.env.DB.prepare("SELECT state, watched_at, play_count FROM user_movies WHERE user_id = ?1 AND movie_id = ?2").bind(uid, id),
     c.env.DB.prepare(
       "SELECT score, emoji_reaction FROM ratings WHERE user_id = ?1 AND target_type = 'movie' AND target_id = ?2"
+    ).bind(uid, id),
+    c.env.DB.prepare(
+      `SELECT 1 FROM custom_list_items li JOIN custom_lists l ON l.id = li.list_id
+       WHERE l.user_id = ?1 AND l.kind = 'favorites' AND li.target_type = 'movie' AND li.target_id = ?2`
     ).bind(uid, id),
   ]);
 
@@ -154,6 +158,7 @@ catalog.get("/movies/:id", async (c) => {
       watchedAt: user?.watched_at ?? null,
       playCount: user?.play_count ?? 0,
       rating: rating ? { score: rating.score, emoji: rating.emoji_reaction } : null,
+      favorited: favR.results.length > 0,
     },
     providers: await watchProviders(c.env, "movie", id),
   });
