@@ -483,18 +483,22 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   border-radius: var(--radius);
   overflow: hidden;
   padding: 0;
+  text-decoration: none;
 }
-.wn-tile-poster { position: relative; display: block; }
-.wn-tile-poster img,
-.wn-tile-poster .poster-fallback {
+.wn-tile:hover { text-decoration: none; border-color: var(--amber); }
+.wn-tile:hover .wn-tile-show { color: var(--amber); }
+/* Landscape thumbnail (episode still / show backdrop), 16:9 (issue #106). */
+.wn-tile-thumb { position: relative; display: block; }
+.wn-tile-thumb img,
+.wn-tile-thumb .poster-fallback {
   width: 100%;
-  aspect-ratio: 2/3;
+  aspect-ratio: 16 / 9;
   object-fit: cover;
-  border-radius: 7px;
   display: block;
 }
+.wn-tile-thumb .poster-fallback { display: flex; align-items: center; justify-content: center; text-align: center; }
 .wn-tile-count { position: absolute; bottom: 7px; right: 7px; background: rgba(15, 18, 24, 0.85); color: var(--text); }
-.wn-tile-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 6px; }
+.wn-tile-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 8px; }
 .wn-tile-show {
   font-family: var(--font-display);
   font-weight: 700;
@@ -504,17 +508,13 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.wn-tile-show:hover { color: var(--amber); text-decoration: none; }
-.wn-tile-ep { display: flex; align-items: center; gap: 7px; min-width: 0; }
-.wn-tile-ep a {
-  color: var(--text);
+.wn-tile-ep {
   font-size: 13px;
+  color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.wn-tile-date { font-size: 11.5px; }
-.wn-tile-btn { justify-content: center; margin: auto 6px 6px; }
 
 /* Watch Now / Upcoming tabs (issue #69). Page-title-scale tabs; the active one
    gets an amber underline that sits on the tablist's hairline border. */
@@ -541,9 +541,6 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 }
 .wn-tab:hover { color: var(--text); }
 .wn-tab.is-active { color: var(--text); border-bottom-color: var(--amber); }
-
-/* Upcoming tiles reuse .wn-tile but lead with the air date, so accent it. */
-.wn-tile--upcoming .wn-tile-date { color: var(--amber); }
 
 .sr-only {
   position: absolute;
@@ -1457,7 +1454,6 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .showcase-shot .agenda-date { width: auto; flex: none; }
 .showcase-shot .agenda-ep { flex: 1 1 0; min-width: 0; }
 /* Neutral slate under posters while they load (no white flash / broken icon). */
-.showcase-shot .wn-tile-poster img,
 .showcase-shot .list-collage img { background: var(--surface-2); }
 @media (max-width: 720px) {
   .showcase-row { grid-template-columns: 1fr; gap: 16px; }

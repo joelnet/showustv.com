@@ -105,13 +105,13 @@ library.get("/watch-next", async (c) => {
   const { results: upcoming } = await c.env.DB.prepare(
     `WITH upc AS (
        SELECT e.id AS episode_id, e.show_id, e.season_number, e.number, e.title AS episode_title, e.air_date,
-              s.title AS show_title, s.poster_url,
+              s.title AS show_title, s.poster_url, s.backdrop_url,
               ROW_NUMBER() OVER (PARTITION BY e.show_id ORDER BY e.air_date, e.season_number, e.number) AS rn
        FROM episodes e JOIN shows s ON s.tmdb_id = e.show_id
        WHERE e.show_id IN (SELECT show_id FROM user_shows WHERE user_id = ?1 AND state = 'watching')
          AND e.season_number > 0 AND e.air_date IS NOT NULL AND e.air_date > ?2
      )
-     SELECT episode_id, show_id, season_number, number, episode_title, air_date, show_title, poster_url
+     SELECT episode_id, show_id, season_number, number, episode_title, air_date, show_title, poster_url, backdrop_url
      FROM upc
      WHERE rn = 1
      ORDER BY air_date, show_title, season_number, number
@@ -141,6 +141,7 @@ library.get("/watch-next", async (c) => {
       showId: r.show_id,
       showTitle: r.show_title,
       poster: r.poster_url,
+      backdrop: r.backdrop_url,
       season: r.season_number,
       number: r.number,
       title: r.episode_title,
