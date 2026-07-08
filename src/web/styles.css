@@ -1185,7 +1185,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
    is deliberately exempt, and the framed product screenshots (.hero-shot /
    .showcase-shot) stay at real app sizes so they read as faithful previews. */
 .landing-header .btn { font-size: 18px; }
-.landing .footer { font-size: 18px; }
+.landing .footer { font-size: 16px; }
 
 .landing-main {
   width: 100%;
