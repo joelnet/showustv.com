@@ -45,7 +45,7 @@ const SECTIONS: { key: SectionKey; label: string; field: keyof HomeData }[] = [
 function Tile({ item }: { item: HomeItem }) {
   const thumb = still(item.still) ?? backdrop(item.backdrop) ?? poster(item.poster);
   return (
-    <Link to={mediaPath(item.kind, item.id, item.title)} className="wn-tile">
+    <Link to={mediaPath(item.kind, item.id, item.title)} className="wn-tile" draggable={false}>
       <div className="wn-tile-thumb">
         {thumb ? <img src={thumb} alt="" loading="lazy" decoding="async" draggable={false} /> : <div className="poster-fallback">{item.title}</div>}
         {item.count != null && item.count > 0 && <span className="pill wn-tile-count">{item.count} left</span>}
@@ -134,7 +134,13 @@ function useDragScroll<T extends HTMLElement>() {
 function Row({ items }: { items: HomeItem[] }) {
   const drag = useDragScroll<HTMLDivElement>();
   return (
-    <div className="wn-row" ref={drag.ref} onMouseDown={drag.onMouseDown} onClickCapture={drag.onClickCapture}>
+    <div
+      className="wn-row"
+      ref={drag.ref}
+      onMouseDown={drag.onMouseDown}
+      onClickCapture={drag.onClickCapture}
+      onDragStart={(e) => e.preventDefault()}
+    >
       {items.map((it, i) => (
         <Tile key={`${it.kind}-${it.id}-${i}`} item={it} />
       ))}
