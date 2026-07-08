@@ -18,6 +18,9 @@ import {
   IconArrowUp,
   IconArrowDown,
   IconUsers,
+  IconPlay,
+  IconClock,
+  IconFilm,
 } from "../components/icons";
 
 export interface WatchStats {
@@ -150,14 +153,23 @@ export function StatsGrid({ stats }: { stats: WatchStats }) {
   return (
     <div className="profile-stats">
       <div className="stat-card">
+        <span className="stat-icon" aria-hidden="true">
+          <IconPlay size={16} />
+        </span>
         <span className="stat-value mono">{stats.episodesWatched.toLocaleString("en-US")}</span>
         <span className="stat-label">Episodes watched</span>
       </div>
       <div className="stat-card">
+        <span className="stat-icon" aria-hidden="true">
+          <IconClock size={16} />
+        </span>
         <span className="stat-value">{watchTimeStr(stats.minutesWatched)}</span>
         <span className="stat-label">TV time</span>
       </div>
       <div className="stat-card">
+        <span className="stat-icon" aria-hidden="true">
+          <IconFilm size={16} />
+        </span>
         <span className="stat-value mono">{stats.showsWatched.toLocaleString("en-US")}</span>
         <span className="stat-label">Shows watched</span>
       </div>

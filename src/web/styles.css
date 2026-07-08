@@ -1023,22 +1023,55 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 
 .profile-stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 14px;
   margin: 18px 0 26px;
 }
+/* Dribbble-style stat cards (issue #116): a soft gradient panel with an amber
+   icon chip, a big gradient number, and an uppercase label — matching the
+   achievement medallions' amber-glow language. */
 .stat-card {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 14px 16px;
+  position: relative;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
+  padding: 18px;
+  border-radius: 16px;
+  background:
+    radial-gradient(120% 100% at 100% 0%, rgba(255, 174, 46, 0.14), transparent 58%),
+    linear-gradient(160deg, var(--surface-2), var(--surface));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 10px 24px -16px rgba(0, 0, 0, 0.8);
+  transition: transform 0.16s ease, box-shadow 0.22s ease;
 }
-.stat-value { font-family: var(--font-display); font-weight: 700; font-size: 22px; }
-.stat-value.mono { font-size: 22px; color: var(--text); }
-.stat-label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 16px 30px -16px rgba(0, 0, 0, 0.9);
+}
+.stat-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  color: var(--amber);
+  background: rgba(255, 174, 46, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(255, 174, 46, 0.35);
+  margin-bottom: 4px;
+}
+.stat-value {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 27px;
+  line-height: 1.05;
+  color: var(--amber); /* fallback where background-clip:text is unsupported */
+  background: linear-gradient(135deg, #ffd27a, var(--amber));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.stat-value.mono { font-size: 27px; }
+.stat-label { color: var(--muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.06em; }
 
 .profile-list-link { flex: 1; display: flex; flex-direction: column; gap: 2px; color: var(--text); min-width: 0; }
 .profile-list-link:hover { text-decoration: none; }
@@ -1630,29 +1663,13 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   .agenda-show { white-space: normal; }
   .agenda li { flex-wrap: wrap; gap: 6px 10px; }
 
-  /* Stats readout. The auto-fit grid wrapped 2-up on a phone and orphaned the
-     third box at half-width below — lopsided. Collapse to one flat readout
-     panel: three full-width rows split by hairline dividers, label left, value
-     right. Symmetric at any width, and the verbose "TV time" value (e.g.
-     "3 months 12 days") gets a whole row instead of a cramped grid cell. */
+  /* Stack the gradient stat cards on phones; the verbose "TV time" value gets a
+     full-width card instead of a cramped grid cell. */
   .profile-stats {
     grid-template-columns: 1fr;
-    gap: 0;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    overflow: hidden;
-  }
-  .stat-card {
-    flex-direction: row-reverse;
-    align-items: baseline;
-    justify-content: space-between;
     gap: 12px;
-    border: 0;
-    border-bottom: 1px solid var(--line);
-    border-radius: 0;
-    padding: 12px 16px;
   }
-  .stat-card:last-child { border-bottom: 0; }
+  .stat-card { padding: 16px; }
 
   /* List rows: tighter chrome so titles keep readable width next to the
      reorder/remove buttons. */
