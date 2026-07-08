@@ -1288,7 +1288,6 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   margin: 0 0 26px;
 }
 .landing-cta-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
-.landing-free-note { color: var(--muted); font-size: 18px; margin: 14px 0 0; }
 .btn-lg { font-size: 15.5px; padding: 12px 26px; border-radius: 10px; }
 .landing-hero .smpte { margin: 44px auto 0; max-width: 420px; }
 
@@ -1545,6 +1544,10 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .landing-final p { color: var(--muted); font-size: 20px; margin: 0 0 22px; }
 .landing-final .btn { font-size: 19px; }
 
+/* The exact same auth card as /login (see <AuthCard>), embedded at the bottom
+   of the landing page in register mode. */
+.landing-signup { display: flex; justify-content: center; margin-top: 128px; }
+
 /* ---------- Responsive ---------- */
 
 @media (max-width: 719px) {
@@ -1635,6 +1638,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   .landing-cta-row .btn-lg { flex: 1 1 100%; justify-content: center; }
   .landing-section { margin-top: 88px; }
   .landing-final { margin-top: 88px; }
+  .landing-signup { margin-top: 88px; }
   .section-head { margin-bottom: 24px; }
 
   /* Rundown collapses to a single ruled column (keep real side padding so the
