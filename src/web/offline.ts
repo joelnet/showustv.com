@@ -65,6 +65,7 @@ const QUEUEABLE: Rule[] = [
   },
   { re: /^\/shows\/(\d+)\/favorite$/, key: (m) => `show:${m[1]}:favorite` },
   { re: /^\/movies\/(\d+)\/watch$/, key: (m) => `movie:${m[1]}`, stampWatchedAt: true },
+  { re: /^\/movies\/(\d+)\/favorite$/, key: (m) => `movie:${m[1]}:favorite` },
 ];
 
 export function isQueueable(method: string, path: string): boolean {
