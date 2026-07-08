@@ -50,7 +50,7 @@ function recentlyActive(lastWatched: string | null, lastAired: string | null, si
   return (lastWatched != null && lastWatched >= since) || (lastAired != null && lastAired >= since);
 }
 
-library.get("/watch-next", async (c) => {
+library.get("/home", async (c) => {
   const uid = c.get("uid");
   const today = todayInTz(c.get("tz"));
   // Recent window: a show qualifies for the queue if it was watched, had an
@@ -76,33 +76,51 @@ library.get("/watch-next", async (c) => {
      SELECT c.id AS episode_id, c.show_id, c.season_number, c.number, c.title AS episode_title,
             c.air_date, c.runtime_min, c.overview, c.still_url, c.unwatched_aired,
             s.title AS show_title, s.poster_url, s.backdrop_url,
+            lw.last_watched, la.air_date AS last_aired,
             CASE WHEN lw.last_watched IS NULL OR lw.last_watched < us.added_at
                  THEN us.added_at ELSE lw.last_watched END AS last_activity
      FROM cand c
      JOIN shows s ON s.tmdb_id = c.show_id
      JOIN user_shows us ON us.show_id = c.show_id AND us.user_id = ?1
      LEFT JOIN (
-       SELECT e2.show_id, MAX(ue.watched_at) AS last_watched
+       SELECT e2.show_id,
+              MAX(CASE WHEN ue.last_rewatched_at > ue.watched_at
+                       THEN ue.last_rewatched_at ELSE ue.watched_at END) AS last_watched
        FROM user_episodes ue JOIN episodes e2 ON e2.id = ue.episode_id
        WHERE ue.user_id = ?1 GROUP BY e2.show_id
      ) lw ON lw.show_id = c.show_id
      LEFT JOIN last_aired la ON la.show_id = c.show_id
      WHERE c.rn = 1
-       -- Hide not-yet-started shows (no episode ever watched) unless they were
-       -- followed within the recent window — newly added shows still surface.
-       AND (lw.last_watched IS NOT NULL OR us.added_at >= ?3)
-       -- Drop shows with no recent activity — nothing watched, nothing aired.
-       AND (lw.last_watched >= ?3 OR la.air_date >= ?3)
      ORDER BY last_activity DESC, c.air_date DESC`
   )
-    .bind(uid, today, recentSince)
+    .bind(uid, today)
     .all();
 
-  // Upcoming: the next episode to air for each followed show, soonest first.
-  // One row per show (its soonest unaired episode) so a show with several
-  // scheduled episodes doesn't crowd out others — the LIMIT then applies to
-  // distinct shows. Users click through to a show for its full schedule.
-  const { results: upcoming } = await c.env.DB.prepare(
+  // Bucket the queue into Continue Watching / Start Watching / Haven't Watched
+  // in a While by whether the show has been started and is recently active.
+  const showTile = (r: any) => ({
+    kind: "show" as const,
+    id: r.show_id,
+    title: r.show_title,
+    poster: r.poster_url,
+    backdrop: r.backdrop_url,
+    still: r.still_url,
+    season: r.season_number,
+    number: r.number,
+    episodeTitle: r.episode_title,
+    count: r.unwatched_aired,
+  });
+  const continueWatching: any[] = [];
+  const startWatching: any[] = [];
+  const havenWatched: any[] = [];
+  for (const r of results as any[]) {
+    if (r.last_watched == null) startWatching.push(showTile(r));
+    else if (recentlyActive(r.last_watched, r.last_aired, recentSince)) continueWatching.push(showTile(r));
+    else havenWatched.push(showTile(r));
+  }
+
+  // Upcoming: the soonest unaired episode per followed show.
+  const { results: upcomingR } = await c.env.DB.prepare(
     `WITH upc AS (
        SELECT e.id AS episode_id, e.show_id, e.season_number, e.number, e.title AS episode_title, e.air_date,
               s.title AS show_title, s.poster_url, s.backdrop_url,
@@ -112,42 +130,68 @@ library.get("/watch-next", async (c) => {
          AND e.season_number > 0 AND e.air_date IS NOT NULL AND e.air_date > ?2
      )
      SELECT episode_id, show_id, season_number, number, episode_title, air_date, show_title, poster_url, backdrop_url
-     FROM upc
-     WHERE rn = 1
+     FROM upc WHERE rn = 1
      ORDER BY air_date, show_title, season_number, number
-     LIMIT 20`
+     LIMIT 30`
   )
     .bind(uid, today)
     .all();
+  const upcoming = (upcomingR as any[]).map((r) => ({
+    kind: "show" as const,
+    id: r.show_id,
+    title: r.show_title,
+    poster: r.poster_url,
+    backdrop: r.backdrop_url,
+    still: null,
+    season: r.season_number,
+    number: r.number,
+    episodeTitle: r.episode_title,
+  }));
 
-  return c.json({
-    watchNext: (results as any[]).map((r) => ({
-      show: { id: r.show_id, title: r.show_title, poster: r.poster_url, backdrop: r.backdrop_url },
-      episode: {
-        id: r.episode_id,
-        season: r.season_number,
-        number: r.number,
-        title: r.episode_title,
-        airDate: r.air_date,
-        runtime: r.runtime_min,
-        overview: r.overview,
-        still: r.still_url,
-      },
-      unwatchedCount: r.unwatched_aired,
-      lastActivity: r.last_activity,
-    })),
-    upcoming: (upcoming as any[]).map((r) => ({
-      episodeId: r.episode_id,
-      showId: r.show_id,
-      showTitle: r.show_title,
+  // History: recently watched episodes and movies, newest first.
+  const [histEp, histMov] = await c.env.DB.batch([
+    c.env.DB.prepare(
+      `SELECT e.show_id AS id, s.title AS show_title, s.poster_url, s.backdrop_url, e.still_url,
+              e.season_number, e.number, e.title AS episode_title,
+              (CASE WHEN ue.last_rewatched_at > ue.watched_at THEN ue.last_rewatched_at ELSE ue.watched_at END) AS watched_at
+       FROM user_episodes ue JOIN episodes e ON e.id = ue.episode_id JOIN shows s ON s.tmdb_id = e.show_id
+       WHERE ue.user_id = ?1 AND e.season_number > 0
+       ORDER BY watched_at DESC LIMIT 30`
+    ).bind(uid),
+    c.env.DB.prepare(
+      `SELECT m.tmdb_id AS id, m.title, m.poster_url, um.watched_at
+       FROM user_movies um JOIN movies m ON m.tmdb_id = um.movie_id
+       WHERE um.user_id = ?1 AND um.state = 'watched' AND um.watched_at IS NOT NULL
+       ORDER BY um.watched_at DESC LIMIT 30`
+    ).bind(uid),
+  ]);
+  const history: any[] = [
+    ...(histEp.results as any[]).map((r) => ({
+      kind: "show" as const,
+      id: r.id,
+      title: r.show_title,
       poster: r.poster_url,
       backdrop: r.backdrop_url,
+      still: r.still_url,
       season: r.season_number,
       number: r.number,
-      title: r.episode_title,
-      airDate: r.air_date,
+      episodeTitle: r.episode_title,
+      watchedAt: r.watched_at,
     })),
-  });
+    ...(histMov.results as any[]).map((r) => ({
+      kind: "movie" as const,
+      id: r.id,
+      title: r.title,
+      poster: r.poster_url,
+      backdrop: null,
+      still: null,
+      watchedAt: r.watched_at,
+    })),
+  ]
+    .sort((a, b) => (a.watchedAt < b.watchedAt ? 1 : -1))
+    .slice(0, 30);
+
+  return c.json({ continueWatching, startWatching, upcoming, havenWatched, history });
 });
 
 // ---------- Library & watchlist ----------

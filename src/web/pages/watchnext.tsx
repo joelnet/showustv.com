@@ -1,173 +1,127 @@
-import { useState, type KeyboardEvent } from "react";
-import { Link } from "react-router-dom";
+import { Link, Navigate, useParams } from "react-router-dom";
 import { useApi } from "../hooks";
 import { poster, backdrop, still } from "../img";
 import { Spinner, Empty, ErrorNote } from "../components/ui";
 import { mediaPath } from "../paths";
 
-interface UpcomingItem {
-  episodeId: number;
-  showId: number;
-  showTitle: string;
+// A tile for any home item — a show (with its next/last episode) or a movie.
+interface HomeItem {
+  kind: "show" | "movie";
+  id: number;
+  title: string;
   poster: string | null;
   backdrop: string | null;
-  season: number;
-  number: number;
-  title: string | null;
-  airDate: string;
+  still: string | null;
+  season?: number;
+  number?: number;
+  episodeTitle?: string | null;
+  count?: number;
 }
 
-interface WatchNextItem {
-  show: { id: number; title: string; poster: string | null; backdrop: string | null };
-  episode: {
-    id: number;
-    season: number;
-    number: number;
-    title: string | null;
-    airDate: string | null;
-    runtime: number | null;
-    still: string | null;
-  };
-  unwatchedCount: number;
-  lastActivity: string;
+interface HomeData {
+  continueWatching: HomeItem[];
+  startWatching: HomeItem[];
+  upcoming: HomeItem[];
+  havenWatched: HomeItem[];
+  history: HomeItem[];
 }
 
-// The whole tile links to the show; watch actions happen on the show page
-// (issue #106). Landscape thumbnail (episode still, else show backdrop), a
-// bold show title, and one muted "S1·E3 - Episode title" line.
-function Tile({ item }: { item: WatchNextItem }) {
-  const ep = item.episode;
-  const thumb = still(ep.still) ?? backdrop(item.show.backdrop);
+type SectionKey = "continue" | "start" | "upcoming" | "haven" | "history";
+
+const SECTIONS: { key: SectionKey; label: string; field: keyof HomeData }[] = [
+  { key: "continue", label: "Continue Watching", field: "continueWatching" },
+  { key: "start", label: "Start Watching", field: "startWatching" },
+  { key: "upcoming", label: "Upcoming", field: "upcoming" },
+  { key: "haven", label: "Haven't Watched in a While", field: "havenWatched" },
+  { key: "history", label: "History", field: "history" },
+];
+
+// The whole tile links to the show/movie; watch actions happen there (#106).
+// Landscape thumbnail, bold title, and one muted "S1·E3 - Episode title" line.
+function Tile({ item }: { item: HomeItem }) {
+  const thumb = still(item.still) ?? backdrop(item.backdrop) ?? poster(item.poster);
   return (
-    <Link to={mediaPath("show", item.show.id, item.show.title)} className="wn-tile">
+    <Link to={mediaPath(item.kind, item.id, item.title)} className="wn-tile">
       <div className="wn-tile-thumb">
-        {thumb ? <img src={thumb} alt="" loading="lazy" /> : <div className="poster-fallback">{item.show.title}</div>}
-        <span className="pill wn-tile-count">{item.unwatchedCount} left</span>
+        {thumb ? <img src={thumb} alt="" loading="lazy" /> : <div className="poster-fallback">{item.title}</div>}
+        {item.count != null && item.count > 0 && <span className="pill wn-tile-count">{item.count} left</span>}
       </div>
       <div className="wn-tile-body">
-        <span className="wn-tile-show">{item.show.title}</span>
-        <span className="wn-tile-ep">
-          S{ep.season}·E{ep.number}
-          {ep.title ? ` - ${ep.title}` : ""}
-        </span>
+        <span className="wn-tile-show">{item.title}</span>
+        {item.season != null && item.number != null && (
+          <span className="wn-tile-ep">
+            S{item.season}·E{item.number}
+            {item.episodeTitle ? ` - ${item.episodeTitle}` : ""}
+          </span>
+        )}
       </div>
     </Link>
   );
 }
 
-// Upcoming episodes reuse the same tile shape, minus the "N left" count.
-function UpcomingTile({ item }: { item: UpcomingItem }) {
-  const thumb = backdrop(item.backdrop) ?? poster(item.poster);
-  return (
-    <Link to={mediaPath("show", item.showId, item.showTitle)} className="wn-tile wn-tile--upcoming">
-      <div className="wn-tile-thumb">
-        {thumb ? <img src={thumb} alt="" loading="lazy" /> : <div className="poster-fallback">{item.showTitle}</div>}
-      </div>
-      <div className="wn-tile-body">
-        <span className="wn-tile-show">{item.showTitle}</span>
-        <span className="wn-tile-ep">
-          S{item.season}·E{item.number}
-          {item.title ? ` - ${item.title}` : ""}
-        </span>
-      </div>
-    </Link>
-  );
-}
-
+// Home: horizontally-scrollable rows (issue #105), one per section, each with a
+// clickable header that opens the full list for that section.
 export function WatchNext() {
-  const { data, loading, error } = useApi<{
-    watchNext: WatchNextItem[];
-    upcoming: UpcomingItem[];
-  }>("/watch-next");
-  const [tab, setTab] = useState<"now" | "upcoming">("now");
-
+  const { data, loading, error } = useApi<HomeData>("/home");
   if (loading) return <Spinner />;
   if (error) return <ErrorNote message={error} />;
-  const current = data?.watchNext ?? [];
-  // The backend already returns one soonest episode per show; dedupe again
-  // defensively so a stale cache can't surface the same show twice.
-  const seenShows = new Set<number>();
-  const upcoming = (data?.upcoming ?? []).filter((u) =>
-    seenShows.has(u.showId) ? false : (seenShows.add(u.showId), true)
-  );
+  if (!data) return null;
 
-  // Full ARIA tabs keyboard support: Arrow/Home/End move selection and focus
-  // between the two tabs (selection follows focus — switching is cheap).
-  function onTabKeyDown(e: KeyboardEvent<HTMLButtonElement>) {
-    const order = ["now", "upcoming"] as const;
-    const i = order.indexOf(tab);
-    let next: (typeof order)[number] | null = null;
-    if (e.key === "ArrowRight" || e.key === "ArrowDown") next = order[(i + 1) % order.length];
-    else if (e.key === "ArrowLeft" || e.key === "ArrowUp") next = order[(i + order.length - 1) % order.length];
-    else if (e.key === "Home") next = order[0];
-    else if (e.key === "End") next = order[order.length - 1];
-    if (!next) return;
-    e.preventDefault();
-    setTab(next);
-    document.getElementById(`wn-tab-${next}`)?.focus();
+  const rows = SECTIONS.map((s) => ({ ...s, items: data[s.field] ?? [] })).filter((s) => s.items.length > 0);
+  if (rows.length === 0) {
+    return (
+      <>
+        <h1 className="sr-only">Watch</h1>
+        <Empty
+          title="Nothing on deck"
+          hint="Follow a show and its next episode lands here. Try the search, or start with what's trending."
+        />
+      </>
+    );
   }
 
   return (
-    <div>
-      <h1 className="sr-only">Watch Now</h1>
-      <div className="wn-tabs" role="tablist" aria-label="Watch Now and Upcoming">
-        <button
-          type="button"
-          role="tab"
-          id="wn-tab-now"
-          aria-selected={tab === "now"}
-          aria-controls="wn-panel-now"
-          className={`wn-tab${tab === "now" ? " is-active" : ""}`}
-          tabIndex={tab === "now" ? 0 : -1}
-          onClick={() => setTab("now")}
-          onKeyDown={onTabKeyDown}
-        >
-          Watch Now
-        </button>
-        <button
-          type="button"
-          role="tab"
-          id="wn-tab-upcoming"
-          aria-selected={tab === "upcoming"}
-          aria-controls="wn-panel-upcoming"
-          className={`wn-tab${tab === "upcoming" ? " is-active" : ""}`}
-          tabIndex={tab === "upcoming" ? 0 : -1}
-          onClick={() => setTab("upcoming")}
-          onKeyDown={onTabKeyDown}
-        >
-          Upcoming
-        </button>
-      </div>
+    <div className="wn-home">
+      <h1 className="sr-only">Watch</h1>
+      {rows.map((s) => (
+        <section key={s.key} className="wn-section">
+          <Link to={`/watch/${s.key}`} className="wn-section-head">
+            <h2>{s.label}</h2>
+            <span className="wn-section-more" aria-hidden="true">›</span>
+          </Link>
+          <div className="wn-row">
+            {s.items.map((it, i) => (
+              <Tile key={`${it.kind}-${it.id}-${i}`} item={it} />
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
 
-      {tab === "now" ? (
-        <div id="wn-panel-now" role="tabpanel" aria-labelledby="wn-tab-now">
-          {current.length > 0 ? (
-            <div className="wn-grid">
-              {current.map((item) => (
-                <Tile key={item.show.id} item={item} />
-              ))}
-            </div>
-          ) : (
-            <Empty
-              title="Nothing on deck"
-              hint="Follow a show and its next episode lands here. Try the search, or start with what's trending."
-            />
-          )}
-        </div>
+// The "list view for that type" behind each section header (#105): the full
+// section as a poster grid.
+export function WatchSectionPage() {
+  const { key } = useParams();
+  const section = SECTIONS.find((s) => s.key === key);
+  const { data, loading, error } = useApi<HomeData>(section ? "/home" : null);
+  if (!section) return <Navigate to="/" replace />;
+  if (loading) return <Spinner />;
+  if (error) return <ErrorNote message={error} />;
+  if (!data) return null;
+  const items = data[section.field] ?? [];
+  return (
+    <div>
+      <Link to="/" className="crumb">‹ Watch</Link>
+      <h1 className="page-title">{section.label}</h1>
+      {items.length === 0 ? (
+        <Empty title="Nothing here yet" hint="Come back once you've got shows in this bucket." />
       ) : (
-        <div id="wn-panel-upcoming" role="tabpanel" aria-labelledby="wn-tab-upcoming">
-          {upcoming.length > 0 ? (
-            <div className="wn-grid">
-              {upcoming.map((u) => (
-                <UpcomingTile key={u.showId} item={u} />
-              ))}
-            </div>
-          ) : (
-            <Empty
-              title="Nothing scheduled"
-              hint="Upcoming episodes of the shows you follow will show up here."
-            />
-          )}
+        <div className="wn-grid">
+          {items.map((it, i) => (
+            <Tile key={`${it.kind}-${it.id}-${i}`} item={it} />
+          ))}
         </div>
       )}
     </div>

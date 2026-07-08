@@ -516,31 +516,40 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   white-space: nowrap;
 }
 
-/* Watch Now / Upcoming tabs (issue #69). Page-title-scale tabs; the active one
-   gets an amber underline that sits on the tablist's hairline border. */
-.wn-tabs {
-  display: flex;
-  gap: 24px;
-  margin: 4px 0 20px;
-  border-bottom: 1px solid var(--line);
+/* Home: horizontally-scrollable section rows (issue #105). */
+.wn-home { display: flex; flex-direction: column; gap: 28px; }
+.wn-section-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  color: var(--text);
+  text-decoration: none;
+  width: fit-content;
 }
-.wn-tab {
-  appearance: none;
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  padding: 0 2px 10px;
+.wn-section-head:hover { text-decoration: none; }
+.wn-section-head:hover h2,
+.wn-section-head:hover .wn-section-more { color: var(--amber); }
+.wn-section-head h2 {
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: clamp(22px, 5.5vw, 28px);
-  letter-spacing: -0.02em;
-  color: var(--muted);
-  cursor: pointer;
-  transition: color 0.15s ease, border-color 0.15s ease;
+  font-size: 20px;
+  letter-spacing: -0.01em;
+  margin: 0;
 }
-.wn-tab:hover { color: var(--text); }
-.wn-tab.is-active { color: var(--text); border-bottom-color: var(--amber); }
+.wn-section-more { font-size: 22px; line-height: 1; color: var(--muted); }
+.wn-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 220px;
+  gap: 14px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  padding-bottom: 8px;
+  scrollbar-width: thin;
+}
+.wn-row > .wn-tile { scroll-snap-align: start; }
 
 .sr-only {
   position: absolute;
@@ -1863,6 +1872,11 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   .wn-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 8px; }
   /* Library poster grid matches the 3-up Watch Now layout on phones (#88). */
   .poster-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 8px; }
+  /* Section rows show exactly 2.5 tiles so the cut-off tile hints at horizontal
+     scroll (issue #105). Width backs out the .main padding (2×10px) and the two
+     visible 10px gaps, then splits the remaining viewport across 2.5 columns. */
+  .wn-row { grid-auto-columns: calc((100vw - 40px) / 2.5); gap: 10px; }
+  .wn-section-head h2 { font-size: 18px; }
 }
 
 /* ---------- Caught-up celebration (issue #53) ----------

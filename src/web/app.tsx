@@ -10,7 +10,7 @@ import { useInstallPrompt, isStandalone } from "./pwa";
 import { Landing } from "./pages/landing";
 import { Login } from "./pages/login";
 import { VerifyEmailPage } from "./pages/verify-email";
-import { WatchNext } from "./pages/watchnext";
+import { WatchNext, WatchSectionPage } from "./pages/watchnext";
 import { SearchPage } from "./pages/search";
 import { ShowPage } from "./pages/show";
 import { EpisodePage } from "./pages/episode";
@@ -254,6 +254,7 @@ export function App() {
           <Route path="/u/:username" element={<PublicProfilePage />} />
           <Route element={<Shell />}>
             <Route path="/" element={<WatchNext />} />
+            <Route path="/watch/:key" element={<WatchSectionPage />} />
             <Route path="/search" element={<SearchPage />} />
             <Route path="/show/:id" element={<ShowPage />} />
             <Route path="/episode/:id" element={<EpisodePage />} />
