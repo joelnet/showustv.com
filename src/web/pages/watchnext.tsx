@@ -43,7 +43,7 @@ function Tile({ item }: { item: HomeItem }) {
   return (
     <Link to={mediaPath(item.kind, item.id, item.title)} className="wn-tile">
       <div className="wn-tile-thumb">
-        {thumb ? <img src={thumb} alt="" loading="lazy" /> : <div className="poster-fallback">{item.title}</div>}
+        {thumb ? <img src={thumb} alt="" loading="lazy" decoding="async" /> : <div className="poster-fallback">{item.title}</div>}
         {item.count != null && item.count > 0 && <span className="pill wn-tile-count">{item.count} left</span>}
       </div>
       <div className="wn-tile-body">

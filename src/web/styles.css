@@ -474,21 +474,19 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   gap: 18px 16px;
 }
 
+/* Bare tiles: no card border or background, so the artwork carries the row
+   (issue #105 follow-up). Rounded corners live on the thumbnail itself. */
 .wn-tile {
   display: flex;
   flex-direction: column;
   gap: 0;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  overflow: hidden;
   padding: 0;
   text-decoration: none;
 }
-.wn-tile:hover { text-decoration: none; border-color: var(--amber); }
+.wn-tile:hover { text-decoration: none; }
 .wn-tile:hover .wn-tile-show { color: var(--amber); }
 /* Landscape thumbnail (episode still / show backdrop), 16:9 (issue #106). */
-.wn-tile-thumb { position: relative; display: block; }
+.wn-tile-thumb { position: relative; display: block; border-radius: var(--radius); overflow: hidden; }
 .wn-tile-thumb img,
 .wn-tile-thumb .poster-fallback {
   width: 100%;
@@ -498,7 +496,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 }
 .wn-tile-thumb .poster-fallback { display: flex; align-items: center; justify-content: center; text-align: center; }
 .wn-tile-count { position: absolute; bottom: 7px; right: 7px; background: rgba(15, 18, 24, 0.85); color: var(--text); }
-.wn-tile-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 8px; }
+.wn-tile-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 8px 2px 0; }
 .wn-tile-show {
   font-family: var(--font-display);
   font-weight: 700;
@@ -1872,10 +1870,11 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   .wn-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 8px; }
   /* Library poster grid matches the 3-up Watch Now layout on phones (#88). */
   .poster-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 8px; }
-  /* Section rows show exactly 2.5 tiles so the cut-off tile hints at horizontal
-     scroll (issue #105). Width backs out the .main padding (2×10px) and the two
-     visible 10px gaps, then splits the remaining viewport across 2.5 columns. */
-  .wn-row { grid-auto-columns: calc((100vw - 40px) / 2.5); gap: 10px; }
+  /* Section rows show exactly 1.5 tiles so the cut-off tile hints at horizontal
+     scroll while keeping tiles large (issue #105 follow-up). Width backs out the
+     .main padding (2×10px) and the one visible 10px gap, then splits the
+     remaining viewport across 1.5 columns. */
+  .wn-row { grid-auto-columns: calc((100vw - 30px) / 1.5); gap: 10px; }
   .wn-section-head h2 { font-size: 18px; }
 }
 
