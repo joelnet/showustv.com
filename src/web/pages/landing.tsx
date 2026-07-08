@@ -34,11 +34,13 @@ export function Landing() {
             Show Us TV keeps track of every show and movie you watch: what&rsquo;s next, what&rsquo;s
             airing soon, and everything you&rsquo;ve finished.
           </p>
-          <p className="landing-freebadge">
-            <IconCheck size={13} /> 100% free! No credit card, no ads!
-          </p>
           <PosterWall />
         </section>
+
+        {/* Free badge sits below the hero rather than inside it (issue #124). */}
+        <p className="landing-freebadge">
+          <IconCheck size={13} /> 100% free! No credit card, no ads!
+        </p>
 
         {/* The exact same card as /login, opened in register mode. */}
         <section className="landing-signup" aria-label="Create your account">

@@ -1,6 +1,6 @@
 /* ============ Show Us TV — late-night broadcast ============
    Deep slate room, tungsten-amber actions, cyan schedule info,
-   red ON AIR light. Roboto carries everything — titles and body —
+   red ON AIR light. Lato carries everything — titles and body —
    with Roboto Mono on the production slates (S02·E05); Zilla Slab
    appears only in the wordmark. */
 
@@ -19,8 +19,8 @@
   --green: #58c983;
   --radius: 10px;
   --font-logo: "Zilla Slab", Georgia, serif;
-  --font-display: "Roboto", system-ui, sans-serif;
-  --font-body: "Roboto", system-ui, sans-serif;
+  --font-display: "Lato", system-ui, sans-serif;
+  --font-body: "Lato", system-ui, sans-serif;
   --font-mono: "Roboto Mono", ui-monospace, monospace;
 }
 
@@ -1286,15 +1286,15 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   padding: 5px 14px;
   margin: 0 0 22px;
 }
+/* Hero headline matches JustWatch's .content__heading: Lato 900, ~60px with
+   ~70px leading, scaling down to 36px on phones (issue #124). */
 .landing-hero h1 {
   font-family: var(--font-display);
-  font-weight: 700;
-  font-size: clamp(29px, 6vw, 64px);
-  letter-spacing: -0.03em;
-  /* Extra leading so the amber .landing-bug block word doesn't crowd the line
-     above/below when the heading wraps to two lines. */
-  line-height: 1.12;
-  margin: 0 0 20px;
+  font-weight: 900;
+  font-size: clamp(36px, 6vw, 60px);
+  letter-spacing: normal;
+  line-height: 1.17;
+  margin: 0;
   text-wrap: balance;
   /* Soft slate halo so the headline holds against whatever poster the wall
      scrolls behind it; wide + low-opacity so it reads as depth, not a shadow. */
@@ -1311,11 +1311,14 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   /* the amber block is its own backdrop — no halo on the ink */
   text-shadow: none;
 }
+/* Subheading matches JustWatch's .content__subheading: 20px, weight 400, muted
+   gray, 30px above the headline (issue #124). */
 .landing-sub {
-  color: var(--text);
-  font-size: 21px;
+  color: var(--muted);
+  font-size: 20px;
+  font-weight: 400;
   line-height: 1.5;
-  margin: 0 auto 30px;
+  margin: 30px auto 0;
   max-width: 600px;
   /* same slate halo as the h1, scaled to the smaller size */
   text-shadow: 0 1px 14px rgba(15, 18, 24, 0.9), 0 1px 3px rgba(15, 18, 24, 0.55);
@@ -1323,7 +1326,10 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 /* Key marketing point: the app is 100% free with no ads (issue #41). A green
    "go" pill in the conversion zone, built from the hero badge pattern. */
 .landing-freebadge {
-  display: inline-flex;
+  /* Below the hero now (issue #124): fit-content + auto side margins keep the
+     pill centered in the (left-aligned) landing-main. */
+  display: flex;
+  width: fit-content;
   align-items: center;
   gap: 8px;
   font-family: var(--font-mono);
@@ -1336,7 +1342,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   border: 1px solid rgba(88, 201, 131, 0.5);
   border-radius: 999px;
   padding: 6px 16px;
-  margin: 0 0 26px;
+  margin: 28px auto 0;
 }
 /* Shared CTA row for the import-help and install marketing pages. */
 .landing-cta-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
