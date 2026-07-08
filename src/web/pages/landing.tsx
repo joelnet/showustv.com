@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { Wordmark, SiteFooter } from "../components/ui";
 import { InstallAppButton } from "../components/install";
 import { AuthCard } from "../components/auth-card";
+import { PosterWall } from "../components/poster-wall";
 import { IconCheck, IconWarning } from "../components/icons";
 
 export function Landing() {
@@ -34,25 +35,7 @@ export function Landing() {
           <div className="landing-cta-row">
             <InstallAppButton buttonClass="btn btn-amber-ghost btn-lg" />
           </div>
-          <figure className="hero-shot">
-            <div className="hero-shot-bar" aria-hidden="true">
-              <span className="hero-shot-dots">
-                <i style={{ background: "var(--red)" }} />
-                <i style={{ background: "var(--amber)" }} />
-                <i style={{ background: "var(--green)" }} />
-              </span>
-              <span className="hero-shot-url">showustv.com/library</span>
-            </div>
-            <div className="hero-shot-frame">
-              <img
-                src="/screenshot-library.webp"
-                width={1086}
-                height={1038}
-                decoding="async"
-                alt="The Show Us TV library: a grid of followed shows with cover art and watch-progress bars."
-              />
-            </div>
-          </figure>
+          <PosterWall />
         </section>
 
         {/* The exact same card as /login, opened in register mode. */}

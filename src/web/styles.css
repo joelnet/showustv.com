@@ -1201,7 +1201,9 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   text-align: center;
   max-width: 780px;
   margin: 0 auto;
-  padding: 72px 0 8px;
+  /* extra bottom room now that the screenshot lives in .landing-shot below —
+     gives the poster wall some breathing space under the CTA */
+  padding: 72px 0 40px;
 }
 /* Broadcast atmosphere: a tungsten pool of light behind the marquee (ambient,
    not an action fill) over faint CRT scanlines. The mask feathers both to
@@ -1256,6 +1258,9 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   line-height: 1.12;
   margin: 0 0 20px;
   text-wrap: balance;
+  /* Soft slate halo so the headline holds against whatever poster the wall
+     scrolls behind it; wide + low-opacity so it reads as depth, not a shadow. */
+  text-shadow: 0 2px 24px rgba(15, 18, 24, 0.9), 0 1px 4px rgba(15, 18, 24, 0.55);
 }
 .landing-bug {
   background: var(--amber);
@@ -1265,13 +1270,17 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   /* rendered as <em>; the amber block carries the emphasis, not italics */
   font-style: normal;
   white-space: nowrap;
+  /* the amber block is its own backdrop — no halo on the ink */
+  text-shadow: none;
 }
 .landing-sub {
-  color: var(--muted);
+  color: var(--text);
   font-size: 21px;
   line-height: 1.5;
   margin: 0 auto 30px;
   max-width: 600px;
+  /* same slate halo as the h1, scaled to the smaller size */
+  text-shadow: 0 1px 14px rgba(15, 18, 24, 0.9), 0 1px 3px rgba(15, 18, 24, 0.55);
 }
 /* Key marketing point: the app is 100% free with no ads (issue #41). A green
    "go" pill in the conversion zone, built from the hero badge pattern. */
@@ -1285,7 +1294,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--green);
-  background: rgba(88, 201, 131, 0.12);
+  background: #58c9831f;
   border: 1px solid rgba(88, 201, 131, 0.5);
   border-radius: 999px;
   padding: 6px 16px;
@@ -1297,13 +1306,31 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 
 /* Hero-scoped amplifications (leave the showcase/help shots untouched). */
 .landing-hero .landing-cta-row .btn-lg { font-size: 19px; padding: 14px 30px; }
-.landing-hero .hero-shot {
-  max-width: 690px;
-  margin-top: 52px;
-  border-radius: 16px;
-  /* deep drop plus a faint tungsten underglow that ties into the atmosphere */
-  box-shadow: 0 42px 92px -34px rgba(0, 0, 0, 0.85), 0 26px 74px -34px rgba(255, 174, 46, 0.1);
+
+/* Poster wall: full-bleed three.js canvas behind the hero copy. z-index -2
+   sits under the ::before glow/scanlines (-1), which double as its dimmer;
+   .landing's overflow-x:clip contains the 100vw breakout. The mask feathers
+   the wall to nothing at the edges and thins it directly behind the headline;
+   final dim level lives in --wall-opacity so tuning never touches the scene
+   code or the generated strips. */
+.landing-hero { --wall-opacity: 0.42; }
+.landing-hero > .poster-wall { animation: none; } /* exempt from hero-rise */
+.poster-wall {
+  position: absolute;
+  top: -14px;
+  bottom: -30px;
+  left: 50%;
+  width: 100vw;
+  transform: translateX(-50%);
+  z-index: -2;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.9s ease;
+  -webkit-mask-image: radial-gradient(72% 80% at 50% 38%, rgba(0, 0, 0, 0.4) 30%, #000 72%, transparent 98%);
+  mask-image: radial-gradient(72% 80% at 50% 38%, rgba(0, 0, 0, 0.4) 30%, #000 72%, transparent 98%);
 }
+.poster-wall--on { opacity: var(--wall-opacity); }
+.poster-wall canvas { display: block; width: 100%; height: 100%; }
 
 /* Product screenshot, framed like an app window. */
 .hero-shot {
@@ -1636,7 +1663,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   .activity-feed li { flex-wrap: wrap; }
   .activity-when { flex-basis: 100%; padding-left: 50px; }
 
-  .landing-hero { padding-top: 40px; }
+  .landing-hero { padding-top: 40px; --wall-opacity: 0.34; }
   .landing-cta-row .btn-lg { flex: 1 1 100%; justify-content: center; }
   .landing-section { margin-top: 88px; }
   .landing-final { margin-top: 88px; }
