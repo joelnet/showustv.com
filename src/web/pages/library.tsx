@@ -6,11 +6,10 @@ import { fmtDateTime } from "../format";
 import { PosterCard, Progress, Spinner, Empty, ErrorNote } from "../components/ui";
 import { mediaPath } from "../paths";
 
-// "Watching" and "Not started yet" moved to Watch Next (issue #115) — the
-// Library keeps the reference buckets: shows you're caught up on, done with, or
-// stopped. "stale" is the split-out slice of watching that's gone quiet.
+// "Watching", "Not started yet", and "Haven't watched for a while" all moved to
+// Watch Next (issue #115) — the Library keeps only the reference buckets: shows
+// you're caught up on, done with, or stopped.
 const STATE_SECTIONS: [string, string][] = [
-  ["stale", "Haven’t watched for a while"],
   ["up_to_date", "Up to date"],
   ["finished", "Finished"],
   ["stopped", "Stopped"],
@@ -63,9 +62,9 @@ interface WatchlistItem {
   poster: string | null;
 }
 
-// The shows library: a status tab bar (Haven't watched for a while / Up to date
-// / Finished / Stopped — only tabs that have shows appear), and the active tab's
-// poster grid. Active/not-started shows live on Watch Next instead (issue #115).
+// The shows library: a status tab bar (Up to date / Finished / Stopped — only
+// tabs that have shows appear), and the active tab's poster grid. Active,
+// not-started, and gone-quiet shows live on Watch Next instead (issue #115).
 function ShowsLibrary({ shows }: { shows: LibShow[] }) {
   const [sort, setSort] = useState<ShowSort>(() =>
     localStorage.getItem(SORT_KEY) === "alphabetical" ? "alphabetical" : "last_watched"
@@ -91,7 +90,7 @@ function ShowsLibrary({ shows }: { shows: LibShow[] }) {
     return (
       <Empty
         title="Nothing to catch up on here"
-        hint="Shows you’re actively watching or haven’t started live on Watch Next now."
+        hint="Your active shows now live on Watch Next — the Library keeps what you’re up to date on, finished, or stopped."
       />
     );
   }
