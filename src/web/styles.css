@@ -1237,9 +1237,11 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   isolation: isolate;
   text-align: center;
   max-width: 780px;
-  margin: 0 auto;
-  /* extra bottom room now that the screenshot lives in .landing-shot below —
-     gives the poster wall some breathing space under the CTA */
+  /* 14px top margin so the poster wall (top: -14px) starts just below the
+     landing header's border-bottom instead of sliding under it */
+  margin: 14px auto 0;
+  /* extra bottom room now that the screenshot lives below the hero — gives
+     the poster wall some breathing space under the CTA */
   padding: 72px 0 40px;
 }
 /* Broadcast atmosphere: a tungsten pool of light behind the marquee (ambient,
