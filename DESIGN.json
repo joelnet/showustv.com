@@ -18,9 +18,10 @@
       "green": { "role": "tertiary", "displayName": "Watched Green", "canonical": "oklch(0.77 0.14 155)", "tonalRamp": ["oklch(0.22 0.04 155)", "oklch(0.34 0.06 155)", "oklch(0.46 0.09 155)", "oklch(0.57 0.11 155)", "oklch(0.67 0.13 155)", "oklch(0.77 0.14 155)", "oklch(0.86 0.09 155)", "oklch(0.95 0.04 155)"] }
     },
     "typographyMeta": {
-      "display": { "displayName": "Display", "purpose": "Landing hero and wordmark. Zilla Slab 700 italic, once per view." },
+      "logo": { "displayName": "Logo", "purpose": "The wordmark, and nothing else. Zilla Slab 700 italic, the only serif in the system." },
+      "display": { "displayName": "Display", "purpose": "Landing hero marquee. Roboto 700, once per view." },
       "headline": { "displayName": "Headline", "purpose": "App page titles." },
-      "title": { "displayName": "Title", "purpose": "Card headings, show/episode H1s (italic), list and feature names." },
+      "title": { "displayName": "Title", "purpose": "Card headings, show/episode H1s, list and feature names." },
       "body": { "displayName": "Body", "purpose": "All running text. Cap measure at 65-75ch." },
       "label": { "displayName": "Label", "purpose": "Uppercase section eyebrows with an amber tick, small stat labels." },
       "mono": { "displayName": "Mono", "purpose": "Printed-on-the-tape metadata: slates, dates, counts, faux URLs." }
@@ -49,7 +50,7 @@
       "refersTo": "button-primary",
       "description": "The one loud control on a screen: solid tungsten amber, used for the single most important action.",
       "html": "<button class=\"ds-btn ds-btn-primary\"><svg viewBox=\"0 0 24 24\" width=\"14\" height=\"14\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M20 6 9 17l-5-5\"/></svg><span>Watched</span></button>",
-      "css": ".ds-btn { display: inline-flex; align-items: center; gap: 7px; font: 600 14px \"Figtree\", sans-serif; border-radius: 8px; padding: 8px 16px; cursor: pointer; border: 1px solid transparent; transition: filter 0.15s, transform 0.1s; } .ds-btn-primary { background: var(--amber, #ffae2e); color: var(--amber-ink, #1a1205); border-color: var(--amber, #ffae2e); } .ds-btn-primary:hover { filter: brightness(1.08); } .ds-btn-primary:active { transform: scale(0.98); } .ds-btn-primary:focus-visible { outline: 2px solid var(--amber, #ffae2e); outline-offset: 2px; }"
+      "css": ".ds-btn { display: inline-flex; align-items: center; gap: 7px; font: 600 14px \"Roboto\", sans-serif; border-radius: 8px; padding: 8px 16px; cursor: pointer; border: 1px solid transparent; transition: filter 0.15s, transform 0.1s; } .ds-btn-primary { background: var(--amber, #ffae2e); color: var(--amber-ink, #1a1205); border-color: var(--amber, #ffae2e); } .ds-btn-primary:hover { filter: brightness(1.08); } .ds-btn-primary:active { transform: scale(0.98); } .ds-btn-primary:focus-visible { outline: 2px solid var(--amber, #ffae2e); outline-offset: 2px; }"
     },
     {
       "name": "Ghost Button",
@@ -57,7 +58,7 @@
       "refersTo": "button-ghost",
       "description": "Secondary action: transparent with a hairline border. Hover lifts the border, no brightness shift.",
       "html": "<button class=\"ds-btn ds-btn-ghost\">Sign in</button>",
-      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; gap: 7px; font: 600 14px \"Figtree\", sans-serif; border-radius: 8px; padding: 8px 16px; cursor: pointer; background: transparent; color: var(--text, #ede9e0); border: 1px solid var(--line, #2a3344); transition: border-color 0.15s; } .ds-btn-ghost:hover { border-color: var(--muted, #8e97a8); } .ds-btn-ghost:focus-visible { outline: 2px solid var(--amber, #ffae2e); outline-offset: 2px; }"
+      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; gap: 7px; font: 600 14px \"Roboto\", sans-serif; border-radius: 8px; padding: 8px 16px; cursor: pointer; background: transparent; color: var(--text, #ede9e0); border: 1px solid var(--line, #2a3344); transition: border-color 0.15s; } .ds-btn-ghost:hover { border-color: var(--muted, #8e97a8); } .ds-btn-ghost:focus-visible { outline: 2px solid var(--amber, #ffae2e); outline-offset: 2px; }"
     },
     {
       "name": "Slate Chip",
@@ -65,7 +66,7 @@
       "refersTo": "slate",
       "description": "The signature production slate: a mono episode code, amber on amber-wash. The product's most-repeated brand atom.",
       "html": "<code class=\"ds-slate\">S02·E05</code>",
-      "css": ".ds-slate { font: 600 12px \"Spline Sans Mono\", monospace; letter-spacing: 0.04em; color: var(--amber, #ffae2e); background: rgba(255,174,46,0.14); border-radius: 4px; padding: 1.5px 6px; white-space: nowrap; }"
+      "css": ".ds-slate { font: 600 12px \"Roboto Mono\", monospace; letter-spacing: 0.04em; color: var(--amber, #ffae2e); background: rgba(255,174,46,0.14); border-radius: 4px; padding: 1.5px 6px; white-space: nowrap; }"
     },
     {
       "name": "Search Field",
@@ -73,7 +74,7 @@
       "refersTo": "input",
       "description": "Pill-shaped tuner readout with an inline magnifier. The header/search field idiom.",
       "html": "<div class=\"ds-search\"><svg viewBox=\"0 0 24 24\" width=\"15\" height=\"15\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><circle cx=\"11\" cy=\"11\" r=\"7\"/><path d=\"m21 21-4.3-4.3\"/></svg><input placeholder=\"Search shows & movies\" /></div>",
-      "css": ".ds-search { display: inline-flex; align-items: center; gap: 8px; background: var(--surface, #171c26); border: 1px solid var(--line, #2a3344); border-radius: 999px; padding: 5px 14px; color: var(--muted, #8e97a8); } .ds-search input { background: none; border: none; color: var(--text, #ede9e0); font: 400 15px \"Figtree\", sans-serif; width: 190px; outline: none; } .ds-search:focus-within { outline: 2px solid var(--amber, #ffae2e); outline-offset: 1px; }"
+      "css": ".ds-search { display: inline-flex; align-items: center; gap: 8px; background: var(--surface, #171c26); border: 1px solid var(--line, #2a3344); border-radius: 999px; padding: 5px 14px; color: var(--muted, #8e97a8); } .ds-search input { background: none; border: none; color: var(--text, #ede9e0); font: 400 15px \"Roboto\", sans-serif; width: 190px; outline: none; } .ds-search:focus-within { outline: 2px solid var(--amber, #ffae2e); outline-offset: 1px; }"
     },
     {
       "name": "Progress Bar",
@@ -105,7 +106,7 @@
       "refersTo": "card",
       "description": "Flat content card: surface fill, hairline border, an amber-wash icon tile. No shadow, separation is tonal.",
       "html": "<article class=\"ds-card\"><span class=\"ds-card-icon\"><svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"currentColor\"><path d=\"M8 5v14l11-7z\"/></svg></span><h3 class=\"ds-card-title\">Watch Now queue</h3><p class=\"ds-card-body\">Every show you follow, lined up to its exact next episode.</p></article>",
-      "css": ".ds-card { background: var(--surface, #171c26); border: 1px solid var(--line, #2a3344); border-radius: 10px; padding: 18px; max-width: 260px; } .ds-card-icon { display: inline-grid; place-items: center; width: 38px; height: 38px; border-radius: 10px; background: rgba(255,174,46,0.14); color: var(--amber, #ffae2e); margin-bottom: 12px; } .ds-card-title { font: 700 16px \"Zilla Slab\", serif; letter-spacing: -0.01em; color: var(--text, #ede9e0); margin: 0 0 6px; } .ds-card-body { font: 400 13.5px \"Figtree\", sans-serif; line-height: 1.55; color: var(--muted, #8e97a8); margin: 0; }"
+      "css": ".ds-card { background: var(--surface, #171c26); border: 1px solid var(--line, #2a3344); border-radius: 10px; padding: 18px; max-width: 260px; } .ds-card-icon { display: inline-grid; place-items: center; width: 38px; height: 38px; border-radius: 10px; background: rgba(255,174,46,0.14); color: var(--amber, #ffae2e); margin-bottom: 12px; } .ds-card-title { font: 700 16px \"Roboto\", sans-serif; letter-spacing: -0.01em; color: var(--text, #ede9e0); margin: 0 0 6px; } .ds-card-body { font: 400 13.5px \"Roboto\", sans-serif; line-height: 1.55; color: var(--muted, #8e97a8); margin: 0; }"
     }
   ],
   "narrative": {
@@ -116,20 +117,20 @@
       "One warm accent (tungsten amber) that only ever means action or progress.",
       "A three-light status language borrowed from a broadcast rack: red ON AIR, amber acting, green done.",
       "Broadcast props that carry real meaning: slates for episode codes, SMPTE bars for section breaks.",
-      "Zilla Slab italic for identity, Spline Sans Mono for the printed-on-the-tape details."
+      "Zilla Slab italic for the wordmark only, Roboto Mono for the printed-on-the-tape details."
     ],
     "rules": [
       { "name": "The Three-Light Rule", "body": "Status is spoken in exactly three colored lights, red on air, amber acting, green done, plus cyan for schedule/info. A surface never invents a fifth status color; it reuses one of these four with an icon or label beside it.", "section": "colors" },
       { "name": "The One Bulb Rule", "body": "Amber is the only warm light in the room and it means action or progress, nothing else. It is never a decorative accent, a heading color, or a background field. Its scarcity is what makes a primary button obvious.", "section": "colors" },
-      { "name": "The Printed-On-The-Tape Rule", "body": "Anything that would be physically stamped on a cassette or a shot list, episode codes, air dates, counts, runtimes, is set in Spline Sans Mono. Prose is never mono; metadata is never prose-set.", "section": "typography" },
-      { "name": "The Italic-Is-The-Brand Rule", "body": "The forward-leaning italic is reserved for the wordmark, the landing hero, and title-level show names. It is an identity signal, not emphasis; body copy never leans.", "section": "typography" },
+      { "name": "The Printed-On-The-Tape Rule", "body": "Anything that would be physically stamped on a cassette or a shot list, episode codes, air dates, counts, runtimes, is set in Roboto Mono. Prose is never mono; metadata is never prose-set.", "section": "typography" },
+      { "name": "The Logo-Keeps-The-Serif Rule", "body": "Zilla Slab italic is reserved for the wordmark alone. Everything else, including the landing hero and show titles, sets in Roboto; body copy never leans.", "section": "typography" },
       { "name": "The Flat-Room Rule", "body": "Cards, tiles, chips, and panels are flat, distinguished by a lighter slate fill and a 1px line border. Shadows are for things that truly float (dialogs, the hero photo) and for the ON AIR glow. Nothing else.", "section": "elevation" }
     ],
     "dos": [
       "Do keep amber to one job. A primary button, active state, or progress fill, never a heading color or decorative fill (the One Bulb Rule).",
       "Do speak status in the three lights plus cyan: red ON AIR, amber acting, green done, cyan schedule/info, and always pair the color with an icon, label, or code so color is never the only signal (WCAG 2.2 AA).",
       "Do build surfaces from the four slate steps (bg/surface/surface-2/line) and a 1px hairline. Depth is tonal, not shadowed (the Flat-Room Rule).",
-      "Do set every episode code, date, count, and runtime in Spline Sans Mono; reserve Zilla Slab italic for the wordmark, landing hero, and show titles.",
+      "Do set every episode code, date, count, and runtime in Roboto Mono; reserve Zilla Slab italic for the wordmark alone.",
       "Do use warm-white #ede9e0 for text and the slate neutrals for chrome. Tint neutrals toward blue-slate; never reach for pure #fff or #000.",
       "Do give the ON AIR dot its soft red glow, the one colored shadow in the system, and grow tap targets to at least 40px on mobile."
     ],

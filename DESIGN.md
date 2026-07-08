@@ -15,38 +15,44 @@ colors:
   red: "#ff4d3d"
   green: "#58c983"
 typography:
-  display:
+  logo:
     fontFamily: "Zilla Slab, Georgia, serif"
+    fontSize: "19px"
+    fontWeight: 700
+    fontStyle: "italic"
+    letterSpacing: "-0.02em"
+  display:
+    fontFamily: "Roboto, system-ui, sans-serif"
     fontSize: "clamp(32px, 6.5vw, 52px)"
     fontWeight: 700
     lineHeight: 1.08
     letterSpacing: "-0.02em"
   headline:
-    fontFamily: "Zilla Slab, Georgia, serif"
+    fontFamily: "Roboto, system-ui, sans-serif"
     fontSize: "28px"
     fontWeight: 700
     lineHeight: 1.1
     letterSpacing: "-0.02em"
   title:
-    fontFamily: "Zilla Slab, Georgia, serif"
+    fontFamily: "Roboto, system-ui, sans-serif"
     fontSize: "16px"
     fontWeight: 700
     lineHeight: 1.3
     letterSpacing: "-0.01em"
   body:
-    fontFamily: "Figtree, system-ui, sans-serif"
+    fontFamily: "Roboto, system-ui, sans-serif"
     fontSize: "15px"
     fontWeight: 400
     lineHeight: 1.5
     letterSpacing: "normal"
   label:
-    fontFamily: "Zilla Slab, Georgia, serif"
+    fontFamily: "Roboto, system-ui, sans-serif"
     fontSize: "13px"
     fontWeight: 700
     lineHeight: 1.2
     letterSpacing: "0.14em"
   mono:
-    fontFamily: "Spline Sans Mono, ui-monospace, monospace"
+    fontFamily: "Roboto Mono, ui-monospace, monospace"
     fontSize: "12px"
     fontWeight: 600
     lineHeight: 1.3
@@ -139,7 +145,7 @@ analog and warm, never cyberpunk.
 - One warm accent (tungsten amber) that only ever means action or progress.
 - A three-light status language borrowed from a broadcast rack: red ON AIR, amber acting, green done.
 - Broadcast props that carry real meaning: slates for episode codes, SMPTE bars for section breaks.
-- Zilla Slab italic for identity, Spline Sans Mono for the "printed on the tape" details.
+- Zilla Slab italic for the wordmark only, Roboto Mono for the "printed on the tape" details.
 
 ## 2. Colors
 
@@ -174,29 +180,31 @@ rationed to the amber.
 
 ## 3. Typography
 
-**Display Font:** Zilla Slab (Georgia, serif fallback)
-**Body Font:** Figtree (system-ui, sans-serif fallback)
-**Label/Mono Font:** Spline Sans Mono (monospace fallback)
+**Logo Font:** Zilla Slab (Georgia, serif fallback) — wordmark only
+**Display/Body Font:** Roboto (system-ui, sans-serif fallback)
+**Label/Mono Font:** Roboto Mono (monospace fallback)
 
-**Character:** Zilla Slab is the marquee, a warm slab serif that brands titles,
-wordmark, and headings with a confident italic lean, the retro TV-listings voice
-of the whole system. Figtree is the calm, legible humanist workhorse for
-everything you read. Spline Sans Mono is the label-maker: it prints the details
-that would be stamped on the tape, episode codes, dates, counts, faux URLs, so
-they read as "production metadata," not prose.
+**Character:** Roboto carries the whole interface, titles, headings, and body,
+one calm, legible voice that gets out of the way of the content; hierarchy comes
+from weight and size, not typeface changes. Zilla Slab italic survives in
+exactly one place, the wordmark, as the retro TV-listings brand mark. Roboto
+Mono is the label-maker: it prints the details that would be stamped on the
+tape, episode codes, dates, counts, faux URLs, so they read as "production
+metadata," not prose.
 
 ### Hierarchy
-- **Display** (Zilla Slab 700 italic, `clamp(42px, 8.6vw, 92px)` on the landing hero): The marquee headline and the wordmark. Italic is the brand voice, used once per view.
-- **Headline** (Zilla Slab 700, 28px, -0.02em): Page titles at the top of app screens.
-- **Title** (Zilla Slab 700, 15–30px, -0.01em): Card and showcase headings, show/episode/movie H1s (H1s go italic to match the marquee), feature and list names, dialog titles.
-- **Body** (Figtree 400/500, 15px app / 16–18px landing, line-height 1.5): All running text. Cap measure at 65–75ch; the codebase holds prose to `max-width: 46–72ch`.
-- **Label** (Zilla Slab 700, 13px, uppercase, letter-spacing 0.14em): Section eyebrows, preceded by a 14px amber tick. Also the small uppercase stat labels.
-- **Mono** (Spline Sans Mono 600, ~12–13px, letter-spacing 0.04–0.1em): Production details, slates, dates, pills, segment cues, faux browser URLs. Usually in Muted Slate; amber only inside a slate chip or as a segment number.
+- **Logo** (Zilla Slab 700 italic, 19–24px): The wordmark, and nothing else. The only serif and the only italic identity mark in the system.
+- **Display** (Roboto 700, `clamp(29px, 6vw, 64px)` on the landing hero): The marquee headline, used once per view.
+- **Headline** (Roboto 700, 28px, -0.02em): Page titles at the top of app screens.
+- **Title** (Roboto 700, 15–30px, -0.01em): Card and showcase headings, show/episode/movie H1s, feature and list names, dialog titles.
+- **Body** (Roboto 400/500, 15px app / 16–18px landing, line-height 1.5): All running text. Cap measure at 65–75ch; the codebase holds prose to `max-width: 46–72ch`.
+- **Label** (Roboto 700, 13px, uppercase, letter-spacing 0.14em): Section eyebrows, preceded by a 14px amber tick. Also the small uppercase stat labels.
+- **Mono** (Roboto Mono 600, ~12–13px, letter-spacing 0.04–0.1em): Production details, slates, dates, pills, segment cues, faux browser URLs. Usually in Muted Slate; amber only inside a slate chip or as a segment number.
 
 ### Named Rules
-**The Printed-On-The-Tape Rule.** Anything that would be physically stamped on a cassette or a shot list, episode codes, air dates, counts, runtimes, is set in Spline Sans Mono. Prose is never mono; metadata is never prose-set.
+**The Printed-On-The-Tape Rule.** Anything that would be physically stamped on a cassette or a shot list, episode codes, air dates, counts, runtimes, is set in Roboto Mono. Prose is never mono; metadata is never prose-set.
 
-**The Italic-Is-The-Brand Rule.** The forward-leaning italic is reserved for the wordmark, the landing hero, and title-level show names. It is an identity signal, not emphasis; body copy never leans.
+**The Logo-Keeps-The-Serif Rule.** Zilla Slab italic is reserved for the wordmark alone. Everything else, including the landing hero and show titles, sets in Roboto; body copy never leans.
 
 ## 4. Elevation
 
@@ -259,7 +267,7 @@ page, and the ON AIR glow.
 - **Do** keep amber to one job. A primary button, active state, or progress fill, never a heading color or decorative fill (the One Bulb Rule).
 - **Do** speak status in the three lights plus cyan: red ON AIR, amber acting, green done, cyan schedule/info, and always pair the color with an icon, label, or code so color is never the only signal (WCAG 2.2 AA).
 - **Do** build surfaces from the four slate steps (`bg`/`surface`/`surface-2`/`line`) and a 1px hairline. Depth is tonal, not shadowed (the Flat-Room Rule).
-- **Do** set every episode code, date, count, and runtime in Spline Sans Mono; reserve Zilla Slab italic for the wordmark, landing hero, and show titles.
+- **Do** set every episode code, date, count, and runtime in Roboto Mono; reserve Zilla Slab italic for the wordmark alone.
 - **Do** use warm-white `#ede9e0` for text and the slate neutrals for chrome. Tint neutrals toward blue-slate; never reach for pure `#fff` or `#000`.
 - **Do** give the ON AIR dot its soft red glow, the one colored shadow in the system, and grow tap targets to ≥40px on mobile.
 

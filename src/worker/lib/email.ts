@@ -58,7 +58,7 @@ function escapeHtml(s: string): string {
 
 // A branded transactional-email shell that echoes the site's identity: dark
 // slate card, amber accent, and the "SHOW US TV" wordmark. "SHOW US" is set as
-// text (an email-safe italic serif approximating the site's slab display face)
+// text (an email-safe italic serif approximating the site's Zilla Slab logo face)
 // and the vector "TV" bug is an <img> of a committed PNG raster of the site's
 // wordmark SVG (scripts/generate-email-logo.mjs) — HTML clients (Outlook
 // especially) don't render inline <svg> reliably, so a raster keeps the real
@@ -88,8 +88,9 @@ export function brandedEmailHtml(opts: {
   buttonUrl: string;
   footnote: string;
 }): string {
-  const body = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
-  const display = "Georgia,'Times New Roman',serif";
+  const body = "Roboto,-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif";
+  // serif stack survives only on the wordmark, echoing the web app's Zilla Slab logo
+  const logo = "Georgia,'Times New Roman',serif";
   const url = escapeHtml(opts.buttonUrl);
   return `<!doctype html>
 <html lang="en">
@@ -108,8 +109,8 @@ export function brandedEmailHtml(opts: {
 <table role="presentation" width="480" cellpadding="0" cellspacing="0" border="0" style="width:100%; max-width:480px; background-color:#171c26; border:1px solid #2a3344; border-radius:12px;">
 <tr>
 <td style="padding:32px;">
-<div style="font-family:${display}; font-style:italic; font-weight:bold; font-size:22px; line-height:26px; letter-spacing:-0.5px; color:#ede9e0;">SHOW&nbsp;US <img src="https://showustv.com/email-logo.png" width="30" height="26" alt="TV" style="display:inline-block; vertical-align:-3px; border:0; margin-left:3px;"></div>
-<h1 style="margin:28px 0 12px 0; font-family:${display}; font-size:22px; font-weight:bold; color:#ede9e0;">${escapeHtml(opts.heading)}</h1>
+<div style="font-family:${logo}; font-style:italic; font-weight:bold; font-size:22px; line-height:26px; letter-spacing:-0.5px; color:#ede9e0;">SHOW&nbsp;US <img src="https://showustv.com/email-logo.png" width="30" height="26" alt="TV" style="display:inline-block; vertical-align:-3px; border:0; margin-left:3px;"></div>
+<h1 style="margin:28px 0 12px 0; font-family:${body}; font-size:22px; font-weight:bold; color:#ede9e0;">${escapeHtml(opts.heading)}</h1>
 <p style="margin:0 0 24px 0; font-family:${body}; font-size:15px; line-height:1.6; color:#c7ccd6;">${escapeHtml(opts.intro)}</p>
 <table role="presentation" cellpadding="0" cellspacing="0" border="0">
 <tr>
