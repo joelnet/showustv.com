@@ -1708,27 +1708,56 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .ach-count { font-size: 13px; }
 .ach-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 22px 12px;
   margin-bottom: 26px;
 }
+/* Dribbble-style award badges (issue #112): no card outline or fill — each
+   achievement is a glowing circular medallion holding the emoji, with its
+   title and one-line description stacked beneath. */
 .ach {
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 2px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 12px 10px;
-  opacity: 0.45;
+  gap: 9px;
+  padding: 6px 4px;
+  opacity: 0.4; /* locked catalog entries read as dim */
 }
-.ach.is-unlocked { opacity: 1; border-color: var(--amber); background: var(--amber-soft); }
-.ach-emoji { font-size: 24px; filter: grayscale(1); }
-.ach.is-unlocked .ach-emoji { filter: none; }
-.ach-title { font-weight: 600; font-size: 13.5px; }
-.ach-desc { color: var(--muted); font-size: 12px; }
+.ach-emoji {
+  display: grid;
+  place-items: center;
+  width: 66px;
+  height: 66px;
+  border-radius: 50%;
+  font-size: 29px;
+  line-height: 1;
+  background:
+    radial-gradient(circle at 50% 34%, rgba(255, 174, 46, 0.28), rgba(255, 174, 46, 0.04) 68%),
+    var(--surface-2);
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.18),
+    inset 0 -7px 13px rgba(0, 0, 0, 0.35);
+  filter: grayscale(1);
+  transition: transform 0.16s ease, box-shadow 0.22s ease;
+}
+.ach.is-unlocked { opacity: 1; }
+.ach.is-unlocked .ach-emoji {
+  filter: none;
+  box-shadow:
+    0 0 0 1.5px rgba(255, 174, 46, 0.55),
+    0 10px 22px -8px rgba(255, 174, 46, 0.55),
+    inset 0 1px 2px rgba(255, 255, 255, 0.3);
+}
+.ach.is-unlocked:hover .ach-emoji {
+  transform: translateY(-2px);
+  box-shadow:
+    0 0 0 1.5px rgba(255, 174, 46, 0.85),
+    0 15px 28px -8px rgba(255, 174, 46, 0.65),
+    inset 0 1px 2px rgba(255, 255, 255, 0.35);
+}
+.ach-title { font-weight: 600; font-size: 13.5px; color: var(--text); }
+.ach-desc { color: var(--muted); font-size: 12px; line-height: 1.35; }
 
 /* Admin tools on profiles (issue #17). */
 .admin-tools { margin: 0 0 20px; display: flex; gap: 8px; flex-wrap: wrap; flex-direction: column; align-items: flex-start; }
