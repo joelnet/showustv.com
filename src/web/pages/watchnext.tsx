@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { useApi } from "../hooks";
 import { poster, backdrop, still } from "../img";
@@ -46,7 +47,7 @@ function Tile({ item }: { item: HomeItem }) {
   return (
     <Link to={mediaPath(item.kind, item.id, item.title)} className="wn-tile">
       <div className="wn-tile-thumb">
-        {thumb ? <img src={thumb} alt="" loading="lazy" decoding="async" /> : <div className="poster-fallback">{item.title}</div>}
+        {thumb ? <img src={thumb} alt="" loading="lazy" decoding="async" draggable={false} /> : <div className="poster-fallback">{item.title}</div>}
         {item.count != null && item.count > 0 && <span className="pill wn-tile-count">{item.count} left</span>}
       </div>
       <div className="wn-tile-body">
@@ -59,6 +60,85 @@ function Tile({ item }: { item: HomeItem }) {
         )}
       </div>
     </Link>
+  );
+}
+
+// Click-and-drag horizontal scrolling for the section rows on desktop, matching
+// the native touch-drag that already works on mobile (issue #114). Once a drag
+// moves past a few pixels it also swallows the click, so releasing on a tile
+// scrolls the row instead of navigating into the show.
+function useDragScroll<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  const state = useRef({ down: false, startX: 0, startLeft: 0, moved: false, suppressClick: false });
+
+  const onMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0) return; // primary button only
+    const el = ref.current;
+    if (!el) return;
+    const s = state.current;
+    s.down = true;
+    s.startX = e.pageX;
+    s.startLeft = el.scrollLeft;
+    s.moved = false;
+    el.classList.add("is-grabbing");
+  };
+
+  // Capture phase so we can cancel the click before it reaches the tile Link.
+  const onClickCapture = (e: React.MouseEvent) => {
+    if (state.current.suppressClick) {
+      e.preventDefault();
+      e.stopPropagation();
+      state.current.suppressClick = false;
+    }
+  };
+
+  useEffect(() => {
+    // Track the drag on window so it keeps scrolling if the cursor leaves the row.
+    const onMove = (e: MouseEvent) => {
+      const s = state.current;
+      const el = ref.current;
+      if (!s.down || !el) return;
+      const dx = e.pageX - s.startX;
+      if (Math.abs(dx) > 5) s.moved = true;
+      el.scrollLeft = s.startLeft - dx;
+      e.preventDefault(); // suppress text selection while dragging
+    };
+    const onUp = () => {
+      const s = state.current;
+      if (!s.down) return;
+      s.down = false;
+      ref.current?.classList.remove("is-grabbing");
+      if (s.moved) {
+        // Swallow only the click this drag is about to emit, then clear on the
+        // next tick so a later keyboard/Enter click on a tile still navigates
+        // (a keyboard click has no preceding mousedown to reset the flag).
+        s.suppressClick = true;
+        setTimeout(() => {
+          s.suppressClick = false;
+        }, 0);
+      }
+      s.moved = false;
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, []);
+
+  return { ref, onMouseDown, onClickCapture };
+}
+
+// One section's horizontal row of tiles, drag-scrollable on desktop.
+function Row({ items }: { items: HomeItem[] }) {
+  const drag = useDragScroll<HTMLDivElement>();
+  return (
+    <div className="wn-row" ref={drag.ref} onMouseDown={drag.onMouseDown} onClickCapture={drag.onClickCapture}>
+      {items.map((it, i) => (
+        <Tile key={`${it.kind}-${it.id}-${i}`} item={it} />
+      ))}
+    </div>
   );
 }
 
@@ -92,11 +172,7 @@ export function WatchNext() {
             <h2>{s.label}</h2>
             <span className="wn-section-more" aria-hidden="true">›</span>
           </Link>
-          <div className="wn-row">
-            {s.items.map((it, i) => (
-              <Tile key={`${it.kind}-${it.id}-${i}`} item={it} />
-            ))}
-          </div>
+          <Row items={s.items} />
         </section>
       ))}
     </div>

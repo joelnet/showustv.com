@@ -546,8 +546,12 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   scroll-snap-type: x proximity;
   padding-bottom: 8px;
   scrollbar-width: thin;
+  cursor: grab; /* click-drag to scroll on desktop (issue #114) */
 }
+.wn-row.is-grabbing { cursor: grabbing; scroll-snap-type: none; user-select: none; }
+.wn-row.is-grabbing img { pointer-events: none; }
 .wn-row > .wn-tile { scroll-snap-align: start; }
+.wn-row img { -webkit-user-drag: none; user-select: none; }
 
 .sr-only {
   position: absolute;
