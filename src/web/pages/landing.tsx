@@ -12,9 +12,14 @@ export function Landing() {
     <div className="landing">
       <header className="landing-header">
         <Wordmark />
-        <Link to="/login" className="btn btn-ghost">
-          Sign in
-        </Link>
+        <div className="landing-header-actions">
+          {/* Install App lives in the header here, same as the signed-in app
+              header (Watch Next, Profile, …) rather than mid-page (issue #125). */}
+          <InstallAppButton buttonClass="header-install" />
+          <Link to="/login" className="btn btn-ghost">
+            Sign in
+          </Link>
+        </div>
       </header>
 
       <main className="landing-main">
@@ -32,9 +37,6 @@ export function Landing() {
           <p className="landing-freebadge">
             <IconCheck size={13} /> 100% free! No credit card, no ads!
           </p>
-          <div className="landing-cta-row">
-            <InstallAppButton buttonClass="btn btn-amber-ghost btn-lg" />
-          </div>
           <PosterWall />
         </section>
 

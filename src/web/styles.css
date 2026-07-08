@@ -350,8 +350,6 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 
 /* ---------- Install app (PWA) ---------- */
 
-.install-app { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
-.landing-cta-row .install-app { align-items: center; }
 
 /* ---------- Offline / sync banner (PWA) ---------- */
 
@@ -1217,6 +1215,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   padding: 14px 20px;
   border-bottom: 1px solid var(--line);
 }
+.landing-header-actions { display: flex; align-items: center; gap: 12px; }
 .landing-header .wordmark { font-size: 21px; }
 /* Landing type floor (issue #61): keep every landing tier >= 18px. The hero h1
    is deliberately exempt, and the framed product screenshots (.hero-shot /
@@ -1339,12 +1338,10 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   padding: 6px 16px;
   margin: 0 0 26px;
 }
+/* Shared CTA row for the import-help and install marketing pages. */
 .landing-cta-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 .btn-lg { font-size: 15.5px; padding: 12px 26px; border-radius: 10px; }
 .landing-hero .smpte { margin: 44px auto 0; max-width: 420px; }
-
-/* Hero-scoped amplifications (leave the showcase/help shots untouched). */
-.landing-hero .landing-cta-row .btn-lg { font-size: 19px; padding: 14px 30px; }
 
 /* Poster wall: full-bleed three.js canvas behind the hero copy. z-index -2
    sits under the ::before glow/scanlines (-1), which double as its dimmer;
@@ -1687,6 +1684,8 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   .activity-when { flex-basis: 100%; padding-left: 50px; }
 
   .landing-hero { padding-top: 40px; --wall-opacity: 0.34; }
+  .landing-header { padding: 12px 14px; gap: 10px; }
+  .landing-header-actions { gap: 8px; }
   .landing-cta-row .btn-lg { flex: 1 1 100%; justify-content: center; }
   .landing-section { margin-top: 88px; }
   .landing-final { margin-top: 88px; }
