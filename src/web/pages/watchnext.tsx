@@ -1,13 +1,8 @@
-import { useEffect, useState, type KeyboardEvent } from "react";
+import { useState, type KeyboardEvent } from "react";
 import { Link } from "react-router-dom";
 import { useApi } from "../hooks";
-import { post } from "../api";
-import { useAuth } from "../app";
-import { poster } from "../img";
-import { fmtAirDate } from "../format";
-import { Slate, Spinner, Empty, ErrorNote } from "../components/ui";
-import { useCelebrate } from "../components/celebration";
-import { IconCheck } from "../components/icons";
+import { poster, backdrop, still } from "../img";
+import { Spinner, Empty, ErrorNote } from "../components/ui";
 import { mediaPath } from "../paths";
 
 interface UpcomingItem {
@@ -15,6 +10,7 @@ interface UpcomingItem {
   showId: number;
   showTitle: string;
   poster: string | null;
+  backdrop: string | null;
   season: number;
   number: number;
   title: string | null;
@@ -36,106 +32,64 @@ interface WatchNextItem {
   lastActivity: string;
 }
 
-function Tile({
-  item,
-  tz,
-  marking,
-  onMark,
-}: {
-  item: WatchNextItem;
-  tz: string;
-  marking: boolean;
-  onMark: (episodeId: number) => void;
-}) {
-  const src = poster(item.show.poster);
+// The whole tile links to the show; watch actions happen on the show page
+// (issue #106). Landscape thumbnail (episode still, else show backdrop), a
+// bold show title, and one muted "S1·E3 - Episode title" line.
+function Tile({ item }: { item: WatchNextItem }) {
+  const ep = item.episode;
+  const thumb = still(ep.still) ?? backdrop(item.show.backdrop);
   return (
-    <article className="wn-tile">
-      <Link to={mediaPath("show", item.show.id, item.show.title)} className="wn-tile-poster">
-        {src ? <img src={src} alt="" loading="lazy" /> : <div className="poster-fallback">{item.show.title}</div>}
+    <Link to={mediaPath("show", item.show.id, item.show.title)} className="wn-tile">
+      <div className="wn-tile-thumb">
+        {thumb ? <img src={thumb} alt="" loading="lazy" /> : <div className="poster-fallback">{item.show.title}</div>}
         <span className="pill wn-tile-count">{item.unwatchedCount} left</span>
-      </Link>
-      <div className="wn-tile-body">
-        <Link to={mediaPath("show", item.show.id, item.show.title)} className="wn-tile-show">{item.show.title}</Link>
-        <div className="wn-tile-ep">
-          <Slate season={item.episode.season} number={item.episode.number} />
-          <Link to={mediaPath("episode", item.episode.id, item.episode.title)}>{item.episode.title ?? `Episode ${item.episode.number}`}</Link>
-        </div>
-        <span className="wn-tile-date mono">{fmtAirDate(item.episode.airDate, tz)}</span>
       </div>
-      <button
-        className="btn btn-mark wn-tile-btn"
-        onClick={() => onMark(item.episode.id)}
-        disabled={marking}
-        aria-label={`Mark ${item.show.title} S${item.episode.season} E${item.episode.number} watched`}
-      >
-        <IconCheck size={14} /> <span>Watched</span>
-      </button>
-    </article>
+      <div className="wn-tile-body">
+        <span className="wn-tile-show">{item.show.title}</span>
+        <span className="wn-tile-ep">
+          S{ep.season}·E{ep.number}
+          {ep.title ? ` - ${ep.title}` : ""}
+        </span>
+      </div>
+    </Link>
   );
 }
 
-// Upcoming episodes reuse the Watch Now tile shape (poster + body) but lead
-// with the air date and drop the mark/count chrome, since nothing here has
-// aired yet.
-function UpcomingTile({ item, tz }: { item: UpcomingItem; tz: string }) {
-  const src = poster(item.poster);
+// Upcoming episodes reuse the same tile shape, minus the "N left" count.
+function UpcomingTile({ item }: { item: UpcomingItem }) {
+  const thumb = backdrop(item.backdrop) ?? poster(item.poster);
   return (
-    <article className="wn-tile wn-tile--upcoming">
-      <Link to={mediaPath("show", item.showId, item.showTitle)} className="wn-tile-poster">
-        {src ? <img src={src} alt="" loading="lazy" /> : <div className="poster-fallback">{item.showTitle}</div>}
-      </Link>
-      <div className="wn-tile-body">
-        <span className="wn-tile-date mono">{fmtAirDate(item.airDate, tz)}</span>
-        <Link to={mediaPath("show", item.showId, item.showTitle)} className="wn-tile-show">{item.showTitle}</Link>
-        <div className="wn-tile-ep">
-          <Slate season={item.season} number={item.number} />
-          <Link to={mediaPath("episode", item.episodeId, item.title)}>{item.title ?? `Episode ${item.number}`}</Link>
-        </div>
+    <Link to={mediaPath("show", item.showId, item.showTitle)} className="wn-tile wn-tile--upcoming">
+      <div className="wn-tile-thumb">
+        {thumb ? <img src={thumb} alt="" loading="lazy" /> : <div className="poster-fallback">{item.showTitle}</div>}
       </div>
-    </article>
+      <div className="wn-tile-body">
+        <span className="wn-tile-show">{item.showTitle}</span>
+        <span className="wn-tile-ep">
+          S{item.season}·E{item.number}
+          {item.title ? ` - ${item.title}` : ""}
+        </span>
+      </div>
+    </Link>
   );
 }
 
 export function WatchNext() {
-  const { user } = useAuth();
-  const celebrate = useCelebrate();
-  const { data, loading, error, reload } = useApi<{
+  const { data, loading, error } = useApi<{
     watchNext: WatchNextItem[];
     upcoming: UpcomingItem[];
   }>("/watch-next");
-  const [marking, setMarking] = useState(false);
   const [tab, setTab] = useState<"now" | "upcoming">("now");
-  // Episodes whose watch is queued offline — hidden locally, since a
-  // refetch would just serve the stale pre-change cache and resurrect them.
-  const [hidden, setHidden] = useState<Set<number>>(new Set());
-
-  useEffect(() => setHidden(new Set()), [data]); // fresh data supersedes the overlay
-
-  async function markWatched(episodeId: number) {
-    setMarking(true);
-    try {
-      const r = await post(`/episodes/${episodeId}/watch`);
-      // Queued offline: hide the tile optimistically; the post-sync
-      // revalidation refetches the real list.
-      if (r?.queued) setHidden((h) => new Set(h).add(episodeId));
-      else reload();
-      // Server flags when this was the show's last unwatched episode (issue #53).
-      if (r?.caughtUp) celebrate(r.showTitle);
-    } finally {
-      setMarking(false);
-    }
-  }
 
   if (loading) return <Spinner />;
   if (error) return <ErrorNote message={error} />;
-  const current = (data?.watchNext ?? []).filter((i) => !hidden.has(i.episode.id));
+  const current = data?.watchNext ?? [];
   // The backend already returns one soonest episode per show; dedupe again
   // defensively so a stale cache can't surface the same show twice.
   const seenShows = new Set<number>();
   const upcoming = (data?.upcoming ?? []).filter((u) =>
     seenShows.has(u.showId) ? false : (seenShows.add(u.showId), true)
   );
-  const tz = user!.tz;
 
   // Full ARIA tabs keyboard support: Arrow/Home/End move selection and focus
   // between the two tabs (selection follows focus — switching is cheap).
@@ -190,7 +144,7 @@ export function WatchNext() {
           {current.length > 0 ? (
             <div className="wn-grid">
               {current.map((item) => (
-                <Tile key={item.show.id} item={item} tz={tz} marking={marking} onMark={markWatched} />
+                <Tile key={item.show.id} item={item} />
               ))}
             </div>
           ) : (
@@ -205,7 +159,7 @@ export function WatchNext() {
           {upcoming.length > 0 ? (
             <div className="wn-grid">
               {upcoming.map((u) => (
-                <UpcomingTile key={u.showId} item={u} tz={tz} />
+                <UpcomingTile key={u.showId} item={u} />
               ))}
             </div>
           ) : (
