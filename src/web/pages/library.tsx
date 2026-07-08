@@ -6,14 +6,13 @@ import { fmtDateTime } from "../format";
 import { PosterCard, Progress, Spinner, Empty, ErrorNote } from "../components/ui";
 import { mediaPath } from "../paths";
 
-// Tab order: the four the issue names come first; Not started / Stopped follow
-// and only surface when non-empty. "stale" is the split-out slice of watching.
+// "Watching" and "Not started yet" moved to Watch Next (issue #115) — the
+// Library keeps the reference buckets: shows you're caught up on, done with, or
+// stopped. "stale" is the split-out slice of watching that's gone quiet.
 const STATE_SECTIONS: [string, string][] = [
-  ["watching", "Watching"],
   ["stale", "Haven’t watched for a while"],
   ["up_to_date", "Up to date"],
   ["finished", "Finished"],
-  ["not_started", "Not started yet"],
   ["stopped", "Stopped"],
 ];
 
@@ -64,9 +63,9 @@ interface WatchlistItem {
   poster: string | null;
 }
 
-// The shows library: a status tab bar (Watching / Haven't watched for a while /
-// Up to date / Finished / Not started / Stopped — only tabs that have shows
-// appear), and the active tab's poster grid.
+// The shows library: a status tab bar (Haven't watched for a while / Up to date
+// / Finished / Stopped — only tabs that have shows appear), and the active tab's
+// poster grid. Active/not-started shows live on Watch Next instead (issue #115).
 function ShowsLibrary({ shows }: { shows: LibShow[] }) {
   const [sort, setSort] = useState<ShowSort>(() =>
     localStorage.getItem(SORT_KEY) === "alphabetical" ? "alphabetical" : "last_watched"
@@ -88,41 +87,46 @@ function ShowsLibrary({ shows }: { shows: LibShow[] }) {
   const activeKey = tab && counts.has(tab) ? tab : tabs[0]?.[0];
   const activeShows = shows.filter((s) => showBucket(s) === activeKey).sort(showComparator(sort));
 
+  if (tabs.length === 0) {
+    return (
+      <Empty
+        title="Nothing to catch up on here"
+        hint="Shows you’re actively watching or haven’t started live on Watch Next now."
+      />
+    );
+  }
+
   return (
     <>
-      {tabs.length > 0 && (
-        <>
-          <nav className="subtabs" aria-label="Show status">
-            {tabs.map(([key, label]) => (
-              <button
-                key={key}
-                className={key === activeKey ? "active" : ""}
-                aria-current={key === activeKey ? "true" : undefined}
-                onClick={() => setTab(key)}
-              >
-                {label} <span className="count">{counts.get(key)}</span>
-              </button>
-            ))}
-          </nav>
-          <div className="sort-bar">
-            <label>
-              Sort
-              <select value={sort} onChange={(e) => changeSort(e.target.value as ShowSort)}>
-                <option value="last_watched">Last watched</option>
-                <option value="alphabetical">Alphabetical (A–Z)</option>
-              </select>
-            </label>
+      <nav className="subtabs" aria-label="Show status">
+        {tabs.map(([key, label]) => (
+          <button
+            key={key}
+            className={key === activeKey ? "active" : ""}
+            aria-current={key === activeKey ? "true" : undefined}
+            onClick={() => setTab(key)}
+          >
+            {label} <span className="count">{counts.get(key)}</span>
+          </button>
+        ))}
+      </nav>
+      <div className="sort-bar">
+        <label>
+          Sort
+          <select value={sort} onChange={(e) => changeSort(e.target.value as ShowSort)}>
+            <option value="last_watched">Last watched</option>
+            <option value="alphabetical">Alphabetical (A–Z)</option>
+          </select>
+        </label>
+      </div>
+      <div className="poster-grid">
+        {activeShows.map((s) => (
+          <div key={s.id} className="lib-card">
+            <PosterCard to={mediaPath("show", s.id, s.title)} posterPath={s.poster} title={s.title} sub={`${s.watched}/${s.aired}`} />
+            <Progress watched={s.watched} total={s.aired} />
           </div>
-          <div className="poster-grid">
-            {activeShows.map((s) => (
-              <div key={s.id} className="lib-card">
-                <PosterCard to={mediaPath("show", s.id, s.title)} posterPath={s.poster} title={s.title} sub={`${s.watched}/${s.aired}`} />
-                <Progress watched={s.watched} total={s.aired} />
-              </div>
-            ))}
-          </div>
-        </>
-      )}
+        ))}
+      </div>
     </>
   );
 }

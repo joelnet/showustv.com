@@ -20,19 +20,22 @@ interface HomeItem {
 
 interface HomeData {
   continueWatching: HomeItem[];
-  startWatching: HomeItem[];
   upcoming: HomeItem[];
   havenWatched: HomeItem[];
+  notStarted: HomeItem[];
   history: HomeItem[];
 }
 
-type SectionKey = "continue" | "start" | "upcoming" | "haven" | "history";
+type SectionKey = "continue" | "upcoming" | "haven" | "notstarted" | "history";
 
+// "Not Started" (shows you follow but haven't begun) sits just above History —
+// the Library no longer carries it or "Watching" (issue #115); Watch Next owns
+// those now.
 const SECTIONS: { key: SectionKey; label: string; field: keyof HomeData }[] = [
   { key: "continue", label: "Continue Watching", field: "continueWatching" },
-  { key: "start", label: "Start Watching", field: "startWatching" },
   { key: "upcoming", label: "Upcoming", field: "upcoming" },
   { key: "haven", label: "Haven't Watched in a While", field: "havenWatched" },
+  { key: "notstarted", label: "Not Started", field: "notStarted" },
   { key: "history", label: "History", field: "history" },
 ];
 

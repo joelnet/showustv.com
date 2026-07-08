@@ -96,7 +96,7 @@ library.get("/home", async (c) => {
     .bind(uid, today)
     .all();
 
-  // Bucket the queue into Continue Watching / Start Watching / Haven't Watched
+  // Bucket the queue into Continue Watching / Not Started / Haven't Watched
   // in a While by whether the show has been started and is recently active.
   const showTile = (r: any) => ({
     kind: "show" as const,
@@ -111,10 +111,10 @@ library.get("/home", async (c) => {
     count: r.unwatched_aired,
   });
   const continueWatching: any[] = [];
-  const startWatching: any[] = [];
+  const notStarted: any[] = [];
   const havenWatched: any[] = [];
   for (const r of results as any[]) {
-    if (r.last_watched == null) startWatching.push(showTile(r));
+    if (r.last_watched == null) notStarted.push(showTile(r));
     else if (recentlyActive(r.last_watched, r.last_aired, recentSince)) continueWatching.push(showTile(r));
     else havenWatched.push(showTile(r));
   }
@@ -191,7 +191,7 @@ library.get("/home", async (c) => {
     .sort((a, b) => (a.watchedAt < b.watchedAt ? 1 : -1))
     .slice(0, 30);
 
-  return c.json({ continueWatching, startWatching, upcoming, havenWatched, history });
+  return c.json({ continueWatching, upcoming, havenWatched, notStarted, history });
 });
 
 // ---------- Library & watchlist ----------
