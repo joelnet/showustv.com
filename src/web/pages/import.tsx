@@ -330,6 +330,39 @@ export async function importAll(
     } catch (e: any) {
       out.error = e?.message ?? "import failed";
     }
+    // Retry pass: TVDB numbering runs past TMDB's wherever TVDB splits a
+    // two-part episode, so marks the catalog rejected are re-resolved by
+    // their TVDB episode id and imported at their real TMDB position. Only
+    // same-show resolutions are trusted (a reused id must not mark another
+    // show), and any failure here just leaves the original report standing.
+    if (!out.error && out.notFound.length > 0) {
+      try {
+        const marks = new Map(g.episodes.map((e) => [`${e.season}:${e.number}`, e]));
+        const retry = out.notFound
+          .map((nf) => marks.get(`${nf.season}:${nf.number}`))
+          .filter((e): e is EpisodeMark => e?.tvdbId != null);
+        const recovered = new Set<string>();
+        const resolved: EpisodeMark[] = [];
+        for (const batch of chunk(retry, RESOLVE_EPISODE_BATCH)) {
+          const r = await post("/import/resolve-episodes", { ids: batch.map((e) => e.tvdbId) });
+          for (const e of batch) {
+            const hit = r.results[e.tvdbId!];
+            if (!hit || hit.show !== g.match!.tmdbId) continue;
+            resolved.push({ season: hit.season, number: hit.number, watchedAt: e.watchedAt });
+            recovered.add(`${e.season}:${e.number}`);
+          }
+        }
+        for (const eps of chunk(resolved, IMPORT_EPISODE_BATCH)) {
+          const r = await post(`/import/shows/${g.match!.tmdbId}/episodes`, { episodes: eps });
+          out.inserted += r.inserted;
+          out.existing += r.existing;
+          out.notFound.push(...r.notFound);
+        }
+        if (recovered.size > 0) out.notFound = out.notFound.filter((nf) => !recovered.has(`${nf.season}:${nf.number}`));
+      } catch {
+        // resolve hiccup — the original notFound entries still tell the story
+      }
+    }
     outcomes.push(out);
     onProgress({ done: ++done, total, label: g.match!.title });
   });

@@ -29,6 +29,10 @@ export interface EpisodeMark {
   season: number;
   number: number;
   watchedAt: string | null; // ISO 8601 UTC
+  // TVDB episode id when the row carried one. Season/number follow TVDB's
+  // numbering, which diverges from TMDB's wherever TVDB splits a two-part
+  // episode — the id lets the importer re-resolve marks TMDB rejects.
+  tvdbId?: number | null;
 }
 
 export interface ShowGroup {
@@ -250,7 +254,12 @@ function handleEpisodeRow(ctx: Ctx, cols: Cols, row: string[]): boolean {
     const g = groupFor(ctx, tvdbId, name);
     const k = `${season}:${number}`;
     const prev = g.epMap.get(k);
-    g.epMap.set(k, { season, number, watchedAt: prev ? earliest(prev.watchedAt, watchedAt) : watchedAt });
+    g.epMap.set(k, {
+      season,
+      number,
+      watchedAt: prev ? earliest(prev.watchedAt, watchedAt) : watchedAt,
+      tvdbId: epTvdb ?? prev?.tvdbId ?? null,
+    });
     return true;
   }
   if (epTvdb != null) {
