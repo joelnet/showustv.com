@@ -473,16 +473,24 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 }
 
 /* Bare tiles: no card border or background, so the artwork carries the row
-   (issue #105 follow-up). Rounded corners live on the thumbnail itself. */
+   (issue #105 follow-up). Rounded corners live on the thumbnail itself.
+   The tile is a plain container; .wn-tile-link wraps the thumb + titles so a
+   sibling link (the "Watched by" username, issue #128) can live beside it. */
 .wn-tile {
   display: flex;
   flex-direction: column;
   gap: 0;
   padding: 0;
+}
+.wn-tile-link {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
   text-decoration: none;
 }
-.wn-tile:hover { text-decoration: none; }
-.wn-tile:hover .wn-tile-show { color: var(--amber); }
+.wn-tile-link:hover { text-decoration: none; }
+.wn-tile-link:hover .wn-tile-show { color: var(--amber); }
 /* Landscape thumbnail (episode still / show backdrop), 16:9 (issue #106). */
 .wn-tile-thumb { position: relative; display: block; border-radius: var(--radius); overflow: hidden; }
 .wn-tile-thumb img,
@@ -511,6 +519,10 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* "Watched by <user>" attribution on From People You Follow tiles (issue
+   #128). Sits outside .wn-tile-link so the username can be its own anchor;
+   the link inherits the global cyan. */
+.wn-tile-user { padding: 2px 2px 0; }
 
 /* Home: horizontally-scrollable section rows (issue #105). */
 .wn-home { display: flex; flex-direction: column; gap: 28px; }

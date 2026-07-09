@@ -51,6 +51,11 @@ function recentlyActive(lastWatched: string | null, lastAired: string | null, si
   return (lastWatched != null && lastWatched >= since) || (lastAired != null && lastAired >= since);
 }
 
+// "From People You Follow" (issue #128) looks back this far for followees'
+// episode watches — the same 30-day window the activity feed uses, so the two
+// social surfaces agree on what counts as recent.
+const FOLLOWING_WINDOW_MS = 30 * 24 * 3600 * 1000;
+
 library.get("/home", async (c) => {
   const uid = c.get("uid");
   const today = todayInTz(c.get("tz"));
@@ -149,8 +154,11 @@ library.get("/home", async (c) => {
     episodeTitle: r.episode_title,
   }));
 
-  // History: recently watched episodes and movies, newest first.
-  const [histEp, histMov] = await c.env.DB.batch([
+  // History: recently watched episodes and movies, newest first. The batch
+  // also carries the "From People You Follow" query (issue #128): shows the
+  // people you follow watched recently, one tile per show attributed to the
+  // most recent watcher (a popular show is one tile, not one per follower).
+  const [histEp, histMov, friendsR] = await c.env.DB.batch([
     c.env.DB.prepare(
       `SELECT e.show_id AS id, s.title AS show_title, s.poster_url, s.backdrop_url, e.still_url,
               e.season_number, e.number, e.title AS episode_title,
@@ -165,6 +173,28 @@ library.get("/home", async (c) => {
        WHERE um.user_id = ?1 AND um.state = 'watched' AND um.watched_at IS NOT NULL
        ORDER BY um.watched_at DESC LIMIT 30`
     ).bind(uid),
+    c.env.DB.prepare(
+      `WITH following(fid) AS (
+         SELECT followee_id FROM follows WHERE follower_id = ?1 AND state = 'active'
+       ),
+       fw AS (
+         SELECT e.show_id, u.username,
+                MAX(CASE WHEN ue.last_rewatched_at > ue.watched_at
+                         THEN ue.last_rewatched_at ELSE ue.watched_at END) AS ts
+         FROM user_episodes ue
+         JOIN following fo ON fo.fid = ue.user_id
+         JOIN users u ON u.id = ue.user_id AND u.deleted_at IS NULL
+         JOIN episodes e ON e.id = ue.episode_id
+         WHERE (ue.watched_at >= ?2 OR ue.last_rewatched_at >= ?2) AND e.season_number > 0
+         GROUP BY e.show_id, ue.user_id
+       )
+       SELECT f.show_id, f.username, s.title AS show_title, s.poster_url, s.backdrop_url
+       FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY show_id ORDER BY ts DESC, username) AS rn FROM fw) f
+       JOIN shows s ON s.tmdb_id = f.show_id
+       WHERE f.rn = 1
+       ORDER BY f.ts DESC
+       LIMIT 30`
+    ).bind(uid, new Date(Date.now() - FOLLOWING_WINDOW_MS).toISOString()),
   ]);
   const history: any[] = [
     ...(histEp.results as any[]).map((r) => ({
@@ -192,7 +222,17 @@ library.get("/home", async (c) => {
     .sort((a, b) => (a.watchedAt < b.watchedAt ? 1 : -1))
     .slice(0, 30);
 
-  return c.json({ continueWatching, upcoming, havenWatched, notStarted, history });
+  const friendsWatched = (friendsR.results as any[]).map((r) => ({
+    kind: "show" as const,
+    id: r.show_id,
+    title: r.show_title,
+    poster: r.poster_url,
+    backdrop: r.backdrop_url,
+    still: null,
+    username: r.username,
+  }));
+
+  return c.json({ continueWatching, upcoming, havenWatched, notStarted, history, friendsWatched });
 });
 
 // ---------- Library & watchlist ----------

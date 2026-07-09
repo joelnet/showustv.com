@@ -17,6 +17,7 @@ interface HomeItem {
   number?: number;
   episodeTitle?: string | null;
   count?: number;
+  username?: string; // "From People You Follow": who watched it (issue #128)
 }
 
 interface HomeData {
@@ -25,41 +26,57 @@ interface HomeData {
   havenWatched: HomeItem[];
   notStarted: HomeItem[];
   history: HomeItem[];
+  friendsWatched: HomeItem[];
 }
 
-type SectionKey = "continue" | "upcoming" | "haven" | "notstarted" | "history";
+type SectionKey = "continue" | "upcoming" | "haven" | "notstarted" | "history" | "friends";
 
 // "Not Started" (shows you follow but haven't begun) sits just above History —
 // the Library no longer carries it or "Watching" (issue #115); Watch Next owns
-// those now.
+// those now. "From People You Follow" (issue #128) anchors the bottom: shows
+// your followees watched recently, each credited to the watcher.
 const SECTIONS: { key: SectionKey; label: string; field: keyof HomeData }[] = [
   { key: "continue", label: "Continue Watching", field: "continueWatching" },
   { key: "upcoming", label: "Upcoming", field: "upcoming" },
   { key: "haven", label: "Haven't Watched in a While", field: "havenWatched" },
   { key: "notstarted", label: "Not Started", field: "notStarted" },
   { key: "history", label: "History", field: "history" },
+  { key: "friends", label: "From People You Follow", field: "friendsWatched" },
 ];
 
-// The whole tile links to the show/movie; watch actions happen there (#106).
-// Landscape thumbnail, bold title, and one muted "S1·E3 - Episode title" line.
+// The thumbnail and titles link to the show/movie; watch actions happen there
+// (#106). Landscape thumbnail, bold title, and one muted "S1·E3 - Episode
+// title" line. Friend-watched tiles add a "Watched by <user>" line whose
+// username links to that person's profile — a separate sibling link, since
+// anchors can't nest (issue #128).
 function Tile({ item }: { item: HomeItem }) {
   const thumb = still(item.still) ?? backdrop(item.backdrop) ?? poster(item.poster);
   return (
-    <Link to={mediaPath(item.kind, item.id, item.title)} className="wn-tile" draggable={false}>
-      <div className="wn-tile-thumb">
-        {thumb ? <img src={thumb} alt="" loading="lazy" decoding="async" draggable={false} /> : <div className="poster-fallback">{item.title}</div>}
-        {item.count != null && item.count > 0 && <span className="pill wn-tile-count">{item.count} left</span>}
-      </div>
-      <div className="wn-tile-body">
-        <span className="wn-tile-show">{item.title}</span>
-        {item.season != null && item.number != null && (
-          <span className="wn-tile-ep">
-            S{item.season}·E{item.number}
-            {item.episodeTitle ? ` - ${item.episodeTitle}` : ""}
-          </span>
-        )}
-      </div>
-    </Link>
+    <div className="wn-tile">
+      <Link to={mediaPath(item.kind, item.id, item.title)} className="wn-tile-link" draggable={false}>
+        <div className="wn-tile-thumb">
+          {thumb ? <img src={thumb} alt="" loading="lazy" decoding="async" draggable={false} /> : <div className="poster-fallback">{item.title}</div>}
+          {item.count != null && item.count > 0 && <span className="pill wn-tile-count">{item.count} left</span>}
+        </div>
+        <div className="wn-tile-body">
+          <span className="wn-tile-show">{item.title}</span>
+          {item.season != null && item.number != null && (
+            <span className="wn-tile-ep">
+              S{item.season}·E{item.number}
+              {item.episodeTitle ? ` - ${item.episodeTitle}` : ""}
+            </span>
+          )}
+        </div>
+      </Link>
+      {item.username && (
+        <span className="wn-tile-ep wn-tile-user">
+          Watched by{" "}
+          <Link to={`/u/${item.username}`} draggable={false}>
+            {item.username}
+          </Link>
+        </span>
+      )}
+    </div>
   );
 }
 
