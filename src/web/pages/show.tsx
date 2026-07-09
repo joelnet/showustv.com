@@ -5,7 +5,7 @@ import { mediaPath, idFromParam } from "../paths";
 import { useApi } from "../hooks";
 import { useAuth } from "../app";
 import { poster, backdrop, providerLogo } from "../img";
-import { fmtAirDate } from "../format";
+import { fmtAirDate, fmtEpisodeDate } from "../format";
 import { Slate, Spinner, ErrorNote, Progress, CheckButton, ScorePicker, ExternalLinks } from "../components/ui";
 import { Comments } from "../components/comments";
 import { useCelebrate } from "../components/celebration";
@@ -428,7 +428,7 @@ export function ShowPage() {
                         <Link to={mediaPath("episode", e.id, e.title)} className="episode-title">
                           {e.title ?? `Episode ${e.number}`}
                         </Link>
-                        <span className="episode-date mono">{fmtAirDate(e.air_date, tz)}</span>
+                        <span className="episode-date mono">{fmtEpisodeDate(e.air_date, e.aired, tz)}</span>
                         {e.aired ? (
                           <CheckButton
                             checked={e.watched}

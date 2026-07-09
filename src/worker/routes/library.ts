@@ -3,6 +3,7 @@ import type { Context } from "hono";
 import type { AppEnv } from "../env";
 import { ensureShow, ensureMovie } from "../lib/tmdb";
 import { nowIso, todayInTz, daysAgoInTz } from "../lib/dates";
+import { airedCond } from "../lib/aired";
 import { RECENT_WINDOW_DAYS, STORED_SHOW_STATES, type DerivedShowState } from "../../shared/constants";
 import { isAnime } from "../../shared/anime";
 
@@ -62,10 +63,10 @@ library.get("/home", async (c) => {
        SELECT e.id, e.show_id, e.season_number, e.number, e.title, e.air_date, e.runtime_min, e.overview, e.still_url,
               ROW_NUMBER() OVER (PARTITION BY e.show_id ORDER BY e.season_number, e.number) AS rn,
               COUNT(*) OVER (PARTITION BY e.show_id) AS unwatched_aired
-       FROM episodes e
+       FROM episodes e JOIN shows sh ON sh.tmdb_id = e.show_id
        WHERE e.show_id IN (SELECT show_id FROM user_shows WHERE user_id = ?1 AND state = 'watching')
          AND e.season_number > 0
-         AND e.air_date IS NOT NULL AND e.air_date <= ?2
+         AND ${airedCond("?2", "sh")}
          AND NOT EXISTS (SELECT 1 FROM user_episodes ue WHERE ue.user_id = ?1 AND ue.episode_id = e.id)
      ),
      last_aired AS (
@@ -204,7 +205,7 @@ library.get("/library", async (c) => {
       `SELECT us.show_id AS id, us.state, s.title, s.poster_url AS poster, s.status,
          s.genres_json, s.original_language,
          (SELECT COUNT(*) FROM episodes e WHERE e.show_id = us.show_id AND e.season_number > 0
-            AND e.air_date IS NOT NULL AND e.air_date <= ?2) AS aired,
+            AND ${airedCond("?2", "s")}) AS aired,
          (SELECT COUNT(*) FROM episodes e WHERE e.show_id = us.show_id AND e.season_number > 0) AS total,
          (SELECT COUNT(*) FROM user_episodes ue JOIN episodes e ON e.id = ue.episode_id
             WHERE ue.user_id = us.user_id AND e.show_id = us.show_id AND e.season_number > 0) AS watched,
@@ -449,12 +450,12 @@ library.post("/episodes/:id/watch", async (c) => {
   // Episode meta + whether this user has already watched it. Doubles as the
   // existence check (unknown id → 404) and feeds the "caught up" test below.
   const ep = await c.env.DB.prepare(
-    `SELECT e.show_id, e.season_number, e.air_date, s.title AS show_title,
+    `SELECT e.show_id, e.season_number, ${airedCond("?3", "s")} AS aired, s.title AS show_title,
             EXISTS (SELECT 1 FROM user_episodes ue WHERE ue.user_id = ?1 AND ue.episode_id = e.id) AS already
      FROM episodes e JOIN shows s ON s.tmdb_id = e.show_id WHERE e.id = ?2`
   )
-    .bind(uid, id)
-    .first<{ show_id: number; season_number: number; air_date: string | null; show_title: string; already: number }>();
+    .bind(uid, id, today)
+    .first<{ show_id: number; season_number: number; aired: number; show_title: string; already: number }>();
   if (!ep) return c.json({ error: "unknown episode" }, 404);
 
   await c.env.DB.batch([
@@ -481,11 +482,11 @@ library.post("/episodes/:id/watch", async (c) => {
   // were already fully caught up. Specials (season 0) never count, matching the
   // rest of the app's progress accounting.
   let caughtUp = false;
-  if (!ep.already && ep.season_number > 0 && ep.air_date != null && ep.air_date <= today) {
+  if (!ep.already && ep.season_number > 0 && ep.aired) {
     const remaining = await c.env.DB.prepare(
-      `SELECT COUNT(*) AS n FROM episodes e
+      `SELECT COUNT(*) AS n FROM episodes e JOIN shows s ON s.tmdb_id = e.show_id
        WHERE e.show_id = ?2 AND e.season_number > 0
-         AND e.air_date IS NOT NULL AND e.air_date <= ?3
+         AND ${airedCond("?3", "s")}
          AND NOT EXISTS (SELECT 1 FROM user_episodes ue WHERE ue.user_id = ?1 AND ue.episode_id = e.id)`
     )
       .bind(uid, ep.show_id, today)
@@ -515,9 +516,9 @@ async function bulkWatch(c: any, showId: number, seasonNumber: number | null, un
     await stmt.run();
   } else {
     const sql = `INSERT INTO user_episodes (user_id, episode_id, watched_at)
-       SELECT ?1, e.id, ?3 FROM episodes e
+       SELECT ?1, e.id, ?3 FROM episodes e JOIN shows sh ON sh.tmdb_id = e.show_id
        WHERE e.show_id = ?2 AND ${seasonCond}
-         AND e.air_date IS NOT NULL AND e.air_date <= ?${seasonNumber == null ? "4" : "5"}
+         AND ${airedCond(`?${seasonNumber == null ? "4" : "5"}`, "sh")}
        ON CONFLICT (user_id, episode_id) DO NOTHING`;
     const args = seasonNumber == null ? [uid, showId, nowIso(), today] : [uid, showId, nowIso(), seasonNumber, today];
     await c.env.DB.batch([
@@ -565,10 +566,10 @@ library.post("/shows/:id/watch-until", async (c) => {
     c.env.DB.prepare("INSERT INTO user_shows (user_id, show_id) VALUES (?1, ?2) ON CONFLICT DO NOTHING").bind(uid, id),
     c.env.DB.prepare(
       `INSERT INTO user_episodes (user_id, episode_id, watched_at)
-       SELECT ?1, e.id, ?3 FROM episodes e
+       SELECT ?1, e.id, ?3 FROM episodes e JOIN shows sh ON sh.tmdb_id = e.show_id
        WHERE e.show_id = ?2 AND e.season_number > 0
          AND (e.season_number < ?4 OR (e.season_number = ?4 AND e.number <= ?5))
-         AND e.air_date IS NOT NULL AND e.air_date <= ?6
+         AND ${airedCond("?6", "sh")}
        ON CONFLICT (user_id, episode_id) DO NOTHING`
     ).bind(uid, id, nowIso(), season, number, todayInTz(c.get("tz"))),
   ]);

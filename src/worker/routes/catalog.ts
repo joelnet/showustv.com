@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { AppEnv } from "../env";
 import { tmdb, ensureShow, ensureMovie, watchProviders } from "../lib/tmdb";
 import { todayInTz } from "../lib/dates";
+import { airedCond } from "../lib/aired";
 
 export const catalog = new Hono<AppEnv>();
 
@@ -40,9 +41,11 @@ catalog.get("/shows/:id", async (c) => {
     c.env.DB.prepare("SELECT * FROM shows WHERE tmdb_id = ?1").bind(id),
     c.env.DB.prepare("SELECT id, number, name FROM seasons WHERE show_id = ?1 ORDER BY number").bind(id),
     c.env.DB.prepare(
-      `SELECT id, season_number, number, title, air_date, runtime_min, overview, still_url
-       FROM episodes WHERE show_id = ?1 ORDER BY season_number, number`
-    ).bind(id),
+      `SELECT e.id, e.season_number, e.number, e.title, e.air_date, e.runtime_min, e.overview, e.still_url,
+              ${airedCond("?2", "sh")} AS aired
+       FROM episodes e JOIN shows sh ON sh.tmdb_id = e.show_id
+       WHERE e.show_id = ?1 ORDER BY e.season_number, e.number`
+    ).bind(id, today),
     c.env.DB.prepare("SELECT state FROM user_shows WHERE user_id = ?1 AND show_id = ?2").bind(uid, id),
     c.env.DB.prepare(
       `SELECT ue.episode_id, ue.play_count FROM user_episodes ue
@@ -70,7 +73,7 @@ catalog.get("/shows/:id", async (c) => {
 
   const episodes = (episodesR.results as any[]).map((e) => ({
     ...e,
-    aired: e.air_date != null && e.air_date <= today,
+    aired: !!e.aired,
     watched: watched.has(e.id),
     playCount: watched.get(e.id) ?? 0,
     rating: epRatings.get(e.id)
@@ -168,12 +171,13 @@ catalog.get("/episodes/:id", async (c) => {
   const id = intParam(c.req.param("id"));
   if (!id) return c.json({ error: "bad id" }, 400);
   const uid = c.get("uid");
+  const today = todayInTz(c.get("tz"));
 
   const [epR, watchedR, ratingR] = await c.env.DB.batch([
     c.env.DB.prepare(
-      `SELECT e.*, s.title AS show_title, s.poster_url AS show_poster
+      `SELECT e.*, s.title AS show_title, s.poster_url AS show_poster, ${airedCond("?2", "s")} AS aired
        FROM episodes e JOIN shows s ON s.tmdb_id = e.show_id WHERE e.id = ?1`
-    ).bind(id),
+    ).bind(id, today),
     c.env.DB.prepare("SELECT watched_at, play_count FROM user_episodes WHERE user_id = ?1 AND episode_id = ?2").bind(uid, id),
     c.env.DB.prepare(
       "SELECT score, emoji_reaction FROM ratings WHERE user_id = ?1 AND target_type = 'episode' AND target_id = ?2"
@@ -195,6 +199,7 @@ catalog.get("/episodes/:id", async (c) => {
       number: e.number,
       title: e.title,
       airDate: e.air_date,
+      aired: !!e.aired,
       runtime: e.runtime_min,
       overview: e.overview,
       still: e.still_url,

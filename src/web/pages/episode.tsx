@@ -5,7 +5,7 @@ import { mediaPath, idFromParam } from "../paths";
 import { post, put, del } from "../api";
 import { useAuth } from "../app";
 import { still } from "../img";
-import { fmtAirDate, fmtDateTime, runtimeStr } from "../format";
+import { fmtDateTime, fmtEpisodeDate, runtimeStr } from "../format";
 import { Slate, Spinner, ErrorNote, ScorePicker, EmojiPicker } from "../components/ui";
 import { Comments } from "../components/comments";
 import { useCelebrate } from "../components/celebration";
@@ -20,6 +20,7 @@ interface EpisodePayload {
     number: number;
     title: string | null;
     airDate: string | null;
+    aired: boolean;
     runtime: number | null;
     overview: string | null;
     still: string | null;
@@ -88,7 +89,7 @@ export function EpisodePage() {
         <div>
           <div className="episode-slate-row">
             <Slate season={ep.season} number={ep.number} />
-            <span className="mono episode-date">{fmtAirDate(ep.airDate, tz)}</span>
+            <span className="mono episode-date">{fmtEpisodeDate(ep.airDate, ep.aired, tz)}</span>
             {ep.runtime ? <span className="mono">{runtimeStr(ep.runtime)}</span> : null}
           </div>
           <h1>{ep.title ?? `Episode ${ep.number}`}</h1>

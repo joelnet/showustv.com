@@ -11,6 +11,14 @@ export function todayStr(tz: string): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: tz });
 }
 
+// Air-date column for an episode row. The server's `aired` flag classifies
+// undated episodes (see worker lib/aired.ts): a date gap on an episode that
+// has aired reads "Unknown", while a genuinely unaired one stays "TBA".
+export function fmtEpisodeDate(d: string | null, aired: boolean, tz: string): string {
+  if (!d) return aired ? "Unknown" : "TBA";
+  return fmtAirDate(d, tz);
+}
+
 export function fmtAirDate(d: string | null, tz: string): string {
   if (!d) return "TBA";
   const today = todayStr(tz);

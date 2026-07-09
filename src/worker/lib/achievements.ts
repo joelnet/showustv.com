@@ -64,17 +64,19 @@ export async function checkAchievements(env: Env, uid: number): Promise<void> {
       ).bind(uid),
       // Every aired regular-season episode of some ended show watched. The
       // aired-episode set is checked with NOT EXISTS so specials (season 0)
-      // and unaired entries can't block the unlock.
+      // and future-dated entries can't block the unlock. Undated episodes of
+      // these ended shows count as aired (metadata gaps, not future runs —
+      // see lib/aired.ts), so they must be watched like any other.
       db.prepare(
         `SELECT EXISTS(
            SELECT 1 FROM user_shows us JOIN shows s ON s.tmdb_id = us.show_id
            WHERE us.user_id = ?1 AND s.status IN ('Ended', 'Canceled')
              AND EXISTS(SELECT 1 FROM episodes e WHERE e.show_id = us.show_id
-                          AND e.season_number > 0 AND e.air_date IS NOT NULL AND e.air_date <= date('now'))
+                          AND e.season_number > 0 AND (e.air_date IS NULL OR e.air_date <= date('now')))
              AND NOT EXISTS(
                SELECT 1 FROM episodes e
                WHERE e.show_id = us.show_id AND e.season_number > 0
-                 AND e.air_date IS NOT NULL AND e.air_date <= date('now')
+                 AND (e.air_date IS NULL OR e.air_date <= date('now'))
                  AND NOT EXISTS(SELECT 1 FROM user_episodes ue WHERE ue.user_id = ?1 AND ue.episode_id = e.id)
              )
          ) AS hit`
