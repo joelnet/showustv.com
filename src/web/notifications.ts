@@ -1,6 +1,7 @@
 // Notifications client plumbing (issue #129): the unread-count store behind
 // the header bell, and the Web Push subscribe/unsubscribe flow the settings
-// page drives.
+// page drives. The store also mirrors the count onto the installed PWA's
+// app icon via the Badging API (issue #142).
 
 import { useEffect, useSyncExternalStore } from "react";
 import { api, post } from "./api";
@@ -18,7 +19,26 @@ const subscribe = (cb: () => void) => {
   };
 };
 
+// App-icon badging (issue #142): keep the home-screen/dock icon's badge in
+// lockstep with the bell. Best-effort by design — the API only exists in
+// some browsers, only does anything for an installed PWA, and the promise
+// can reject — so every failure mode is swallowed; the in-app bell is the
+// fallback everywhere else.
+function applyAppBadge(n: number): void {
+  if (!("setAppBadge" in navigator)) return;
+  try {
+    void (n > 0 ? navigator.setAppBadge(n) : navigator.clearAppBadge()).catch(() => {});
+  } catch {
+    // synchronous throw (odd platform) — nothing to do
+  }
+}
+
 export function setUnread(n: number): void {
+  // Applied even when the store value is unchanged: the service worker sets
+  // the OS badge independently (push handler), so this is also the recovery
+  // path when the two drift — e.g. sign-out while the store already reads 0
+  // but a queued push left a stale badge behind.
+  applyAppBadge(n);
   if (n !== unread) {
     unread = n;
     notify();

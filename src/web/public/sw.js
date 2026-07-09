@@ -222,10 +222,16 @@ function trim(cache, max) {
 
 // ---------- Web Push (issue #129) ----------
 // The Worker sends JSON payloads (see src/worker/lib/push.ts): { title,
-// body, url, tag }. We subscribed with userVisibleOnly, so every push MUST
-// show a notification — Chrome shows a generic "site updated in the
-// background" (and eventually revokes push) otherwise. Same `tag` replaces
-// the previous notification instead of stacking.
+// body, url, tag, unread }. We subscribed with userVisibleOnly, so every
+// push MUST show a notification — Chrome shows a generic "site updated in
+// the background" (and eventually revokes push) otherwise. Same `tag`
+// replaces the previous notification instead of stacking.
+//
+// `unread` is the recipient's exact unread count at send time; it drives the
+// installed PWA's app-icon badge (issue #142) so the count is right even
+// when no page is alive. While a page IS alive, its unread store applies the
+// same number on every refresh (src/web/notifications.ts), so the two
+// writers converge instead of fighting.
 
 self.addEventListener("push", (event) => {
   let data = {};
@@ -235,13 +241,26 @@ self.addEventListener("push", (event) => {
     // non-JSON payload (test push) — fall through to the defaults
   }
   event.waitUntil(
-    self.registration.showNotification(data.title || "Show Us TV", {
-      body: data.body || "",
-      icon: "/icons/icon-192.png",
-      badge: "/icons/icon-192.png",
-      tag: data.tag || undefined,
-      data: { url: data.url || "/notifications" },
-    })
+    (async () => {
+      // Badge first, notification second — but the badge is best-effort
+      // (Badging API missing, PWA not installed, promise rejection) and must
+      // never block the mandatory showNotification.
+      if (typeof data.unread === "number" && "setAppBadge" in navigator) {
+        try {
+          if (data.unread > 0) await navigator.setAppBadge(data.unread);
+          else await navigator.clearAppBadge();
+        } catch {
+          // no badge on this platform — the notification itself still lands
+        }
+      }
+      await self.registration.showNotification(data.title || "Show Us TV", {
+        body: data.body || "",
+        icon: "/icons/icon-192.png",
+        badge: "/icons/icon-192.png",
+        tag: data.tag || undefined,
+        data: { url: data.url || "/notifications" },
+      });
+    })()
   );
 });
 

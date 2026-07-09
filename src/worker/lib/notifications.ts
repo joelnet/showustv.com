@@ -31,6 +31,8 @@ const MAX_PUSHES_PER_EVENT = 30;
 
 // Best-effort Web Push of one payload to every subscribed device of the
 // recipients that just got a new notification row. Shared by every fan-out.
+// Each send carries that recipient's exact unread count (issue #142) so the
+// service worker can badge the app icon without a page alive.
 async function pushToRecipients(
   env: Env,
   recipients: number[],
@@ -52,22 +54,50 @@ async function pushToRecipients(
   // device, then everyone's second, ... — so one person with many devices
   // can't starve other followers of their push. Deterministic (rows arrive
   // ORDER BY id) up to D1's IN-chunk boundaries.
-  const byUser = new Map<number, StoredSubscription[]>();
+  const byUser = new Map<number, (StoredSubscription & { user_id: number })[]>();
   for (const s of subs) {
     const list = byUser.get(s.user_id) ?? [];
     list.push(s);
     byUser.set(s.user_id, list);
   }
-  const sendOrder: StoredSubscription[] = [];
+  const sendOrder: (StoredSubscription & { user_id: number })[] = [];
   for (let round = 0; sendOrder.length < subs.length; round++) {
     for (const list of byUser.values()) {
       if (round < list.length) sendOrder.push(list[round]);
     }
   }
 
+  // Unread counts for the app-icon badge, batched one GROUP BY per IN-chunk
+  // (never per-recipient) over only the users that actually have a device —
+  // each probe is O(unread) via the partial index (0020). A user the GROUP BY
+  // skips read everything between the insert and now: an exact zero, not a
+  // miss. The lookup itself is best-effort — badging must never cost anyone
+  // their push — so a failed chunk just leaves its users without a count and
+  // their payload omits `unread` (the SW then leaves the badge alone).
+  const userIds = [...byUser.keys()];
+  const unreadByUser = new Map<number, number>();
+  for (let i = 0; i < userIds.length; i += IN_CHUNK) {
+    const chunk = userIds.slice(i, i + IN_CHUNK);
+    const placeholders = chunk.map((_, j) => `?${j + 1}`).join(",");
+    try {
+      const { results } = await env.DB.prepare(
+        `SELECT user_id, COUNT(*) AS n FROM notifications
+         WHERE user_id IN (${placeholders}) AND read_at IS NULL GROUP BY user_id`
+      )
+        .bind(...chunk)
+        .all<{ user_id: number; n: number }>();
+      const counts = new Map(results.map((r) => [r.user_id, r.n]));
+      for (const id of chunk) unreadByUser.set(id, counts.get(id) ?? 0);
+    } catch (e) {
+      console.error("push: unread count lookup failed", e);
+    }
+  }
+
   const gone: number[] = [];
   for (const sub of sendOrder.slice(0, MAX_PUSHES_PER_EVENT)) {
-    if ((await sendPush(env, sub, data)) === "gone") gone.push(sub.id);
+    const unread = unreadByUser.get(sub.user_id);
+    const payload = unread !== undefined ? { ...data, unread } : data;
+    if ((await sendPush(env, sub, payload)) === "gone") gone.push(sub.id);
   }
   // Expired/unsubscribed endpoints (404/410 from the push service) are dead
   // forever — prune them so future fan-outs stop paying for them.

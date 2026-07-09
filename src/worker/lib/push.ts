@@ -28,6 +28,7 @@ export type PushData = {
   body: string;
   url: string; // same-origin path the notification click opens
   tag?: string; // same tag replaces the previous notification instead of stacking
+  unread?: number; // recipient's unread count at send time — the SW mirrors it onto the app icon (issue #142)
 };
 
 export function vapidConfigured(env: Env): boolean {
