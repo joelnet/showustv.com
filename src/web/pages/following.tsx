@@ -14,7 +14,8 @@ import { useAuth } from "../app";
 import { useConfirm } from "../components/dialog";
 import { poster } from "../img";
 import { fmtDateTime } from "../format";
-import { Spinner, Empty, ErrorNote } from "../components/ui";
+import { Empty, ErrorNote } from "../components/ui";
+import { FollowingSkeleton, RowListSkeleton } from "../components/skeleton";
 import { mediaPath } from "../paths";
 import { IconPlus, IconTrash } from "../components/icons";
 
@@ -76,7 +77,7 @@ export function ActivityFeed() {
   }, [load]);
 
   if (error) return <ErrorNote message={error} />;
-  if (!items) return <Spinner />;
+  if (!items) return <RowListSkeleton count={5} />;
   if (!items.length)
     return <Empty title="Nothing here yet" hint="When someone you follow watches, follows, or rates something, it shows up here." />;
 
@@ -161,7 +162,15 @@ export function FollowingPage() {
     }
   }
 
-  if (loading) return <Spinner />;
+  // The title is static — render it for real during the load so only the
+  // page body is skeletal.
+  if (loading)
+    return (
+      <div>
+        <h1 className="page-title">Following</h1>
+        <FollowingSkeleton />
+      </div>
+    );
   if (error) return <ErrorNote message={error} />;
   if (!data) return null;
 

@@ -6,7 +6,8 @@ import { useApi } from "../hooks";
 import { useAuth } from "../app";
 import { poster, backdrop, providerLogo } from "../img";
 import { fmtAirDate, fmtEpisodeDate } from "../format";
-import { Slate, Spinner, ErrorNote, Progress, CheckButton, ScorePicker, ExternalLinks } from "../components/ui";
+import { Slate, ErrorNote, Progress, CheckButton, ScorePicker, ExternalLinks } from "../components/ui";
+import { ShowPageSkeleton } from "../components/skeleton";
 import { Comments } from "../components/comments";
 import { useCelebrate } from "../components/celebration";
 import { IconCheck, IconPlus, IconChevron, IconBookmark, IconHeart, IconHeartOutline } from "../components/icons";
@@ -155,7 +156,7 @@ export function ShowPage() {
   }, [id]);
 
   if (error) return <ErrorNote message={error} />;
-  if (!data) return <Spinner />;
+  if (!data) return <ShowPageSkeleton />;
 
   const { show, seasons, user: mine, progress, nextEpisode, providers } = data;
   const tz = user!.tz;

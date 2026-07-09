@@ -10,7 +10,8 @@ import { refreshUnread } from "../notifications";
 import { poster } from "../img";
 import { fmtAgo, fmtDateTime, epCode } from "../format";
 import { mediaPath } from "../paths";
-import { Spinner, Empty, ErrorNote } from "../components/ui";
+import { Empty, ErrorNote } from "../components/ui";
+import { RowListSkeleton } from "../components/skeleton";
 
 interface NotificationItem {
   id: number;
@@ -96,7 +97,15 @@ export function NotificationsPage() {
   }, [load]);
 
   if (error) return <ErrorNote message={error} />;
-  if (!items) return <Spinner />;
+  // The title is static — render it for real during the load so only the
+  // feed rows are skeletal.
+  if (!items)
+    return (
+      <div>
+        <h1 className="page-title">Notifications</h1>
+        <RowListSkeleton count={6} />
+      </div>
+    );
 
   const tz = user!.tz;
   return (

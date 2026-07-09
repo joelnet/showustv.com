@@ -429,6 +429,71 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ---------- Skeleton loaders (issue #138) ---------- */
+/* Slate placeholder blocks shaped like the content they stand in for, so a
+   loading view reads as the page assembling rather than a spinner blocking
+   it. Depth stays tonal (Flat-Room Rule): surface-2 blocks with a gentle
+   opacity pulse — no gradient shimmer, no gloss. The composed skeletons in
+   components/skeleton.tsx reuse the real layout classes so nothing jumps
+   when the data lands. */
+.skel {
+  background: var(--surface-2);
+  border-radius: var(--radius);
+  animation: skel-pulse 1.6s ease-in-out infinite;
+}
+@keyframes skel-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+/* The global reduced-motion rule only shortens animations to ~0ms; the
+   infinite pulse (and the boot spinner's spin) must stop outright. */
+@media (prefers-reduced-motion: reduce) {
+  .skel, .spinner { animation: none; }
+}
+
+/* Text lines. Heights + margins approximate the type they stand in for. */
+.skel-line { height: 14px; margin: 3px 0; border-radius: 4px; }
+.skel-line--sm { height: 12px; }
+.skel-line--lg { height: 18px; }
+.skel-line--h1 { height: 26px; margin: 5px 0; }
+.skel-crumb { margin-bottom: 12px; }
+.skel-page-title { height: 30px; width: 170px; max-width: 60%; margin: 10px 0 24px; border-radius: 6px; }
+.skel-section-title { height: 14px; width: 150px; border-radius: 4px; margin: 30px 0 14px; }
+.skel-row-head { height: 20px; width: 180px; border-radius: 5px; margin: 5px 0 17px; }
+
+/* Control-shaped blocks. */
+.skel-btn { height: 38px; width: 112px; border-radius: 8px; flex-shrink: 0; }
+.skel-btn--round { width: 38px; border-radius: 50%; }
+.skel-input { height: 40px; flex: 1; max-width: 320px; border-radius: 8px; }
+
+/* Artwork blocks — aspect ratios match the real images exactly. */
+.skel-poster { width: 100%; aspect-ratio: 2/3; border-radius: 8px; }
+.skel-thumb { width: 100%; aspect-ratio: 16/9; }
+.skel-still { aspect-ratio: 16/9; }
+.skel-collage { height: 76px; margin-bottom: 6px; }
+.skel-stat { height: 128px; border-radius: 16px; }
+.skel-season { height: 48px; }
+.skel-pub-poster { width: 84px; aspect-ratio: 2/3; border-radius: 8px; flex-shrink: 0; }
+.skel-list-poster { width: 42px; aspect-ratio: 2/3; border-radius: 8px; flex-shrink: 0; }
+
+.skel-copy { margin: 14px 0; }
+.skel-detail-body { flex: 1; min-width: 0; max-width: 640px; }
+
+/* Feed-row shells matching .notif-list / .activity-feed / .list-items rows. */
+.skel-rows { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.skel-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+}
+.skel-row-poster { width: 38px; aspect-ratio: 2/3; border-radius: 5px; flex-shrink: 0; }
+.skel-row-text { flex: 1; min-width: 0; }
+.skel-row-btn { width: 34px; height: 32px; border-radius: 8px; }
+
 .empty {
   border: 1.5px dashed var(--line);
   border-radius: var(--radius);

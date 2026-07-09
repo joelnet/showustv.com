@@ -4,7 +4,8 @@ import { useEffect } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useApi } from "../hooks";
 import { useAuth } from "../app";
-import { Spinner, Wordmark, SmpteBars, SiteFooter } from "../components/ui";
+import { Wordmark, SmpteBars, SiteFooter } from "../components/ui";
+import { PubListSkeleton } from "../components/skeleton";
 import { Comments } from "../components/comments";
 import { poster } from "../img";
 import { mediaPath, idFromParam, publicListPath } from "../paths";
@@ -46,7 +47,7 @@ export function PublicListPage() {
       </header>
       <main className="main">
         {loading ? (
-          <Spinner />
+          <PubListSkeleton />
         ) : error || !data ? (
           <div className="empty">
             <SmpteBars />

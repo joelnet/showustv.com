@@ -6,7 +6,8 @@ import { post, put, del } from "../api";
 import { useAuth } from "../app";
 import { still } from "../img";
 import { fmtDateTime, fmtEpisodeDate, runtimeStr } from "../format";
-import { Slate, Spinner, ErrorNote, ScorePicker, EmojiPicker } from "../components/ui";
+import { Slate, ErrorNote, ScorePicker, EmojiPicker } from "../components/ui";
+import { MediaDetailSkeleton } from "../components/skeleton";
 import { Comments } from "../components/comments";
 import { useCelebrate } from "../components/celebration";
 import { IconCheck } from "../components/icons";
@@ -55,7 +56,7 @@ export function EpisodePage() {
     if (location.pathname !== canonical) navigate(canonical + location.search, { replace: true });
   }, [data, location, navigate]);
 
-  if (loading) return <Spinner />;
+  if (loading) return <MediaDetailSkeleton kind="episode" />;
   if (error) return <ErrorNote message={error} />;
   if (!data) return null;
 

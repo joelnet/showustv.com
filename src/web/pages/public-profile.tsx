@@ -11,7 +11,8 @@ import { useConfirm } from "../components/dialog";
 import { poster } from "../img";
 import { mediaPath, publicListPath, type MediaType } from "../paths";
 import { fmtAgo } from "../format";
-import { Spinner, Wordmark, SmpteBars, ErrorNote, Slate, SiteFooter } from "../components/ui";
+import { Wordmark, SmpteBars, ErrorNote, Slate, SiteFooter } from "../components/ui";
+import { ProfileSkeleton } from "../components/skeleton";
 import { IconList, IconCheck, IconPlus, IconEye } from "../components/icons";
 import { StatsGrid, type WatchStats } from "./profile";
 import { fmtDateTime } from "../format";
@@ -287,7 +288,7 @@ export function PublicProfilePage() {
       </header>
       <main className="main">
         {loading ? (
-          <Spinner />
+          <ProfileSkeleton />
         ) : error || !data ? (
           <div className="empty">
             <SmpteBars />

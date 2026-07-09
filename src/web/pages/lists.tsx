@@ -4,7 +4,8 @@ import { useApi } from "../hooks";
 import { api, post, put, del } from "../api";
 import { poster } from "../img";
 import { useAuth } from "../app";
-import { Spinner, Empty, ErrorNote, PosterCard } from "../components/ui";
+import { Empty, ErrorNote, PosterCard } from "../components/ui";
+import { ListsGridSkeleton, ListDetailSkeleton } from "../components/skeleton";
 import { mediaPath, publicListPath } from "../paths";
 import {
   IconPlus,
@@ -68,7 +69,7 @@ export function ListsPage() {
       </form>
 
       {loading ? (
-        <Spinner />
+        <ListsGridSkeleton />
       ) : error ? (
         <ErrorNote message={error} />
       ) : !data?.lists.length ? (
@@ -182,7 +183,15 @@ export function ListDetailPage() {
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  if (loading) return <Spinner />;
+  // The crumb is static — render it for real during the load so only the
+  // list body is skeletal.
+  if (loading)
+    return (
+      <div>
+        <Link to="/lists" className="crumb">‹ Lists</Link>
+        <ListDetailSkeleton />
+      </div>
+    );
   if (error) return <ErrorNote message={error} />;
   if (!data) return null;
 

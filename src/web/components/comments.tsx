@@ -11,7 +11,8 @@ import { useApi } from "../hooks";
 import { useAuth } from "../app";
 import { fmtAgo, fmtDateTime } from "../format";
 import { COMMENT_MAX_LEN, COMMENT_URL_RE } from "../../shared/constants";
-import { Spinner, ErrorNote } from "./ui";
+import { ErrorNote } from "./ui";
+import { CommentsSkeleton } from "./skeleton";
 import { IconArrowUp, IconArrowDown } from "./icons";
 
 interface MoreStub {
@@ -175,7 +176,7 @@ export function Comments({ targetType, targetId }: { targetType: "episode" | "mo
         <ErrorNote message={error} />
       ) : !thread ? (
         loading ? (
-          <Spinner />
+          <CommentsSkeleton />
         ) : null
       ) : thread.comments.length === 0 ? (
         <p className="comments-empty">No comments yet. Start the thread.</p>

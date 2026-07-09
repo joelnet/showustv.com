@@ -3,7 +3,8 @@ import { NavLink } from "react-router-dom";
 import { useApi } from "../hooks";
 import { useAuth } from "../app";
 import { fmtDateTime } from "../format";
-import { PosterCard, Progress, Spinner, Empty, ErrorNote } from "../components/ui";
+import { PosterCard, Progress, Empty, ErrorNote } from "../components/ui";
+import { PosterGridSkeleton } from "../components/skeleton";
 import { mediaPath } from "../paths";
 
 // "Watching", "Not started yet", and "Haven't watched for a while" all moved to
@@ -149,7 +150,7 @@ export function LibraryPage({ tab }: { tab: "shows" | "movies" | "anime" | "watc
 
       {tab === "shows" &&
         (lib.loading ? (
-          <Spinner />
+          <PosterGridSkeleton />
         ) : lib.error ? (
           <ErrorNote message={lib.error} />
         ) : !lib.data?.shows.length ? (
@@ -160,7 +161,7 @@ export function LibraryPage({ tab }: { tab: "shows" | "movies" | "anime" | "watc
 
       {tab === "movies" &&
         (lib.loading ? (
-          <Spinner />
+          <PosterGridSkeleton />
         ) : lib.error ? (
           <ErrorNote message={lib.error} />
         ) : !lib.data?.movies.length ? (
@@ -181,7 +182,7 @@ export function LibraryPage({ tab }: { tab: "shows" | "movies" | "anime" | "watc
 
       {tab === "anime" &&
         (lib.loading ? (
-          <Spinner />
+          <PosterGridSkeleton />
         ) : lib.error ? (
           <ErrorNote message={lib.error} />
         ) : !lib.data?.animeShows.length && !lib.data?.animeMovies.length ? (
@@ -227,7 +228,7 @@ export function LibraryPage({ tab }: { tab: "shows" | "movies" | "anime" | "watc
 
       {tab === "watchlist" &&
         (wl.loading ? (
-          <Spinner />
+          <PosterGridSkeleton />
         ) : wl.error ? (
           <ErrorNote message={wl.error} />
         ) : !wl.data?.shows.length && !wl.data?.movies.length ? (

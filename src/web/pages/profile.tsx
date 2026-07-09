@@ -9,7 +9,8 @@ import { watchTimeStr, fmtDateTime } from "../format";
 import { ACHIEVEMENTS } from "../../shared/achievements";
 import { useAuth } from "../app";
 import { useConfirm } from "../components/dialog";
-import { Spinner, Empty, ErrorNote } from "../components/ui";
+import { Empty, ErrorNote } from "../components/ui";
+import { ProfileSkeleton } from "../components/skeleton";
 import {
   IconHeart,
   IconEye,
@@ -185,7 +186,7 @@ export function ProfilePage() {
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  if (loading) return <Spinner />;
+  if (loading) return <ProfileSkeleton action />;
   if (error) return <ErrorNote message={error} />;
   if (!data) return null;
 

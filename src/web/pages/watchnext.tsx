@@ -2,7 +2,8 @@ import { useEffect, useRef } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { useApi } from "../hooks";
 import { poster, backdrop, still } from "../img";
-import { Spinner, Empty, ErrorNote } from "../components/ui";
+import { Empty, ErrorNote } from "../components/ui";
+import { HomeSkeleton, TileGridSkeleton } from "../components/skeleton";
 import { mediaPath } from "../paths";
 
 // A tile for any home item — a show (with its next/last episode) or a movie.
@@ -169,7 +170,7 @@ function Row({ items }: { items: HomeItem[] }) {
 // clickable header that opens the full list for that section.
 export function WatchNext() {
   const { data, loading, error } = useApi<HomeData>("/home");
-  if (loading) return <Spinner />;
+  if (loading) return <HomeSkeleton />;
   if (error) return <ErrorNote message={error} />;
   if (!data) return null;
 
@@ -209,7 +210,16 @@ export function WatchSectionPage() {
   const section = SECTIONS.find((s) => s.key === key);
   const { data, loading, error } = useApi<HomeData>(section ? "/home" : null);
   if (!section) return <Navigate to="/" replace />;
-  if (loading) return <Spinner />;
+  // The crumb and title are static — render them for real during the load so
+  // only the grid is skeletal.
+  if (loading)
+    return (
+      <div>
+        <Link to="/" className="crumb">‹ Watch</Link>
+        <h1 className="page-title">{section.label}</h1>
+        <TileGridSkeleton />
+      </div>
+    );
   if (error) return <ErrorNote message={error} />;
   if (!data) return null;
   const items = data[section.field] ?? [];

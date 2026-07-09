@@ -1,7 +1,8 @@
 import { useSearchParams } from "react-router-dom";
 import { useApi } from "../hooks";
 import { useOffline } from "../offline";
-import { PosterCard, Spinner, Empty, ErrorNote } from "../components/ui";
+import { PosterCard, Empty, ErrorNote } from "../components/ui";
+import { PosterGridSkeleton, TrendingSkeleton } from "../components/skeleton";
 import { IconSearch } from "../components/icons";
 import { mediaPath } from "../paths";
 
@@ -50,7 +51,7 @@ export function SearchPage() {
 
       {q ? (
         search.loading ? (
-          <Spinner />
+          <PosterGridSkeleton />
         ) : search.error ? (
           online ? <ErrorNote message={search.error} /> : offlineNote
         ) : search.data?.results.length ? (
@@ -69,7 +70,7 @@ export function SearchPage() {
           <Empty title={`Nothing found for “${q}”`} hint="Check the spelling or try another title." />
         )
       ) : trending.loading ? (
-        <Spinner />
+        <TrendingSkeleton />
       ) : trending.data ? (
         <>
           <h2 className="section-title">Trending shows this week</h2>

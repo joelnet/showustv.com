@@ -10,6 +10,9 @@ const SOCIALS = [
   { label: "Discord", href: "https://discord.gg/AxPcm4xjJC", Icon: IconDiscord },
 ];
 
+// Indeterminate spinner — kept only for the pre-boot auth check, where the
+// upcoming layout is unknown. Content loading states use the skeleton
+// loaders in components/skeleton.tsx instead (issue #138).
 export function Spinner() {
   return (
     <div className="spinner-wrap" role="status" aria-label="Loading">

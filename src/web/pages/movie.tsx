@@ -6,7 +6,8 @@ import { post, put, del } from "../api";
 import { useAuth } from "../app";
 import { poster, providerLogo } from "../img";
 import { fmtAirDate, fmtDateTime, runtimeStr } from "../format";
-import { Spinner, ErrorNote, ScorePicker, EmojiPicker, ExternalLinks } from "../components/ui";
+import { ErrorNote, ScorePicker, EmojiPicker, ExternalLinks } from "../components/ui";
+import { MediaDetailSkeleton } from "../components/skeleton";
 import { IconCheck, IconBookmark, IconHeart, IconHeartOutline } from "../components/icons";
 import { AddToList } from "./lists";
 
@@ -57,7 +58,7 @@ export function MoviePage() {
     if (location.pathname !== canonical) navigate(canonical + location.search, { replace: true });
   }, [data, location, navigate]);
 
-  if (loading) return <Spinner />;
+  if (loading) return <MediaDetailSkeleton kind="movie" />;
   if (error) return <ErrorNote message={error} />;
   if (!data) return null;
 
