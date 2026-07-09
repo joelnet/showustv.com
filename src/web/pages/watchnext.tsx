@@ -5,6 +5,7 @@ import { poster, backdrop, still } from "../img";
 import { Empty, ErrorNote } from "../components/ui";
 import { HomeSkeleton, TileGridSkeleton } from "../components/skeleton";
 import { mediaPath } from "../paths";
+import { precacheContinueWatching } from "../precache";
 
 // A tile for any home item — a show (with its next/last episode) or a movie.
 interface HomeItem {
@@ -170,6 +171,13 @@ function Row({ items }: { items: HomeItem[] }) {
 // clickable header that opens the full list for that section.
 export function WatchNext() {
   const { data, loading, error } = useApi<HomeData>("/home");
+
+  // While online, warm the offline cache for the Continue Watching shows so
+  // tapping one of these tiles still works in airplane mode (issue #139).
+  useEffect(() => {
+    if (data?.continueWatching?.length) precacheContinueWatching(data.continueWatching);
+  }, [data]);
+
   if (loading) return <HomeSkeleton />;
   if (error) return <ErrorNote message={error} />;
   if (!data) return null;
@@ -209,6 +217,13 @@ export function WatchSectionPage() {
   const { key } = useParams();
   const section = SECTIONS.find((s) => s.key === key);
   const { data, loading, error } = useApi<HomeData>(section ? "/home" : null);
+
+  // Same offline warming as the home page — /watch/* section pages load the
+  // same /home payload, so a deep link here precaches Continue Watching too.
+  useEffect(() => {
+    if (data?.continueWatching?.length) precacheContinueWatching(data.continueWatching);
+  }, [data]);
+
   if (!section) return <Navigate to="/" replace />;
   // The crumb and title are static — render them for real during the load so
   // only the grid is skeletal.

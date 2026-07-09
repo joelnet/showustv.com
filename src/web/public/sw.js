@@ -17,6 +17,10 @@
 // Mutations (non-GET) are never cached or intercepted — the app itself
 // queues offline mutations in IndexedDB (src/web/offline.ts) and replays
 // them when connectivity returns.
+//
+// The app also warms these caches proactively: when Watch Next loads, it
+// fetches each Continue Watching show's detail payload and hero art through
+// this worker (src/web/precache.ts, issue #139) so those shows open offline.
 
 const VERSION = "v1";
 const STATIC_CACHE = `static-${VERSION}`;
