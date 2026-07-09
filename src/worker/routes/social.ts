@@ -38,11 +38,24 @@ const FOLLOWING_CTE = `WITH following(fid) AS (
 
 // ---------- Follow graph ----------
 
-// Everything the Following page needs in one round trip: who I follow and who
-// follows me. Each follower row carries youFollow so the UI can offer a
-// "Follow back" button.
+// Everything the Following page needs in one request: mutuals (we follow each
+// other), who I follow, and who follows me. Each follower row carries
+// youFollow so the UI can offer a "Follow back" button.
 social.get("/follows", async (c) => {
   const uid = c.get("uid");
+
+  // Mutuals (issue #130): the intersection of following and followers. `since`
+  // is the later of the two follow dates — when the pair became mutual.
+  const mutuals = await c.env.DB.prepare(
+    `SELECT u.username, MAX(f.created_at, r.created_at) AS since
+     FROM follows f
+     JOIN follows r ON r.follower_id = f.followee_id AND r.followee_id = ?1 AND r.state = 'active'
+     JOIN users u ON u.id = f.followee_id AND u.deleted_at IS NULL
+     WHERE f.follower_id = ?1 AND f.state = 'active'
+     ORDER BY since DESC`
+  )
+    .bind(uid)
+    .all();
 
   const following = await c.env.DB.prepare(
     `SELECT u.username, f.created_at AS since
@@ -67,6 +80,7 @@ social.get("/follows", async (c) => {
     .all();
 
   return c.json({
+    mutuals: mutuals.results,
     following: following.results,
     followers: (followers.results as { username: string; since: string; youFollow: number }[]).map((r) => ({
       username: r.username,

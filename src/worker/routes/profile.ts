@@ -16,7 +16,7 @@ const RESEND_GAP_MS = 60_000;
 
 profile.get("/", async (c) => {
   const uid = c.get("uid");
-  const [userR, statsR, listsR, postersR, pendingR, achR] = await c.env.DB.batch([
+  const [userR, statsR, listsR, postersR, pendingR, achR, followR] = await c.env.DB.batch([
     c.env.DB.prepare("SELECT username, profile_public, email, email_verified_at FROM users WHERE id = ?1").bind(uid),
     statsQuery(c.env.DB, uid),
     c.env.DB.prepare(
@@ -40,6 +40,15 @@ profile.get("/", async (c) => {
     ).bind(uid),
     c.env.DB.prepare("SELECT email, expires_at FROM email_verifications WHERE user_id = ?1").bind(uid),
     c.env.DB.prepare("SELECT achievement_id, unlocked_at FROM user_achievements WHERE user_id = ?1 ORDER BY unlocked_at").bind(uid),
+    // Follow counts for the profile header (issue #130) — same live-user
+    // filter as /social/follows so the numbers match that page's lists.
+    c.env.DB.prepare(
+      `SELECT
+         (SELECT COUNT(*) FROM follows f JOIN users u ON u.id = f.followee_id AND u.deleted_at IS NULL
+          WHERE f.follower_id = ?1 AND f.state = 'active') AS following,
+         (SELECT COUNT(*) FROM follows f JOIN users u ON u.id = f.follower_id AND u.deleted_at IS NULL
+          WHERE f.followee_id = ?1 AND f.state = 'active') AS followers`
+    ).bind(uid),
   ]);
 
   const user = userR.results[0] as {
@@ -57,6 +66,7 @@ profile.get("/", async (c) => {
   }
 
   const all = listsR.results as any[];
+  const follow = followR.results[0] as { following: number; followers: number };
   return c.json({
     username: user.username,
     isPublic: !!user.profile_public,
@@ -65,6 +75,8 @@ profile.get("/", async (c) => {
     pendingEmail: pending && pending.expires_at > nowIso() ? pending.email : null,
     achievements: (achR.results as any[]).map((r) => ({ id: r.achievement_id, unlockedAt: r.unlocked_at })),
     stats: statsFromRow(statsR.results[0]),
+    followingCount: follow.following,
+    followersCount: follow.followers,
     lists: all
       .filter((l) => l.profile_position != null)
       .map((l) => ({ ...l, posters: posters.get(l.id) ?? [] })),

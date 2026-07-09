@@ -116,7 +116,6 @@ function Header() {
         <NavLink to="/" end>Watch now</NavLink>
         <NavLink to="/library">Library</NavLink>
         <NavLink to="/lists">Lists</NavLink>
-        <NavLink to="/following">Following</NavLink>
         <NavLink to="/profile">Profile</NavLink>
       </nav>
       <form

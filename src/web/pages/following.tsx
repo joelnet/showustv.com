@@ -1,6 +1,7 @@
 // Following (issue #39): follow people by username, see who follows you, and
 // read the activity feed of the people you follow. Instagram-style asymmetric
-// follows — no accept step, and following isn't mutual.
+// follows — no accept step, and following isn't mutual. Pairs that DO follow
+// each other surface in a Mutuals section up top (issue #130).
 //
 // Social mutations are deliberately NOT offline-queueable (api.ts only queues
 // watch/favorite ops) — when the network is gone they fail fast and the error
@@ -18,6 +19,7 @@ import { mediaPath } from "../paths";
 import { IconPlus, IconTrash } from "../components/icons";
 
 interface FollowsData {
+  mutuals: { username: string; since: string }[];
   following: { username: string; since: string }[];
   followers: { username: string; since: string; youFollow: boolean }[];
 }
@@ -163,6 +165,10 @@ export function FollowingPage() {
   if (error) return <ErrorNote message={error} />;
   if (!data) return null;
 
+  // Tolerate an offline-cached /social/follows body from before the mutuals
+  // field existed (the SW replays the last good copy when the network is gone).
+  const mutuals = data.mutuals ?? [];
+
   const tz = user!.tz;
   return (
     <div>
@@ -182,6 +188,26 @@ export function FollowingPage() {
         </button>
       </form>
       {note && (note.isError ? <ErrorNote message={note.text} /> : <p className="friend-note">{note.text} ✓</p>)}
+
+      {/* Mutuals (issue #130): people you follow who follow you back. The
+          section hides entirely when there are none rather than adding a third
+          empty block to a fresh account. Rows are plain links; unfollow lives
+          in the Following list below. */}
+      {mutuals.length > 0 && (
+        <>
+          <h2 className="section-title">Mutuals · {mutuals.length}</h2>
+          <ul className="list-items">
+            {mutuals.map((f) => (
+              <li key={f.username}>
+                <Link to={`/u/${f.username}`} className="profile-list-link">
+                  <span className="list-name">{f.username}</span>
+                  <span className="mono list-count">mutuals since {fmtDate(f.since, tz)}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
 
       <h2 className="section-title">Following{data.following.length > 0 && ` · ${data.following.length}`}</h2>
       {!data.following.length ? (

@@ -1107,6 +1107,15 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .profile-list-link:hover .list-name { text-decoration: underline; }
 .profile-add-list { margin-top: 16px; }
 
+/* Following/Followers counts under the username (issue #130) — the profile's
+   entry point to /following now that the header nav dropped its link. Numbers
+   read in mono like other counts; each pair lights amber on hover. */
+.profile-follow-counts { display: flex; gap: 18px; margin: 10px 0 4px; }
+.profile-follow-counts a { color: var(--muted); font-size: 13.5px; }
+.profile-follow-counts a strong { color: var(--text); font-size: 13px; font-weight: 600; margin-right: 4px; }
+.profile-follow-counts a:hover { color: var(--amber); text-decoration: none; }
+.profile-follow-counts a:hover strong { color: var(--amber); }
+
 /* ---------- Friends / social ---------- */
 
 .friend-add { display: flex; gap: 10px; }

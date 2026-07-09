@@ -17,7 +17,6 @@ import {
   IconTrash,
   IconArrowUp,
   IconArrowDown,
-  IconUsers,
   IconPlay,
   IconClock,
   IconFilm,
@@ -41,6 +40,8 @@ interface ProfileData {
   isPublic: boolean;
   achievements: { id: string; unlockedAt: string }[];
   stats: WatchStats;
+  followingCount: number;
+  followersCount: number;
   lists: ProfileList[];
   otherLists: Omit<ProfileList, "posters">[];
 }
@@ -239,11 +240,6 @@ export function ProfilePage() {
       <div className="list-head">
         <h1 className="page-title">Profile</h1>
         <div className="list-head-actions">
-          {/* The mobile tab bar keeps its 5 slots — this is the Following
-              entry point on small screens (desktop also has it in the header nav). */}
-          <Link className="btn btn-ghost" to="/following">
-            <IconUsers size={15} /> Following
-          </Link>
           <button
             className="btn btn-ghost"
             disabled={busy}
@@ -257,6 +253,19 @@ export function ProfilePage() {
         </div>
       </div>
       <UsernameEditor username={data.username} isPublic={data.isPublic} reload={reload} />
+
+      {/* Following/Followers counts (issue #130). The header nav dropped its
+          Following link, so this row is the entry point to /following on every
+          screen size (the mobile tab bar keeps its 5 slots). The ?? 0 tolerates
+          an offline-cached /profile body from before these fields existed. */}
+      <p className="profile-follow-counts">
+        <Link to="/following">
+          <strong className="mono">{(data.followingCount ?? 0).toLocaleString("en-US")}</strong> Following
+        </Link>
+        <Link to="/following">
+          <strong className="mono">{(data.followersCount ?? 0).toLocaleString("en-US")}</strong> Followers
+        </Link>
+      </p>
 
       {data.isPublic && (
         <p className="share-note">
