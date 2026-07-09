@@ -522,7 +522,7 @@ library.post("/episodes/:id/watch", async (c) => {
   // every follower because someone imported five old seasons is noise.
   // Fan-out dedupes per show per day, so a binge is still one notification.
   c.executionCtx.waitUntil(
-    notifyFollowersOfWatch(c.env, uid, "show", ep.show_id).catch((e) => console.error("notify failed", e))
+    notifyFollowersOfWatch(c.env, uid, "show", ep.show_id, id).catch((e) => console.error("notify failed", e))
   );
 
   // Confetti trigger (issue #53): this watch just caught the user up when it

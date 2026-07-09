@@ -26,15 +26,21 @@ notifications.get("/", async (c) => {
   const limitRaw = Number(c.req.query("limit"));
   const limit = Number.isInteger(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, LIST_LIMIT_MAX) : LIST_LIMIT_DEFAULT;
 
+  // Episode details (season/number/title) join in live off n.episode_id — the
+  // read model stores ids and resolves display text at read time, so a later
+  // episode-title fix shows through and a since-deleted episode degrades to the
+  // show-only text (issue #129 follow-up).
   const { results } = await c.env.DB.prepare(
     `SELECT n.id, n.type, n.target_type, n.target_id, n.read_at, n.created_at,
             u.username AS actor,
             COALESCE(s.title, m.title) AS title,
-            COALESCE(s.poster_url, m.poster_url) AS poster
+            COALESCE(s.poster_url, m.poster_url) AS poster,
+            e.season_number AS ep_season, e.number AS ep_number, e.title AS ep_title
      FROM notifications n
      LEFT JOIN users u ON u.id = n.actor_id AND u.deleted_at IS NULL
      LEFT JOIN shows s ON n.target_type = 'show' AND s.tmdb_id = n.target_id
      LEFT JOIN movies m ON n.target_type = 'movie' AND m.tmdb_id = n.target_id
+     LEFT JOIN episodes e ON e.id = n.episode_id
      WHERE n.user_id = ?1 AND (?2 IS NULL OR n.id < ?2)
      ORDER BY n.id DESC
      LIMIT ?3`
@@ -50,6 +56,9 @@ notifications.get("/", async (c) => {
       actor: string | null;
       title: string | null;
       poster: string | null;
+      ep_season: number | null;
+      ep_number: number | null;
+      ep_title: string | null;
     }>();
 
   const items = results.map((r) => ({
@@ -60,6 +69,10 @@ notifications.get("/", async (c) => {
     targetId: r.target_id,
     title: r.title,
     poster: r.poster,
+    // Present only for episode watches whose episode is still in the catalog.
+    season: r.ep_season,
+    number: r.ep_number,
+    episodeTitle: r.ep_title,
     read: !!r.read_at,
     createdAt: r.created_at,
   }));

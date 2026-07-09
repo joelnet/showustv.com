@@ -8,7 +8,7 @@ import { api, post } from "../api";
 import { useAuth } from "../app";
 import { refreshUnread } from "../notifications";
 import { poster } from "../img";
-import { fmtAgo, fmtDateTime } from "../format";
+import { fmtAgo, fmtDateTime, epCode } from "../format";
 import { mediaPath } from "../paths";
 import { Spinner, Empty, ErrorNote } from "../components/ui";
 
@@ -20,13 +20,45 @@ interface NotificationItem {
   targetId: number | null;
   title: string | null;
   poster: string | null;
+  // Episode watches carry the specific episode (null for movies, old rows, or
+  // a since-deleted episode — the render falls back to show-only text).
+  season: number | null;
+  number: number | null;
+  episodeTitle: string | null;
   read: boolean;
   createdAt: string;
 }
 
-function phrase(n: NotificationItem): string {
-  // 'follow_watch' is the only type today; future types add their phrasing here.
-  return n.targetType === "show" ? "watched an episode of" : "watched";
+// The verb-and-target phrase after the actor's name. 'follow_watch' is the
+// only type today; a new type would branch here. The target links to its
+// show/movie page (with its title as the anchor), and an episode watch names
+// the episode inline: "watched S02·E05 · Waiting of Dexter". Missing episode
+// info (movies, pre-migration rows, or a since-deleted episode) degrades to
+// "watched an episode of Dexter" / "watched Inception".
+function NotificationBody({ n }: { n: NotificationItem }) {
+  const targetLink =
+    n.targetType && n.targetId != null ? (
+      <Link to={mediaPath(n.targetType, n.targetId, n.title)}>{n.title ?? `a ${n.targetType}`}</Link>
+    ) : (
+      <span>{n.title ?? "something"}</span>
+    );
+
+  if (n.targetType === "show" && n.season != null && n.number != null) {
+    return (
+      <>
+        watched{" "}
+        <span className="notif-ep">
+          {epCode(n.season, n.number)}
+          {n.episodeTitle ? ` · ${n.episodeTitle}` : ""}
+        </span>{" "}
+        of {targetLink}
+      </>
+    );
+  }
+  if (n.targetType === "show") {
+    return <>watched an episode of {targetLink}</>;
+  }
+  return <>watched {targetLink}</>;
 }
 
 export function NotificationsPage() {
@@ -89,12 +121,7 @@ export function NotificationsPage() {
                   ) : (
                     <span className="notif-user">Someone</span>
                   )}{" "}
-                  {phrase(n)}{" "}
-                  {n.targetType && n.targetId != null ? (
-                    <Link to={mediaPath(n.targetType, n.targetId, n.title)}>{n.title ?? `a ${n.targetType}`}</Link>
-                  ) : (
-                    <span>{n.title ?? "something"}</span>
-                  )}
+                  <NotificationBody n={n} />
                 </span>
                 <span className="mono notif-when" title={fmtDateTime(n.createdAt, tz)}>
                   {fmtAgo(n.createdAt)}

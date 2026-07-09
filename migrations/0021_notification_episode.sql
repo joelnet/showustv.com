@@ -1,0 +1,13 @@
+-- issue #129 follow-up: name the episode in follow-watch notifications.
+-- The 0020 notification points at the show (target_id = show tmdb_id), which
+-- was enough for "watched an episode of Dexter" but not for "watched S2·E5
+-- Waiting of Dexter" — the specific episode the actor watched is only known
+-- at fan-out time. Capture it as an episode id, resolved to season/number/
+-- title at read time (the notifications read model stores ids and joins
+-- titles live, so a later episode-title fix flows through).
+--
+-- Nullable on purpose: movie notifications and every row created before this
+-- migration carry NULL and degrade to the show-only text. No index — it's
+-- read via a LEFT JOIN on episodes.id (a primary key) for at most a page of
+-- rows, and the read model tolerates a since-deleted episode.
+ALTER TABLE notifications ADD COLUMN episode_id INTEGER;

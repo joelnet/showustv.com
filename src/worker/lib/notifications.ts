@@ -13,6 +13,14 @@ import { sendPush, vapidConfigured, type StoredSubscription } from "./push";
 
 const DEDUPE_WINDOW_MS = 24 * 3600 * 1000;
 
+// Episode code for push copy, matching the web epCode()/Slate format exactly
+// (zero-padded, middle dot): "S02·E05". Kept in sync by hand — the worker and
+// web bundles don't share this one-liner.
+function epCode(season: number, number: number): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `S${pad(season)}·E${pad(number)}`;
+}
+
 // Safety valves on fan-out: D1 caps bound parameters (chunk the IN lists) and
 // Workers caps subrequests per invocation (bound the pushes; a watch by
 // someone with thousands of push-subscribed followers must not hit it).
@@ -23,7 +31,8 @@ export async function notifyFollowersOfWatch(
   env: Env,
   actorId: number,
   targetType: "show" | "movie",
-  targetId: number
+  targetId: number,
+  episodeId: number | null = null
 ): Promise<void> {
   const since = new Date(Date.now() - DEDUPE_WINDOW_MS).toISOString();
 
@@ -31,9 +40,13 @@ export async function notifyFollowersOfWatch(
   // gate on each recipient's follow_watch pref (default on when they have no
   // prefs row), and dedupe against a same-actor/same-target notification in
   // the window. RETURNING tells us who actually got a new row.
+  //
+  // episode_id records WHICH episode this is about (the first of a binge — the
+  // dedupe still keys on the show, so a binge stays one notification pinned to
+  // the episode that opened it). NULL for movies and for undated catalog gaps.
   const { results: created } = await env.DB.prepare(
-    `INSERT INTO notifications (user_id, type, actor_id, target_type, target_id)
-     SELECT f.follower_id, 'follow_watch', ?1, ?2, ?3
+    `INSERT INTO notifications (user_id, type, actor_id, target_type, target_id, episode_id)
+     SELECT f.follower_id, 'follow_watch', ?1, ?2, ?3, ?5
      FROM follows f
      JOIN users ru ON ru.id = f.follower_id AND ru.deleted_at IS NULL
      WHERE f.followee_id = ?1 AND f.state = 'active'
@@ -45,21 +58,26 @@ export async function notifyFollowersOfWatch(
                          AND n.created_at >= ?4)
      RETURNING user_id`
   )
-    .bind(actorId, targetType, targetId, since)
+    .bind(actorId, targetType, targetId, since, episodeId)
     .all<{ user_id: number }>();
   if (!created.length || !vapidConfigured(env)) return;
 
   // Resolve the push copy here (not in the watch routes) so the hook there
   // stays one line. Actor gone mid-flight → nothing worth pushing.
-  const [actorR, titleR] = await env.DB.batch([
+  const [actorR, titleR, epR] = await env.DB.batch([
     env.DB.prepare("SELECT username FROM users WHERE id = ?1 AND deleted_at IS NULL").bind(actorId),
     targetType === "show"
       ? env.DB.prepare("SELECT title FROM shows WHERE tmdb_id = ?1").bind(targetId)
       : env.DB.prepare("SELECT title FROM movies WHERE tmdb_id = ?1").bind(targetId),
+    // Episode details for the copy, when this is an episode watch.
+    episodeId != null
+      ? env.DB.prepare("SELECT season_number, number, title FROM episodes WHERE id = ?1").bind(episodeId)
+      : env.DB.prepare("SELECT NULL AS season_number, NULL AS number, NULL AS title WHERE 0"),
   ]);
   const actor = (actorR.results[0] as { username: string } | undefined)?.username;
   const title = (titleR.results[0] as { title: string } | undefined)?.title;
   if (!actor || !title) return;
+  const ep = epR.results[0] as { season_number: number; number: number; title: string | null } | undefined;
 
   // Every push-subscribed device of every recipient that got a new row.
   const recipients = created.map((r) => r.user_id);
@@ -92,9 +110,21 @@ export async function notifyFollowersOfWatch(
     }
   }
 
+  // Title stays short (`<user> watched`) so it never truncates away the
+  // important part; the show + episode ride in the body, which Android/iOS
+  // give more room and wrap. No marketing tail — it was noise (issue #129
+  // follow-up). For an episode: "Dexter: S2·E5 · Waiting" (episode title
+  // omitted when the catalog has none, or the whole episode clause when the
+  // episode row is gone). For a movie: just the movie title.
+  const body =
+    targetType === "show" && ep
+      ? ep.title
+        ? `${title}: ${epCode(ep.season_number, ep.number)} · ${ep.title}`
+        : `${title}: ${epCode(ep.season_number, ep.number)}`
+      : title;
   const data = {
-    title: `${actor} watched ${title}`,
-    body: "See what the people you follow are watching on Show Us TV.",
+    title: `${actor} watched`,
+    body,
     url: `/${targetType}/${targetId}`,
     tag: `fw-${actorId}-${targetType.charAt(0)}-${targetId}`,
   };

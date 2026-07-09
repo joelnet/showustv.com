@@ -1186,6 +1186,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .notif-poster { width: 38px; aspect-ratio: 2/3; object-fit: cover; border-radius: 5px; flex-shrink: 0; }
 .notif-text { flex: 1; font-size: 14px; min-width: 0; }
 .notif-user { font-weight: 600; color: var(--text); }
+.notif-ep { color: var(--text); font-weight: 600; }
 .notif-when { flex-shrink: 0; }
 
 .public-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: -8px 0 20px; }
