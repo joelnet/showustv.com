@@ -134,6 +134,12 @@ a:hover { text-decoration: underline; }
   width: 190px;
   outline: none;
 }
+/* The pill is the control, so it wears the shared 2px amber focus ring
+   (issue #133): the generic input:focus rule used to draw a second amber
+   ring on the borderless input inside the rounded form. Matches the
+   .ds-search spec in DESIGN.json. */
+.header-search:focus-within { outline: 2px solid var(--amber); outline-offset: 1px; }
+.header-search input:focus { outline: none; }
 
 .header-gear { color: var(--muted); display: flex; }
 .header-gear:hover { color: var(--text); }
@@ -652,6 +658,16 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   margin-bottom: 22px;
 }
 .search-form input { flex: 1; background: none; border: none; outline: none; color: var(--text); font-size: 16px; }
+/* Same fix as .header-search (issue #133): the rounded form wears the focus
+   ring instead of the borderless input inside it. :has(input:focus) rather
+   than :focus-within so tabbing to the submit button rings only the button,
+   not the button and the form at once. The @supports guard keeps both rules
+   together: a browser without :has() keeps the old inner ring rather than
+   losing its focus indicator entirely. */
+@supports selector(:has(*)) {
+  .search-form:has(input:focus) { outline: 2px solid var(--amber); outline-offset: 1px; }
+  .search-form input:focus { outline: none; }
+}
 
 /* ---------- Show page ---------- */
 
