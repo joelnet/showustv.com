@@ -15,7 +15,7 @@ import { ProfileSkeleton } from "../components/skeleton";
 import {
   IconHeart,
   IconEye,
-  IconEyeSlash,
+  IconLock,
   IconTrash,
   IconArrowUp,
   IconArrowDown,
@@ -73,8 +73,10 @@ export function AchievementGrid({ unlocked, tz }: { unlocked: Map<string, string
 
 // Rename the auto-assigned handle (issue #23). Sign-up gives a random
 // username; this lets the user change it, updating the auth context so the
-// rest of the app (share links, etc.) reflects it immediately.
-function UsernameEditor({ username, isPublic, reload }: { username: string; isPublic: boolean; reload: () => void }) {
+// rest of the app (share links, etc.) reflects it immediately. The username
+// itself is now the page heading (issue #162), so at rest this is just the
+// small affordance to change it.
+function UsernameEditor({ username, reload }: { username: string; reload: () => void }) {
   const { user, setUser } = useAuth();
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(username);
@@ -136,8 +138,7 @@ function UsernameEditor({ username, isPublic, reload }: { username: string; isPu
   }
 
   return (
-    <p className="settings-user">
-      <strong>{username}</strong>
+    <p className="profile-username-edit">
       <button
         className="link-btn"
         onClick={() => {
@@ -145,9 +146,8 @@ function UsernameEditor({ username, isPublic, reload }: { username: string; isPu
           setEditing(true);
         }}
       >
-        Edit
+        Edit username
       </button>
-      {!isPublic && <span className="settings-user-note"> · your profile is private: only you can see it</span>}
     </p>
   );
 }
@@ -239,22 +239,34 @@ export function ProfilePage() {
 
   return (
     <div>
-      <div className="list-head">
-        <h1 className="page-title">Profile</h1>
-        <div className="list-head-actions">
+      {/* The username is the page title (issue #162) — a "Profile" heading told
+          you nothing. The privacy toggle sits right beside it as an icon-only
+          button (eye = public, lock = private, matching the public page's lock
+          teaser) with the state spelled out alongside, so the icon never has
+          to carry the meaning alone. */}
+      <div className="profile-head">
+        <h1 className="page-title">{data.username}</h1>
+        <div className="profile-privacy">
           <button
-            className="btn btn-ghost"
+            className="btn btn-ghost profile-privacy-btn"
             disabled={busy}
             aria-pressed={data.isPublic}
-            title={data.isPublic ? "Public: anyone with the link can view" : "Private: only you can view"}
+            aria-label={data.isPublic ? "Make profile private" : "Make profile public"}
+            title={
+              data.isPublic
+                ? "Make profile private: only you can see it"
+                : "Make profile public: anyone with the link can see it"
+            }
             onClick={act(() => put("/profile/visibility", { public: !data.isPublic }))}
           >
-            {data.isPublic ? <IconEye size={15} /> : <IconEyeSlash size={15} />}
-            {data.isPublic ? "Public" : "Private"}
+            {data.isPublic ? <IconEye size={15} /> : <IconLock size={15} />}
           </button>
+          <span className="profile-privacy-note" role="status">
+            Your profile is {data.isPublic ? "public" : "private"}
+          </span>
         </div>
       </div>
-      <UsernameEditor username={data.username} isPublic={data.isPublic} reload={reload} />
+      <UsernameEditor username={data.username} reload={reload} />
 
       {/* Following/Followers counts (issue #130). The header nav dropped its
           Following link, so this row is the entry point to /following on every

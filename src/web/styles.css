@@ -464,6 +464,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 /* Control-shaped blocks. */
 .skel-btn { height: 38px; width: 112px; border-radius: 8px; flex-shrink: 0; }
 .skel-btn--round { width: 38px; border-radius: 50%; }
+.skel-btn--icon { width: 34px; height: 34px; }
 .skel-input { height: 40px; flex: 1; max-width: 320px; border-radius: 8px; }
 
 /* Artwork blocks — aspect ratios match the real images exactly. */
@@ -1209,6 +1210,18 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 
 /* ---------- Profile ---------- */
 
+/* Own-profile header (issue #162): your username is the page title, with the
+   privacy toggle as a compact icon-only button right beside it and its state
+   spelled out in muted words alongside — the name stays dominant, the state
+   reads at a glance. Wraps as one cluster under a long username. */
+.profile-head { display: flex; align-items: center; gap: 6px 14px; flex-wrap: wrap; margin: 4px 0 2px; }
+.profile-head .page-title { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.profile-privacy { display: inline-flex; align-items: center; gap: 10px; }
+.profile-privacy-btn { width: 34px; height: 34px; padding: 0; justify-content: center; flex-shrink: 0; }
+.profile-privacy-note { color: var(--muted); font-size: 13.5px; }
+/* Nudge the link-btn's padding away so "Edit username" aligns with the name. */
+.profile-username-edit { margin: 6px 0 0 -6px; }
+
 .profile-stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
@@ -1345,7 +1358,6 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .settings { max-width: 460px; }
 .settings-user { color: var(--muted); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .settings-user strong { color: var(--text); }
-.settings-user-note { color: var(--muted); }
 .settings-field { display: flex; flex-direction: column; gap: 6px; margin: 18px 0 14px; font-weight: 500; }
 .settings-hint { color: var(--muted); font-size: 12.5px; font-weight: 400; }
 .settings-rule { border: none; border-top: 1px solid var(--line); margin: 26px 0; }
@@ -1912,6 +1924,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   .list-pos { width: 16px; }
   .list-item-actions { gap: 4px; }
   .list-item-actions .btn-ghost { padding: 9px 10px; min-width: 40px; min-height: 40px; }
+  .profile-privacy-btn { width: 40px; height: 40px; }
 
   .import-actions { flex-wrap: wrap; }
 
