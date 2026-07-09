@@ -4,6 +4,7 @@ import { hashPassword, verifyPassword } from "../lib/password";
 import { issueSession, clearSession, readSession, requireAuth } from "../lib/session";
 import { isValidTz, nowIso } from "../lib/dates";
 import { sha256Hex } from "../lib/email";
+import { USERNAME_RE, USERNAME_RULES } from "../lib/username";
 
 export const auth = new Hono<AppEnv>();
 
@@ -50,7 +51,11 @@ auth.post("/register", async (c) => {
         .first<{ id: number }>();
       c.set("uid", row!.id); // attribute this request in the activity log
       await issueSession(c, row!.id, tz);
-      return c.json({ user: { id: row!.id, username, tz, emailVerified: false, isAdmin: false, installed: false } });
+      // onboarded: false routes the fresh account to the preferences step
+      // (issue #160), where it confirms this handle and timezone.
+      return c.json({
+        user: { id: row!.id, username, tz, emailVerified: false, isAdmin: false, installed: false, onboarded: false },
+      });
     } catch (e: any) {
       const msg = String(e.message);
       if (msg.includes("users.email")) return c.json({ error: "That email is already in use" }, 409);
@@ -68,7 +73,7 @@ auth.post("/login", async (c) => {
   const password = String(body.password ?? "");
 
   const user = await c.env.DB.prepare(
-    "SELECT id, username, pw_hash, tz, email_verified_at, is_admin, installed_at FROM users WHERE (email = ?1 OR username = ?1) AND deleted_at IS NULL"
+    "SELECT id, username, pw_hash, tz, email_verified_at, is_admin, installed_at, onboarded_at FROM users WHERE (email = ?1 OR username = ?1) AND deleted_at IS NULL"
   )
     .bind(login)
     .first<{
@@ -79,6 +84,7 @@ auth.post("/login", async (c) => {
       email_verified_at: string | null;
       is_admin: number;
       installed_at: string | null;
+      onboarded_at: string | null;
     }>();
 
   if (!user || !(await verifyPassword(password, user.pw_hash))) {
@@ -95,6 +101,7 @@ auth.post("/login", async (c) => {
       emailVerified: !!user.email_verified_at,
       isAdmin: !!user.is_admin,
       installed: !!user.installed_at,
+      onboarded: !!user.onboarded_at,
     },
   });
 });
@@ -110,10 +117,10 @@ auth.post("/logout", async (c) => {
 
 auth.get("/me", requireAuth, async (c) => {
   const user = await c.env.DB.prepare(
-    "SELECT id, username, tz, (email_verified_at IS NOT NULL) AS verified, is_admin, (installed_at IS NOT NULL) AS installed FROM users WHERE id = ?1"
+    "SELECT id, username, tz, (email_verified_at IS NOT NULL) AS verified, is_admin, (installed_at IS NOT NULL) AS installed, (onboarded_at IS NOT NULL) AS onboarded FROM users WHERE id = ?1"
   )
     .bind(c.get("uid"))
-    .first<{ id: number; username: string; tz: string; verified: number; is_admin: number; installed: number }>();
+    .first<{ id: number; username: string; tz: string; verified: number; is_admin: number; installed: number; onboarded: number }>();
   if (!user) return c.json({ error: "unauthorized" }, 401);
   return c.json({
     user: {
@@ -123,6 +130,7 @@ auth.get("/me", requireAuth, async (c) => {
       emailVerified: !!user.verified,
       isAdmin: !!user.is_admin,
       installed: !!user.installed,
+      onboarded: !!user.onboarded,
     },
   });
 });
@@ -187,4 +195,29 @@ auth.put("/settings", requireAuth, async (c) => {
   await c.env.DB.prepare("UPDATE users SET tz = ?1 WHERE id = ?2").bind(tz, c.get("uid")).run();
   await issueSession(c, c.get("uid"), tz); // tz rides in the cookie
   return c.json({ ok: true });
+});
+
+// "Finish Signup" on the preferences step (issue #160): one atomic call that
+// saves the username + timezone and marks onboarding complete, so a partial
+// failure can't strand an account half-onboarded. Validation matches the
+// standing rules exactly: PUT /profile/username's shape check and taken
+// handling (the register handle can be sniped between register and finish,
+// hence the 409), and PUT /auth/settings' timezone check + cookie refresh.
+// COALESCE keeps onboarded_at set-once, like installed_at.
+auth.post("/onboarding", requireAuth, async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const username = String(body.username ?? "").trim();
+  const tz = String(body.tz ?? "");
+  if (!USERNAME_RE.test(username)) return c.json({ error: USERNAME_RULES }, 400);
+  if (!isValidTz(tz)) return c.json({ error: "Invalid timezone" }, 400);
+  try {
+    await c.env.DB.prepare("UPDATE users SET username = ?2, tz = ?3, onboarded_at = COALESCE(onboarded_at, ?4) WHERE id = ?1")
+      .bind(c.get("uid"), username, tz, nowIso())
+      .run();
+  } catch (e: any) {
+    if (String(e.message).includes("UNIQUE")) return c.json({ error: "That username is taken" }, 409);
+    throw e;
+  }
+  await issueSession(c, c.get("uid"), tz); // tz rides in the cookie
+  return c.json({ ok: true, username, tz });
 });

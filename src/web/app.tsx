@@ -11,6 +11,7 @@ import { useInstallPrompt, isStandalone } from "./pwa";
 import { useUnreadNotifications, setUnread } from "./notifications";
 import { Landing } from "./pages/landing";
 import { Login } from "./pages/login";
+import { WelcomePage } from "./pages/welcome";
 import { VerifyEmailPage } from "./pages/verify-email";
 import { WatchNext, WatchSectionPage } from "./pages/watchnext";
 import { SearchPage } from "./pages/search";
@@ -43,6 +44,11 @@ export interface User {
   // so it self-heals after an iOS uninstall (issue #82). Older cached users
   // may lack it — treat a missing value as false.
   installed: boolean;
+  // False until the account finishes the post-signup preferences step
+  // (issue #160); Shell routes such users to /welcome. Older cached users
+  // may lack it — treat a missing value as onboarded (check `=== false`),
+  // so an offline boot from a stale cache never strands anyone there.
+  onboarded: boolean;
 }
 
 // Last-known signed-in identity, mirrored to localStorage (issue #51). On an
@@ -89,6 +95,11 @@ export const useAuth = () => useContext(AuthCtx);
 function Shell() {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
+  // A brand-new account that hasn't finished the preferences step yet is
+  // sent back to it (issue #160) — a reload or a later login resumes the
+  // onboarding until "Finish Signup" completes it. Explicit `=== false`:
+  // older cached users lack the flag and must never be bounced.
+  if (user.onboarded === false) return <Navigate to="/welcome" replace />;
   return (
     <div className="shell">
       <Header />
@@ -327,6 +338,10 @@ export function App() {
               and land on Watch Next as before. */}
           {!user && <Route path="/" element={loggedOutRoot} />}
           <Route path="/login" element={<Login />} />
+          {/* Post-signup preferences step (issue #160) — full-screen card
+              like /login, outside the app Shell. Guards itself: logged-out
+              visitors go to /login, onboarded users into the app. */}
+          <Route path="/welcome" element={<WelcomePage />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
           {/* Public TV Time export/import how-to (linked from the landing banner). */}
           <Route path="/import-help" element={<ImportHelpPage />} />

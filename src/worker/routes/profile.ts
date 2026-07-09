@@ -6,11 +6,11 @@ import type { AppEnv } from "../env";
 import { statsQuery, statsFromRow } from "../lib/stats";
 import { sendEmail, sha256Hex, brandedEmailHtml } from "../lib/email";
 import { nowIso } from "../lib/dates";
+import { USERNAME_RE, USERNAME_RULES } from "../lib/username";
 
 export const profile = new Hono<AppEnv>();
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 const VERIFY_TTL_MS = 24 * 3600 * 1000;
 const RESEND_GAP_MS = 60_000;
 
@@ -145,7 +145,7 @@ profile.post("/email", async (c) => {
 profile.put("/username", async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const username = String(body.username ?? "").trim();
-  if (!USERNAME_RE.test(username)) return c.json({ error: "Username must be 3–20 letters, digits, or _" }, 400);
+  if (!USERNAME_RE.test(username)) return c.json({ error: USERNAME_RULES }, 400);
   try {
     await c.env.DB.prepare("UPDATE users SET username = ?2 WHERE id = ?1").bind(c.get("uid"), username).run();
   } catch (e: any) {

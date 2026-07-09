@@ -96,10 +96,14 @@ self.addEventListener("fetch", (event) => {
     // inherit responses cached before it — another account's payloads, or
     // the anonymous title payloads (user: null), which would render a
     // signed-in detail page with no state on an offline fallback.
+    // Finish Signup (issue #160): the cached /api/auth/me still says
+    // onboarded: false, which an offline boot would replay and bounce an
+    // already-onboarded user back to /welcome.
     const identityChange =
       url.pathname === "/api/auth/logout" ||
       url.pathname === "/api/auth/login" ||
-      url.pathname === "/api/auth/register";
+      url.pathname === "/api/auth/register" ||
+      url.pathname === "/api/auth/onboarding";
     if (identityChange) {
       event.respondWith(
         (async () => {

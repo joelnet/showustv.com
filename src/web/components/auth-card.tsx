@@ -36,7 +36,11 @@ export function AuthCard({
     try {
       const d = await post(`/auth/${mode}`, body);
       setUser(d.user as User);
-      navigate("/", { replace: true });
+      // A brand-new account goes straight to the preferences step (issue
+      // #160). Shell's onboarded guard would bounce it there from "/"
+      // anyway — going direct just skips the flash. Sign-ins land on "/"
+      // as before (and an unfinished signup still gets re-routed by Shell).
+      navigate(mode === "register" ? "/welcome" : "/", { replace: true });
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -79,7 +83,7 @@ export function AuthCard({
           />
         </label>
         {registering && (
-          <p className="login-hint">You&rsquo;ll get a random username you can change anytime on your profile.</p>
+          <p className="login-hint">You&rsquo;ll pick your username on the next step.</p>
         )}
         {error && <p className="error-note">{error}</p>}
         <button className="btn" type="submit" disabled={busy}>
