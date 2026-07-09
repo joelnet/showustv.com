@@ -82,8 +82,8 @@ export function EpisodePage() {
 
   return (
     <div className="episode-page">
-      <Link to={mediaPath("show", ep.showId, ep.showTitle)} className="crumb">
-        ‹ {ep.showTitle}
+      <Link to={mediaPath("show", ep.showId, ep.showTitle)} className="episode-show-link">
+        {ep.showTitle}
       </Link>
       <div className="episode-head">
         {ep.still && <img className="episode-still" src={still(ep.still)!} alt="" />}

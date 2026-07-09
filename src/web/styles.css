@@ -456,7 +456,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .skel-line--sm { height: 12px; }
 .skel-line--lg { height: 18px; }
 .skel-line--h1 { height: 26px; margin: 5px 0; }
-.skel-crumb { margin-bottom: 12px; }
+.skel-show-link { height: 26px; margin: 4px 0 16px; border-radius: 6px; }
 .skel-page-title { height: 30px; width: 170px; max-width: 60%; margin: 10px 0 24px; border-radius: 6px; }
 .skel-section-title { height: 14px; width: 150px; border-radius: 4px; margin: 30px 0 14px; }
 .skel-row-head { height: 20px; width: 180px; border-radius: 5px; margin: 5px 0 17px; }
@@ -926,6 +926,29 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .check-btn:disabled { opacity: 0.55; cursor: default; }
 
 /* ---------- Episode / movie ---------- */
+
+/* Parent-show link: headline-tier so the episode's show is unmissable
+   (issue #157). Still a link — a persistent hairline underline in the
+   neutral muted tone marks it as one now that the chevron is gone, and it
+   strengthens to text color on hover. */
+.episode-show-link {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 28px;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-decoration-color: var(--muted);
+  text-underline-offset: 5px;
+  margin: 4px 0 16px;
+}
+.episode-show-link:hover { text-decoration-color: var(--text); }
 
 .episode-head, .movie-head { display: flex; gap: 24px; align-items: flex-start; }
 .episode-still { width: 300px; max-width: 42vw; border-radius: 10px; border: 1px solid var(--line); }

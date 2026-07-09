@@ -298,7 +298,7 @@ export function ShowPageSkeleton() {
 export function MediaDetailSkeleton({ kind }: { kind: "movie" | "episode" }) {
   return (
     <SkeletonShell className={kind === "movie" ? "movie-page" : "episode-page"}>
-      {kind === "episode" && <Skeleton className="skel-line skel-line--sm skel-crumb" style={{ width: 130 }} />}
+      {kind === "episode" && <Skeleton className="skel-line skel-show-link" style={{ width: 220, maxWidth: "70%" }} />}
       <div className={kind === "movie" ? "movie-head" : "episode-head"}>
         {kind === "movie" ? <Skeleton className="show-poster" /> : <Skeleton className="episode-still skel-still" />}
         <div className="skel-detail-body">
