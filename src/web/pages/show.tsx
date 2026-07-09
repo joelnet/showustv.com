@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { api, post, put, del } from "../api";
+import { api, post, put, del, ApiError } from "../api";
 import { mediaPath, idFromParam } from "../paths";
-import { useApi } from "../hooks";
+import { useApi, getCached, setCached, dropCached } from "../hooks";
 import { useAuth } from "../app";
 import { poster, backdrop } from "../img";
 import { fmtAirDate, fmtEpisodeDate } from "../format";
@@ -100,6 +100,14 @@ function priorUnwatched(d: ShowPayload, target: Episode): number {
     .filter((e) => e.season_number > 0 && e.aired && !e.watched && isBefore(e, target)).length;
 }
 
+// The season to open on load: the one the viewer is working through, else the
+// first regular season. Shared so a cache seed and a fresh fetch derive it the
+// same way.
+function pickOpenSeason(d: ShowPayload): number | null {
+  const current = d.seasons.find((s) => s.number > 0 && s.episodes.some((e) => e.aired && !e.watched));
+  return current?.number ?? d.seasons.find((s) => s.number > 0)?.number ?? null;
+}
+
 // People you follow who track this show — username chips linking to their
 // profile. Quietly renders nothing while loading, with none, or offline.
 function AlsoWatching({ showId }: { showId: string }) {
@@ -126,10 +134,21 @@ export function ShowPage() {
   const confirm = useConfirm();
   const navigate = useNavigate();
   const location = useLocation();
-  const [data, setData] = useState<ShowPayload | null>(null);
+  const cacheKey = `/shows/${id}`;
+  // Seed instantly from the Continue Watching precache when present (issue
+  // #154 follow-up): a tile that was warmed for offline paints its detail
+  // page from cache with no loading skeleton; the fetch below then refreshes
+  // it in the background. A cold (unseeded) show still shows the skeleton.
+  const seed = getCached<ShowPayload>(cacheKey);
+  const [data, setData] = useState<ShowPayload | null>(seed ?? null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [openSeason, setOpenSeason] = useState<number | null>(null);
+  const [openSeason, setOpenSeason] = useState<number | null>(seed ? pickOpenSeason(seed) : null);
+  // Once the user makes a (persisted) optimistic change, a background refetch
+  // that started before it holds pre-change state — skip applying it so it
+  // can't visually revert the change. The seed makes the page interactive
+  // before the mount refetch lands, which is the only way they race.
+  const dirty = useRef(false);
 
   // Canonicalize the address bar to the slugged URL (issue #11) so bare or
   // stale-slug links become shareable SEO-friendly ones once the title loads.
@@ -141,17 +160,38 @@ export function ShowPage() {
 
   useEffect(() => {
     let live = true;
-    setData(null);
+    dirty.current = false; // new show — let its refetch apply
+    const cached = getCached<ShowPayload>(cacheKey);
+    setData(cached ?? null); // instant warm paint, or the skeleton on a cold load
     setError(null);
-    api<ShowPayload>(`/shows/${id}`)
+    if (cached) setOpenSeason(pickOpenSeason(cached));
+    api<ShowPayload>(cacheKey)
       .then((d) => {
-        if (!live) return;
+        // Skip if unmounted/superseded, or if the user already made a change
+        // this stale response predates (keep the optimistic view).
+        if (!live || dirty.current) return;
+        setCached(cacheKey, d); // refresh the shared cache for the next visit
         setData(d);
-        // Open the season the viewer is currently working through.
-        const current = d.seasons.find((s) => s.number > 0 && s.episodes.some((e) => e.aired && !e.watched));
-        setOpenSeason(current?.number ?? d.seasons.find((s) => s.number > 0)?.number ?? null);
+        // Only pick the open season on a cold load; a seed (and any season the
+        // user has since toggled) already settled it.
+        if (cached === undefined) setOpenSeason(pickOpenSeason(d));
       })
-      .catch((e) => live && setError(e.message));
+      .catch((e) => {
+        if (!live) return;
+        // A definitive 4xx (deleted / private show) means the seed is no longer
+        // valid: drop it and surface the error, exactly as useApi does — don't
+        // keep serving a page the server now refuses. A transient failure
+        // (offline / 5xx) keeps a good seed on screen (the offline banner
+        // explains why) and only errors on a cold load with nothing to show.
+        const definitive = e instanceof ApiError && e.status >= 400 && e.status < 500;
+        if (definitive) {
+          dropCached(cacheKey);
+          setData(null);
+          setError(e.message);
+        } else if (cached === undefined) {
+          setError(e.message);
+        }
+      });
     return () => {
       live = false;
     };
@@ -177,10 +217,21 @@ export function ShowPage() {
   // state updater so a double-invoked render can't replay the confetti.
   const run = (fn: () => Promise<unknown>, apply: (d: ShowPayload) => ShowPayload) => async () => {
     setBusy(true);
+    // The user is acting on the data on screen: a mount-time refetch still in
+    // flight holds pre-change state, so guard it out now (before it can land)
+    // and keep the captured `data` as the single base for both the on-screen
+    // and the cached copy. This page never refetched after a mutation anyway.
+    dirty.current = true;
     try {
       await fn();
       setData((d) => (d ? apply(d) : d));
-      if (data && !isCaughtUp(data) && isCaughtUp(apply(data))) celebrate(data.show.title);
+      if (data) {
+        const next = apply(data);
+        // Keep the shared cache in step so a revisit paints the change, not
+        // the pre-change seed.
+        setCached(cacheKey, next);
+        if (!isCaughtUp(data) && isCaughtUp(next)) celebrate(data.show.title);
+      }
     } finally {
       setBusy(false);
     }

@@ -31,12 +31,23 @@ const cache = new Map<string, unknown>();
 // slow mount-time refetch).
 const latest = new Map<string, Promise<unknown>>();
 let cacheUid: number | null = null;
+// Bumped on every account change. A fetch that began under one account and
+// resolves under another is stale — carrying its generation lets the seed
+// write drop itself instead of leaking one account's data into the next.
+let cacheGen = 0;
 
 export function setCacheUser(uid: number | null): void {
   if (uid === cacheUid) return;
   cacheUid = uid;
+  cacheGen++;
   cache.clear();
   latest.clear(); // fetches still in flight for the old account may not populate the cache
+}
+
+// The account generation at call time — captured before a background fetch so
+// its later seed can verify the account hasn't changed since (see setCached).
+export function cacheGeneration(): number {
+  return cacheGen;
 }
 
 // Targeted invalidation for mutate-then-navigate flows (e.g. deleting a list
@@ -51,6 +62,30 @@ function put(path: string, data: unknown): void {
   cache.delete(path); // re-insert so eviction order tracks write recency
   cache.set(path, data);
   if (cache.size > MAX_ENTRIES) cache.delete(cache.keys().next().value!);
+}
+
+// Seed the cache from outside useApi (issue #154 follow-up). The Continue
+// Watching precache (precache.ts) already fetches each show/movie detail
+// payload to warm the service worker's offline cache — it hands the same body
+// here too, so opening one of those tiles paints the detail page from cache
+// with no loading skeleton. Writes land in the same map (with the same
+// eviction and per-user clearing) useApi reads, so a seeded entry is dropped
+// on sign-out like any other.
+//
+// `gen` guards against an account switch during the background fetch: a caller
+// captures cacheGeneration() before fetching and passes it here; a stale
+// generation means someone else has signed in since, so the write is dropped
+// rather than leaked into their cache. (useApi's own revalidation is covered
+// instead by the latest-map clear in setCacheUser.)
+export function setCached(path: string, data: unknown, gen?: number): void {
+  if (gen !== undefined && gen !== cacheGen) return;
+  put(path, data);
+}
+
+// The current cached value for a path, if any — for pages that fetch outside
+// useApi (show.tsx) but still want the instant warm paint.
+export function getCached<T = unknown>(path: string): T | undefined {
+  return cache.get(path) as T | undefined;
 }
 
 // Fetch `path`, recording the result for later warm renders. Successes only:

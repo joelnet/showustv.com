@@ -7,7 +7,10 @@
 // service worker's existing runtime caches for each of those shows:
 //
 //   - the detail payload (GET /api/shows/:id) — flows through the SW's
-//     network-first API handler, landing in the api cache;
+//     network-first API handler, landing in the api cache. The parsed body is
+//     also seeded into the in-memory page cache (hooks.ts, issue #154
+//     follow-up) so an ONLINE tap paints the detail page from cache instantly,
+//     with no loading skeleton, then refreshes it in the background;
 //   - the detail page's hero art (poster + backdrop, the same URLs img.ts
 //     builds) — flows through the SW's cache-first image handler.
 //
@@ -23,6 +26,7 @@
 // still bound total storage — nothing here grows a cache unbounded.
 
 import { backdrop, poster } from "./img";
+import { cacheGeneration, setCached } from "./hooks";
 
 export interface PrecacheItem {
   kind: "show" | "movie";
@@ -59,6 +63,37 @@ async function warm(url: string, init?: RequestInit): Promise<boolean> {
     const cached = res.type === "opaque" || (res.ok && !res.headers.has("x-sw-fallback"));
     void res.body?.cancel();
     if (cached) warmedAt.set(url, Date.now());
+    return res.status !== 401;
+  } catch {
+    return true; // transient failure — the offline check in the loop covers a dead network
+  }
+}
+
+// Like warm(), but the detail payload is also parsed and seeded into the
+// in-memory page cache (hooks.ts, issue #154 follow-up) under `key` — the same
+// path the detail page reads — so opening this tile renders from cache with no
+// loading skeleton. Seeds ONLY a fresh network response: a cache fallback
+// (x-sw-fallback) or an error never masquerades as good page data, and the
+// detail page's own background refetch refreshes it regardless. Reading the
+// body here doesn't affect the SW's own cached copy.
+async function warmSeed(url: string, key: string): Promise<boolean> {
+  if (isFresh(url)) return true;
+  // The account this warm belongs to, captured before the fetch: if a sign-out
+  // /sign-in happens while it's in flight, the seed drops itself rather than
+  // landing in the next account's cache.
+  const gen = cacheGeneration();
+  try {
+    const res = await fetch(url, { credentials: "same-origin" });
+    if (res.ok && !res.headers.has("x-sw-fallback")) {
+      try {
+        setCached(key, await res.json(), gen);
+        warmedAt.set(url, Date.now());
+      } catch {
+        void res.body?.cancel(); // unparseable — leave it unwarmed for a later pass
+      }
+    } else {
+      void res.body?.cancel();
+    }
     return res.status !== 401;
   } catch {
     return true; // transient failure — the offline check in the loop covers a dead network
@@ -112,8 +147,10 @@ export function precacheContinueWatching(items: PrecacheItem[]): void {
       while (batch) {
         for (const item of batch.slice(0, MAX_SHOWS)) {
           if (!navigator.onLine) return; // network died mid-pass — a later visit retries
-          const api = `/api/${item.kind === "movie" ? "movies" : "shows"}/${item.id}`;
-          if (!(await warm(api))) return; // session ended — stop warming
+          // The page cache keys on the api path WITHOUT the /api prefix (that
+          // is what api.ts prepends), so seed `base` while warming `/api+base`.
+          const base = `/${item.kind === "movie" ? "movies" : "shows"}/${item.id}`;
+          if (!(await warmSeed(`/api${base}`, base))) return; // session ended — stop warming
           // The detail page's hero art. Built with the same img.ts helpers
           // (and sizes) the page uses, so its <img> URLs hit these cache
           // entries. no-cors matches how <img> loads them — the SW stores
