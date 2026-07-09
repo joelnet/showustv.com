@@ -1298,6 +1298,11 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .public-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: -8px 0 20px; }
 .public-actions .friend-note { margin: 0; }
 
+/* Owner-only reminder on their private profile's public page (issue #158). */
+.public-private-note { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 13.5px; margin: -8px 0 20px; }
+.public-private-note a { color: var(--cyan); }
+.public-private-note a:hover { color: var(--text); }
+
 /* ---------- Settings / about ---------- */
 
 .settings { max-width: 460px; }

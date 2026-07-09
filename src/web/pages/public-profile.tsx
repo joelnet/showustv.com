@@ -1,7 +1,9 @@
-// Public, read-only profile — reachable without an account at /u/:username
-// when the owner has made their profile public. Shows watch stats plus the
-// lists they pinned (public lists only). Signed-in visitors also get a
-// follow/unfollow affordance here.
+// Public, read-only profile — reachable without an account at /u/:username.
+// A public profile shows watch stats plus the lists the owner pinned (public
+// lists only). A private profile shows an Instagram-style teaser instead:
+// the username and a "this profile is private" note (issue #158), with the
+// owner as the one viewer who still sees the full page. Signed-in visitors
+// also get a follow/unfollow affordance here.
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, post, put, del } from "../api";
@@ -14,7 +16,7 @@ import { fmtAgo } from "../format";
 import { Wordmark, SmpteBars, ErrorNote, Slate, SiteFooter } from "../components/ui";
 import { ShareButton } from "../components/share";
 import { ProfileSkeleton } from "../components/skeleton";
-import { IconList, IconCheck, IconPlus, IconEye } from "../components/icons";
+import { IconList, IconCheck, IconPlus, IconEye, IconLock } from "../components/icons";
 import { StatsGrid, type WatchStats } from "./profile";
 import { fmtDateTime } from "../format";
 import { ACHIEVEMENTS_BY_ID } from "../../shared/achievements";
@@ -32,13 +34,26 @@ interface ProfileComment {
   };
 }
 
-interface PublicProfile {
+interface FullProfile {
   username: string;
+  // True only on the owner's preview of their own private profile — every
+  // other viewer of a private profile gets the teaser instead.
+  private?: boolean;
   stats: WatchStats;
   lists: { id: number; name: string; count: number; posters: string[] }[];
   achievements: string[];
   comments: ProfileComment[];
 }
+
+// What a private profile serves to everyone but its owner (issue #158): the
+// username and the flag, never the content. `stats` is the discriminant.
+interface PrivateTeaser {
+  username: string;
+  private: true;
+  stats?: undefined;
+}
+
+type PublicProfile = FullProfile | PrivateTeaser;
 
 // Unlocked achievements only — a public profile is a brag wall, not a
 // checklist of what the person hasn't done.
@@ -296,22 +311,49 @@ export function PublicProfilePage() {
           <div className="empty">
             <SmpteBars />
             <h3>Nothing to see here</h3>
-            <p>This profile is private or doesn&rsquo;t exist.</p>
+            <p>This profile doesn&rsquo;t exist.</p>
           </div>
+        ) : !data.stats ? (
+          // Private profile teaser (issue #158): the server sent the username
+          // and nothing else. Signed-in visitors keep the follow affordance —
+          // following works regardless of profile visibility.
+          <>
+            <h1 className="page-title">{data.username}</h1>
+            <p className="public-byline">Watching TV on Show Us TV</p>
+            {user && (
+              <div className="public-actions">
+                <FollowActions username={data.username} />
+              </div>
+            )}
+            {user?.isAdmin && <AdminTools username={data.username} tz={user.tz} />}
+            <div className="empty">
+              <IconLock size={26} />
+              <h3>This profile is private</h3>
+              <p>Only {data.username} can see what&rsquo;s on it.</p>
+            </div>
+          </>
         ) : (
           <>
             <h1 className="page-title">{data.username}</h1>
             <p className="public-byline">Watching TV on Show Us TV</p>
-            {/* This page only renders for public profiles (the server 404s
-                private ones), so the share affordance is always safe here. */}
-            <div className="public-actions">
-              <ShareButton
-                title={`${data.username} on Show Us TV`}
-                text={`See what ${data.username} has been watching on Show Us TV.`}
-                path={`/u/${data.username}`}
-              />
-              {user && <FollowActions username={data.username} />}
-            </div>
+            {data.private ? (
+              // The owner previewing their own private profile: no share
+              // button (visitors would only get the teaser), just a reminder
+              // of what everyone else sees.
+              <p className="public-private-note">
+                <IconLock size={13} /> Your profile is private: visitors see only your username. Make it public from
+                your <Link to="/profile">profile</Link>.
+              </p>
+            ) : (
+              <div className="public-actions">
+                <ShareButton
+                  title={`${data.username} on Show Us TV`}
+                  text={`See what ${data.username} has been watching on Show Us TV.`}
+                  path={`/u/${data.username}`}
+                />
+                {user && <FollowActions username={data.username} />}
+              </div>
+            )}
             {user?.isAdmin && <AdminTools username={data.username} tz={user.tz} />}
             <StatsGrid stats={data.stats} />
             <PublicAchievements ids={data.achievements} />

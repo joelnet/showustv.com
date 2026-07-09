@@ -16,7 +16,6 @@ interface PublicList {
     id: number;
     name: string;
     username: string;
-    profilePublic: boolean;
     preamble: string | null;
     commentsEnabled: boolean;
   };
@@ -59,13 +58,10 @@ export function PublicListPage() {
           <>
             <h1 className="page-title">{data.list.name}</h1>
             <p className="public-byline">
-              A list by{" "}
-              {data.list.profilePublic ? (
-                <Link to={`/u/${data.list.username}`}>{data.list.username}</Link>
-              ) : (
-                <strong>{data.list.username}</strong>
-              )}{" "}
-              · {data.items.length} {data.items.length === 1 ? "title" : "titles"}
+              {/* Always linked: a private profile renders its teaser now
+                  (issue #158) instead of 404ing, so the link is safe. */}
+              A list by <Link to={`/u/${data.list.username}`}>{data.list.username}</Link> · {data.items.length}{" "}
+              {data.items.length === 1 ? "title" : "titles"}
             </p>
             {/* This page only renders for public lists (the server 404s
                 private ones), so the share affordance is always safe here. */}

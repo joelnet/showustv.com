@@ -150,8 +150,16 @@ async function apiNetworkFirst(req) {
     });
   }
   if (res.ok) {
-    await cache.put(req.url, res.clone());
-    trim(cache, MAX_API);
+    // no-store marks a response the server considers too personal to persist
+    // (e.g. the owner's preview of their private profile on the public,
+    // viewer-varying /api/public/profile URL) — honor it, and drop any older
+    // cached copy of the same URL so a replay can't resurrect it either.
+    if (/\bno-store\b/.test(res.headers.get("cache-control") ?? "")) {
+      await cache.delete(req.url);
+    } else {
+      await cache.put(req.url, res.clone());
+      trim(cache, MAX_API);
+    }
   } else if (res.status === 401) {
     // Session over — drop the personal cache so nothing leaks after sign-out.
     await caches.delete(API_CACHE);

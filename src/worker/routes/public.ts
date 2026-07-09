@@ -7,18 +7,32 @@ import { readSession } from "../lib/session";
 
 export const pub = new Hono<AppEnv>();
 
-// Public profile at /u/:username. Private and unknown profiles are
-// indistinguishable (404 for both), and only lists that are BOTH pinned to
-// the profile AND individually shared are served — a pinned private list
-// stays private.
+// Public profile at /u/:username. A private profile answers with an
+// Instagram-style teaser — the canonical username and `private: true`,
+// nothing else — so the page can say "this profile is private" instead of
+// pretending the person doesn't exist. Only a genuinely unknown (or deleted)
+// username 404s. The owner is the one viewer who still gets their full
+// profile here (nobody else does — followers included, since profile privacy
+// hides the page content from everyone but the owner). Of the lists, only
+// those BOTH pinned to the profile AND individually shared are served — a
+// pinned private list stays private.
 pub.get("/profile/:username", async (c) => {
   const username = c.req.param("username");
   const user = await c.env.DB.prepare(
-    "SELECT id, username, shadow_banned FROM users WHERE username = ?1 AND profile_public = 1 AND deleted_at IS NULL"
+    "SELECT id, username, profile_public, shadow_banned FROM users WHERE username = ?1 AND deleted_at IS NULL"
   )
     .bind(username)
-    .first<{ id: number; username: string; shadow_banned: number }>();
+    .first<{ id: number; username: string; profile_public: number; shadow_banned: number }>();
   if (!user) return c.json({ error: "not found" }, 404);
+
+  const viewer = await readSession(c);
+
+  // The teaser (issue #158): confirms the profile exists and is private, and
+  // must never carry the private content — no stats, lists, achievements,
+  // comments, or counts.
+  if (!user.profile_public && viewer?.u !== user.id) {
+    return c.json({ username: user.username, private: true });
+  }
 
   const [statsR, listsR, postersR, commentsR, achR] = await c.env.DB.batch([
     statsQuery(c.env.DB, user.id),
@@ -65,7 +79,6 @@ pub.get("/profile/:username", async (c) => {
   // Comment bodies are a signed-in surface (thread pages sit behind auth,
   // and episode snippets are spoiler-prone) — anonymous visitors get the
   // conversation metadata only: title, episode slate, when.
-  const viewer = await readSession(c);
   const signedIn = !!viewer;
   // Shadow ban (issue #18): the banned user still sees their own
   // conversations here; everyone else sees none — same invisibility their
@@ -78,8 +91,16 @@ pub.get("/profile/:username", async (c) => {
     arr.push(r.poster);
     posters.set(r.list_id, arr);
   }
+  // The owner's preview of their own private profile is personal content on
+  // a public, viewer-varying URL — no-store keeps it out of the service
+  // worker's API cache (sw.js honors this), so it can't be replayed to a
+  // later, unauthenticated visitor on the same browser.
+  if (!user.profile_public) c.header("Cache-Control", "no-store");
   return c.json({
     username: user.username,
+    // Only ever true for the owner previewing their own private profile —
+    // every other viewer of a private profile got the teaser above.
+    private: !user.profile_public,
     stats: statsFromRow(statsR.results[0]),
     lists: (listsR.results as any[]).map((l) => ({ ...l, posters: posters.get(l.id) ?? [] })),
     achievements: (achR.results as any[]).map((r) => r.achievement_id),
@@ -105,7 +126,7 @@ pub.get("/lists/:username/:id", async (c) => {
   if (!Number.isInteger(id) || id <= 0) return c.json({ error: "not found" }, 404);
 
   const meta = await c.env.DB.prepare(
-    `SELECT l.id, l.name, l.preamble, l.comments_enabled, u.username, u.profile_public
+    `SELECT l.id, l.name, l.preamble, l.comments_enabled, u.username
      FROM custom_lists l JOIN users u ON u.id = l.user_id
      WHERE l.id = ?1 AND u.username = ?2 AND l.is_shared = 1 AND u.deleted_at IS NULL`
   )
@@ -131,7 +152,6 @@ pub.get("/lists/:username/:id", async (c) => {
       name: meta.name,
       preamble: meta.preamble ?? null,
       username: meta.username,
-      profilePublic: !!meta.profile_public,
       commentsEnabled: !!meta.comments_enabled,
     },
     items,
