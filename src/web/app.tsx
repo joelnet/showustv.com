@@ -5,8 +5,9 @@ import { setOfflineUser, useOffline } from "./offline";
 import { Spinner, Wordmark, SiteFooter } from "./components/ui";
 import { ConfirmProvider } from "./components/dialog";
 import { CelebrationProvider } from "./components/celebration";
-import { IconPlay, IconSearch, IconLibrary, IconList, IconGear, IconUser, IconDownload } from "./components/icons";
+import { IconPlay, IconSearch, IconLibrary, IconList, IconGear, IconUser, IconDownload, IconBell } from "./components/icons";
 import { useInstallPrompt, isStandalone } from "./pwa";
+import { useUnreadNotifications, setUnread } from "./notifications";
 import { Landing } from "./pages/landing";
 import { Login } from "./pages/login";
 import { VerifyEmailPage } from "./pages/verify-email";
@@ -21,6 +22,7 @@ import { PublicListPage } from "./pages/public-list";
 import { ProfilePage } from "./pages/profile";
 import { PublicProfilePage } from "./pages/public-profile";
 import { FollowingPage } from "./pages/following";
+import { NotificationsPage } from "./pages/notifications";
 import { SettingsPage } from "./pages/settings";
 import { ImportPage } from "./pages/import";
 import { ImportHelpPage } from "./pages/import-help";
@@ -138,10 +140,28 @@ function Header() {
             <IconDownload size={14} /> <span>Install App</span>
           </button>
         ))}
+      <NotificationBell />
       <Link to="/settings" className="header-gear" aria-label="Settings">
         <IconGear />
       </Link>
     </header>
+  );
+}
+
+// The bell (issue #129): unread-count badge like other social apps; clicking
+// it opens the notifications page, which marks everything read.
+function NotificationBell() {
+  const count = useUnreadNotifications();
+  const label = count > 0 ? `Notifications, ${count} unread` : "Notifications";
+  return (
+    <Link to="/notifications" className="header-bell" aria-label={label} title="Notifications">
+      <IconBell />
+      {count > 0 && (
+        <span className="bell-badge" aria-hidden="true">
+          {count > 99 ? "99+" : count}
+        </span>
+      )}
+    </Link>
   );
 }
 
@@ -198,6 +218,9 @@ export function App() {
   const setUser = useCallback((u: User | null) => {
     setUserState(u);
     saveCachedUser(u);
+    // The unread badge is a module-global store — zero it on sign-out so the
+    // next account on this browser never flashes the previous user's count.
+    if (!u) setUnread(0);
   }, []);
 
   useEffect(() => {
@@ -266,6 +289,7 @@ export function App() {
             <Route path="/lists" element={<ListsPage />} />
             <Route path="/lists/:id" element={<ListDetailPage />} />
             <Route path="/following" element={<FollowingPage />} />
+            <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/settings/import" element={<ImportPage />} />

@@ -4,6 +4,7 @@ import type { AppEnv } from "../env";
 import { ensureShow, ensureMovie } from "../lib/tmdb";
 import { nowIso, todayInTz, daysAgoInTz } from "../lib/dates";
 import { airedCond } from "../lib/aired";
+import { notifyFollowersOfWatch } from "../lib/notifications";
 import { RECENT_WINDOW_DAYS, STORED_SHOW_STATES, type DerivedShowState } from "../../shared/constants";
 import { isAnime } from "../../shared/anime";
 
@@ -515,6 +516,15 @@ library.post("/episodes/:id/watch", async (c) => {
     ).bind(uid, id, watchedAt),
   ]);
 
+  // Notify followers (issue #129), off the response path. Only this
+  // one-episode "I just watched this" action notifies — the bulk paths
+  // (season / watch-all / watch-until) are history backfill, and pinging
+  // every follower because someone imported five old seasons is noise.
+  // Fan-out dedupes per show per day, so a binge is still one notification.
+  c.executionCtx.waitUntil(
+    notifyFollowersOfWatch(c.env, uid, "show", ep.show_id).catch((e) => console.error("notify failed", e))
+  );
+
   // Confetti trigger (issue #53): this watch just caught the user up when it
   // was a *fresh* watch (not a rewatch) of an aired, regular-season episode
   // and no aired regular-season episode is left unwatched for the show. The
@@ -630,6 +640,11 @@ library.post("/movies/:id/watch", async (c) => {
   )
     .bind(c.get("uid"), id, watchedAt)
     .run();
+  // Notify followers (issue #129), off the response path — see the episode
+  // watch route above for the reasoning.
+  c.executionCtx.waitUntil(
+    notifyFollowersOfWatch(c.env, c.get("uid"), "movie", id).catch((e) => console.error("notify failed", e))
+  );
   return c.json({ ok: true });
 });
 

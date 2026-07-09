@@ -138,6 +138,25 @@ a:hover { text-decoration: underline; }
 .header-gear { color: var(--muted); display: flex; }
 .header-gear:hover { color: var(--text); }
 
+/* Notification bell (issue #129): sits with the gear; the badge is the
+   unread count in ON AIR red. */
+.header-bell { color: var(--muted); display: flex; position: relative; }
+.header-bell:hover { color: var(--text); }
+.bell-badge {
+  position: absolute;
+  top: -7px;
+  right: -9px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--red);
+  color: #fff;
+  font: 700 10px/16px var(--font-body);
+  text-align: center;
+  pointer-events: none;
+}
+
 /* Install affordance in the app chrome (Chromium, pre-install only). */
 .header-install {
   display: inline-flex;
@@ -1126,6 +1145,24 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .activity-user { font-weight: 600; color: var(--text); }
 .activity-when { flex-shrink: 0; }
 
+/* Notifications page (issue #129) — activity-feed rows plus an unread
+   amber accent that survives the visit even after read-all fires. */
+.notif-list { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.notif-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+}
+.notif-list li.is-unread { background: var(--amber-soft); border-color: var(--amber); }
+.notif-poster { width: 38px; aspect-ratio: 2/3; object-fit: cover; border-radius: 5px; flex-shrink: 0; }
+.notif-text { flex: 1; font-size: 14px; min-width: 0; }
+.notif-user { font-weight: 600; color: var(--text); }
+.notif-when { flex-shrink: 0; }
+
 .public-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: -8px 0 20px; }
 .public-actions .friend-note { margin: 0; }
 
@@ -1140,6 +1177,9 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .settings-rule { border: none; border-top: 1px solid var(--line); margin: 26px 0; }
 .settings-subtitle { font-size: 17px; margin: 0 0 6px; }
 .settings .settings-hint { margin: 0 0 12px; }
+.settings-toggle { display: flex; align-items: flex-start; gap: 10px; margin: 14px 0; font-weight: 500; cursor: pointer; }
+.settings-toggle input { accent-color: var(--amber); width: 17px; height: 17px; margin: 2px 0 0; flex-shrink: 0; }
+.settings-toggle .settings-hint { display: block; margin: 2px 0 0; }
 
 /* ---------- TV Time import ---------- */
 
@@ -1636,15 +1676,19 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 @media (max-width: 719px) {
   .header-nav, .header-search { display: none; }
   .header { gap: 12px; }
-  /* Icon alone is ~20px — pad the touch area without moving the icon. */
-  .header-gear { padding: 12px; margin: -12px -12px -12px auto; }
+  /* Icon alone is ~20px — pad the touch area without moving the icon. The
+     bell (always present, right before the gear) carries the auto margin
+     that right-aligns the icon cluster. */
+  .header-bell { padding: 12px; margin: -12px -6px -12px auto; }
+  .header-bell .bell-badge { top: 2px; right: 2px; }
+  .header-gear { padding: 12px; margin: -12px -12px -12px 0; }
   /* With the search hidden, the install button carries the right-alignment;
-     when it's present, hand the auto margin from the gear to it so the two
-     stay grouped. The nav and search are gone at this width, so the "Install
-     App" words still fit — and mobile Chromium is exactly where we want the
-     install nudge to read clearly. */
+     when it's present, hand the auto margin from the bell to it so the
+     icons stay grouped. The nav and search are gone at this width, so the
+     "Install App" words still fit — and mobile Chromium is exactly where we
+     want the install nudge to read clearly. */
   .header-install { margin-left: auto; padding: 10px 12px; }
-  .header-install ~ .header-gear { margin-left: 0; }
+  .header-install ~ .header-bell { margin-left: -6px; }
   .tabbar { display: grid; }
   .main { padding-bottom: 90px; }
   .footer { margin-bottom: 62px; }

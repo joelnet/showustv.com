@@ -215,3 +215,55 @@ function trim(cache, max) {
     })
     .catch(() => {});
 }
+
+// ---------- Web Push (issue #129) ----------
+// The Worker sends JSON payloads (see src/worker/lib/push.ts): { title,
+// body, url, tag }. We subscribed with userVisibleOnly, so every push MUST
+// show a notification — Chrome shows a generic "site updated in the
+// background" (and eventually revokes push) otherwise. Same `tag` replaces
+// the previous notification instead of stacking.
+
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    // non-JSON payload (test push) — fall through to the defaults
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title || "Show Us TV", {
+      body: data.body || "",
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      tag: data.tag || undefined,
+      data: { url: data.url || "/notifications" },
+    })
+  );
+});
+
+// Clicking the notification focuses an open app window (navigating it to the
+// target) or opens a new one. The payload URL is normalized to this origin —
+// our Worker only ever sends same-origin paths, so anything else is a
+// malformed or forged payload and falls back to the notifications page.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  let url = "/notifications";
+  try {
+    const u = new URL((event.notification.data && event.notification.data.url) || url, self.location.origin);
+    if (u.origin === self.location.origin) url = u.href;
+  } catch {
+    // keep the fallback
+  }
+  event.waitUntil(
+    (async () => {
+      const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      for (const client of wins) {
+        if (client.url.startsWith(self.location.origin) && "focus" in client) {
+          if ("navigate" in client) await client.navigate(url).catch(() => {});
+          return client.focus();
+        }
+      }
+      return self.clients.openWindow(url);
+    })()
+  );
+});

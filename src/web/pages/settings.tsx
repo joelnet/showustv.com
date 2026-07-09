@@ -1,4 +1,4 @@
-import { startTransition, useState } from "react";
+import { startTransition, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { post, put } from "../api";
 import { useApi } from "../hooks";
@@ -6,6 +6,8 @@ import { clearQueue } from "../offline";
 import { useAuth } from "../app";
 import { ErrorNote } from "../components/ui";
 import { IconCheck } from "../components/icons";
+import { isIos, isStandalone } from "../pwa";
+import { pushSupported, getPushSubscription, enablePush, disablePush } from "../notifications";
 
 interface EmailData {
   email: string | null;
@@ -136,6 +138,98 @@ function EmailVerification({ data, reload }: { data: EmailData; reload: () => vo
   );
 }
 
+interface NotificationPrefs {
+  followWatch: boolean;
+  pushPublicKey: string | null;
+}
+
+// Notification settings (issue #129): the per-type toggle plus the Web Push
+// opt-in for this device. Push is layered on top — the in-app type toggle
+// gates whether the notification exists at all, push only changes whether
+// this device buzzes about it.
+function NotificationSettings({ prefs, reload }: { prefs: NotificationPrefs; reload: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  // null = still asking the service worker whether this device is subscribed.
+  const [pushOn, setPushOn] = useState<boolean | null>(null);
+
+  const supported = pushSupported();
+  useEffect(() => {
+    if (!supported) return;
+    let live = true;
+    getPushSubscription().then((sub) => live && setPushOn(!!sub));
+    return () => {
+      live = false;
+    };
+  }, [supported]);
+
+  const toggleFollowWatch = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      await put("/notifications/prefs", { followWatch: !prefs.followWatch });
+      reload();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Something went wrong");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const togglePush = async () => {
+    if (pushOn == null || !prefs.pushPublicKey) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      if (pushOn) {
+        await disablePush();
+        setPushOn(false);
+      } else {
+        await enablePush(prefs.pushPublicKey);
+        setPushOn(true);
+      }
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Something went wrong");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // iOS Safari only exposes push inside an installed (home-screen) app.
+  const iosNeedsInstall = !supported && isIos() && !isStandalone();
+
+  return (
+    <>
+      <label className="settings-toggle">
+        <input type="checkbox" checked={prefs.followWatch} disabled={busy} onChange={toggleFollowWatch} />
+        <span>
+          Someone you follow watched a show
+          <span className="settings-hint">Get a notification when people you follow watch shows and movies.</span>
+        </span>
+      </label>
+
+      {!prefs.pushPublicKey ? (
+        <p className="settings-hint">Push notifications aren't available yet. Check back soon.</p>
+      ) : !supported ? (
+        <p className="settings-hint">
+          {iosNeedsInstall
+            ? "To get push notifications on iPhone or iPad, add the app to your home screen first."
+            : "This browser doesn't support push notifications."}
+        </p>
+      ) : (
+        <label className="settings-toggle">
+          <input type="checkbox" checked={pushOn ?? false} disabled={busy || pushOn == null} onChange={togglePush} />
+          <span>
+            Push notifications on this device
+            <span className="settings-hint">Get a heads-up even when the app is closed.</span>
+          </span>
+        </label>
+      )}
+      {err && <ErrorNote message={err} />}
+    </>
+  );
+}
+
 export function SettingsPage() {
   const { user, setUser } = useAuth();
   const navigate = useNavigate();
@@ -145,6 +239,7 @@ export function SettingsPage() {
   // Email lives on the auth User only as a bare `emailVerified` flag, so pull
   // the address and any pending verification from /profile (issue #55).
   const { data: emailData, error: emailError, reload: reloadEmail } = useApi<EmailData>("/profile");
+  const { data: notifPrefs, error: notifError, reload: reloadNotifPrefs } = useApi<NotificationPrefs>("/notifications/prefs");
 
   const zones: string[] = (Intl as any).supportedValuesOf?.("timeZone") ?? [user!.tz, "UTC"];
 
@@ -191,6 +286,16 @@ export function SettingsPage() {
       )}
 
       <hr className="settings-rule" />
+      <h2 className="settings-subtitle">Notifications</h2>
+      {notifError ? (
+        <ErrorNote message={notifError} />
+      ) : notifPrefs ? (
+        <NotificationSettings prefs={notifPrefs} reload={reloadNotifPrefs} />
+      ) : (
+        <p className="settings-hint">Loading…</p>
+      )}
+
+      <hr className="settings-rule" />
       <h2 className="settings-subtitle">Import</h2>
       <p className="settings-hint">
         Moving over from TV Time? Upload your GDPR export zip and bring your shows, watch history and movies with
@@ -207,6 +312,11 @@ export function SettingsPage() {
           // Unsynced offline changes belong to this session — they must not
           // replay into whoever signs in next on this browser.
           await clearQueue();
+          // Neither may this device's push subscription: it belongs to the
+          // account, and a shared computer must stop getting its watch
+          // notifications the moment it signs out. Best-effort — an offline
+          // sign-out just leaves it for the next sign-in to reuse.
+          await disablePush().catch(() => {});
           // The server logout needs the network, but the local sign-out must
           // happen regardless — otherwise an offline sign-out leaves the cached
           // identity behind for the next person to restore on a refresh (#51).

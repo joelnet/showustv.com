@@ -12,6 +12,13 @@ export interface Env {
   EMAIL_FROM?: string;
   EMAIL_FROM_NAME?: string;
   DISABLE_EMAIL_SEND?: string; // "true" in .dev.vars only: log mail to console instead of sending
+  // Web Push / VAPID (issue #129). Both keys come from `npx web-push
+  // generate-vapid-keys`, stored as secrets (wrangler secret put). Until they
+  // are set, push delivery no-ops and the app is in-app-notifications-only —
+  // see lib/push.ts.
+  VAPID_PUBLIC_KEY?: string;
+  VAPID_PRIVATE_KEY?: string;
+  VAPID_SUBJECT?: string; // contact URL/mailto claimed in the VAPID JWT; var in wrangler.jsonc
 }
 
 // The send_email binding's object-form send() isn't in @cloudflare/workers-types

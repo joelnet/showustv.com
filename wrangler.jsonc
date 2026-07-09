@@ -36,11 +36,16 @@
     "TMDB_API_BASE": "https://api.themoviedb.org/3",
     "TMDB_IMG_BASE": "https://image.tmdb.org/t/p",
     "EMAIL_FROM": "noreply@showustv.com",
-    "EMAIL_FROM_NAME": "Show Us TV"
+    "EMAIL_FROM_NAME": "Show Us TV",
+    // VAPID "subject" claim (Web Push, issue #129) — how a push service can
+    // contact the operator if a sender misbehaves.
+    "VAPID_SUBJECT": "https://showustv.com"
   },
 
   // Cloudflare Email Service — sends verification mail from the onboarded domain,
   // no API key. Onboard once: `wrangler email sending enable showustv.com`.
   "send_email": [{ "name": "EMAIL" }]
-  // Secrets (wrangler secret put): TMDB_TOKEN (v4 read token or v3 key), SESSION_SECRET
+  // Secrets (wrangler secret put): TMDB_TOKEN (v4 read token or v3 key), SESSION_SECRET,
+  // VAPID_PUBLIC_KEY + VAPID_PRIVATE_KEY (Web Push, issue #129 — generate with
+  // `npx web-push generate-vapid-keys`; push stays dormant until both are set)
 }

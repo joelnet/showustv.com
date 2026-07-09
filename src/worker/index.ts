@@ -15,6 +15,7 @@ import { social } from "./routes/social";
 import { comments } from "./routes/comments";
 import { admin } from "./routes/admin";
 import { importer } from "./routes/import";
+import { notifications } from "./routes/notifications";
 
 const app = new Hono<AppEnv>().basePath("/api");
 
@@ -71,6 +72,7 @@ app.route("/lists", lists);
 app.route("/profile", profile);
 app.route("/social", social);
 app.route("/comments", comments);
+app.route("/notifications", notifications);
 app.route("/admin", admin);
 app.route("/import", importer);
 
@@ -96,6 +98,15 @@ async function scheduled(_event: ScheduledEvent, env: Env, _ctx: ExecutionContex
     await env.DB.prepare("DELETE FROM activity_log WHERE ts < ?1").bind(logBefore).run();
   } catch (e) {
     console.error("cron: activity_log prune failed", e);
+  }
+
+  // Notifications age out on the same 90-day horizon (issue #129) — read or
+  // not, nobody scrolls back a season; keeps the per-user scans bounded.
+  try {
+    const notifBefore = new Date(Date.now() - 90 * 24 * 3600 * 1000).toISOString();
+    await env.DB.prepare("DELETE FROM notifications WHERE created_at < ?1").bind(notifBefore).run();
+  } catch (e) {
+    console.error("cron: notifications prune failed", e);
   }
 
   const staleBefore = new Date(Date.now() - 20 * 3600 * 1000).toISOString();
