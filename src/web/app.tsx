@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from "rea
 import { BrowserRouter, Routes, Route, NavLink, Link, Outlet, Navigate, useNavigate } from "react-router-dom";
 import { api, post, ApiError } from "./api";
 import { setOfflineUser, useOffline } from "./offline";
+import { setCacheUser } from "./hooks";
 import { Spinner, Wordmark, SiteFooter } from "./components/ui";
 import { ConfirmProvider } from "./components/dialog";
 import { CelebrationProvider } from "./components/celebration";
@@ -221,6 +222,12 @@ export function App() {
   // Persist every auth transition (login, sign-out, boot) so an offline
   // refresh can restore the signed-in user — see loadCachedUser above.
   const setUser = useCallback((u: User | null) => {
+    // The page-data cache (issue #154) is per-account — drop it the moment
+    // the signed-in identity changes (sign-out, or signing into a different
+    // account), synchronously, before any page renders under the new user,
+    // so cached pages never leak across accounts. No-op when the id is
+    // unchanged (username edits, the installed flag).
+    setCacheUser(u?.id ?? null);
     setUserState(u);
     saveCachedUser(u);
     // The unread badge is a module-global store — zero it on sign-out so the

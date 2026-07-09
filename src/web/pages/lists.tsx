@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { useApi } from "../hooks";
+import { useApi, dropCached } from "../hooks";
 import { api, post, put, del } from "../api";
 import { poster } from "../img";
 import { useAuth } from "../app";
@@ -277,6 +277,11 @@ export function ListDetailPage() {
               });
               if (!ok) return;
               await del(`/lists/${id}`);
+              // Mutate-then-navigate: the cached /lists grid (and this
+              // list's own entry) predate the delete — drop them so the
+              // grid we land on can't flash the deleted list (issue #154).
+              dropCached("/lists");
+              dropCached(`/lists/${id}`);
               navigate("/lists");
             }}
           >
@@ -434,6 +439,11 @@ export function AddToList({ type, id }: { type: "show" | "movie"; id: number }) 
         const listId = e.target.value;
         if (!listId) return;
         await post(`/lists/${listId}/items`, { type, id });
+        // This mutation happens away from the Lists pages, so nothing there
+        // reloads on its own — drop their cached copies so the grid count
+        // and the list's items can't render pre-add (issue #154).
+        dropCached("/lists");
+        dropCached(`/lists/${listId}`);
         setAdded(listId);
       }}
     >
