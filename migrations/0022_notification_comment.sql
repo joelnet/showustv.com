@@ -1,0 +1,16 @@
+-- issue #141: comments notify followers. When someone you follow comments on
+-- a show or movie you also track, you get a 'follow_comment' notification.
+--
+-- No new notification columns: a comment notification reuses the 0020/0021
+-- shape — target_type/target_id point at the show or movie (an episode
+-- comment targets its SHOW, the thing followers track, and carries the
+-- episode in episode_id, exactly like an episode watch). There's no
+-- comment_id column because comments have no permalinks yet (see
+-- docs/comments-follow-ups.md #7) — the notification links to the page the
+-- thread lives on (episode/show/movie), which is as deep as the app can
+-- link today. When permalinks land, add a nullable comment_id then (the
+-- 0021 episode_id pattern).
+--
+-- Per-user toggle for the new type, on the global prefs row (show_id = 0
+-- sentinel, same as follow_watch in 0020). Default on.
+ALTER TABLE notification_prefs ADD COLUMN follow_comment INTEGER NOT NULL DEFAULT 1 CHECK (follow_comment IN (0,1));

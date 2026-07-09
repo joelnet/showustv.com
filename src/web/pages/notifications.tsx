@@ -21,8 +21,9 @@ interface NotificationItem {
   targetId: number | null;
   title: string | null;
   poster: string | null;
-  // Episode watches carry the specific episode (null for movies, old rows, or
+  // Episode rows carry the specific episode (null for movies, old rows, or
   // a since-deleted episode — the render falls back to show-only text).
+  episodeId: number | null;
   season: number | null;
   number: number | null;
   episodeTitle: string | null;
@@ -30,12 +31,14 @@ interface NotificationItem {
   createdAt: string;
 }
 
-// The verb-and-target phrase after the actor's name. 'follow_watch' is the
-// only type today; a new type would branch here. The target links to its
-// show/movie page (with its title as the anchor), and an episode watch names
-// the episode inline: "watched S02·E05 · Waiting of Dexter". Missing episode
-// info (movies, pre-migration rows, or a since-deleted episode) degrades to
-// "watched an episode of Dexter" / "watched Inception".
+// The verb-and-target phrase after the actor's name, branched per type:
+// 'follow_watch' (issue #129) and 'follow_comment' (issue #141). The target
+// links to its show/movie page (with its title as the anchor), and an
+// episode row names the episode inline: "watched S02·E05 · Waiting of
+// Dexter". An episode comment links the episode itself — that page is where
+// the thread lives. Missing episode info (movies, pre-migration rows, or a
+// since-deleted episode) degrades to "watched an episode of Dexter" /
+// "commented on Dexter" / "watched Inception".
 function NotificationBody({ n }: { n: NotificationItem }) {
   const targetLink =
     n.targetType && n.targetId != null ? (
@@ -43,6 +46,22 @@ function NotificationBody({ n }: { n: NotificationItem }) {
     ) : (
       <span>{n.title ?? "something"}</span>
     );
+
+  if (n.type === "follow_comment") {
+    if (n.targetType === "show" && n.episodeId != null && n.season != null && n.number != null) {
+      return (
+        <>
+          commented on{" "}
+          <Link className="notif-ep" to={mediaPath("episode", n.episodeId, n.episodeTitle)}>
+            {epCode(n.season, n.number)}
+            {n.episodeTitle ? ` · ${n.episodeTitle}` : ""}
+          </Link>{" "}
+          of {targetLink}
+        </>
+      );
+    }
+    return <>commented on {targetLink}</>;
+  }
 
   if (n.targetType === "show" && n.season != null && n.number != null) {
     return (
@@ -114,7 +133,7 @@ export function NotificationsPage() {
       {!items.length ? (
         <Empty
           title="No notifications yet"
-          hint="When someone you follow watches a show or movie, you'll hear about it here."
+          hint="When someone you follow watches or comments on a show or movie, you'll hear about it here."
         />
       ) : (
         <>

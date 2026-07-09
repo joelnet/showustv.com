@@ -30,6 +30,7 @@ import type { Context } from "hono";
 import type { AppEnv } from "../env";
 import { nowIso } from "../lib/dates";
 import { checkAchievements } from "../lib/achievements";
+import { notifyFollowersOfComment } from "../lib/notifications";
 import { COMMENT_MAX_LEN, COMMENT_URL_RE } from "../../shared/constants";
 
 export const comments = new Hono<AppEnv>();
@@ -404,6 +405,17 @@ comments.post("/", async (c) => {
   if (parentUserId != null && parentUserId !== uid) {
     c.executionCtx.waitUntil(
       checkAchievements(c.env, parentUserId).catch((e) => console.error("achievement check failed", e))
+    );
+  }
+  // Tell the commenter's followers who also track this title (issue #141),
+  // off the response path like the watch routes. Replies count — they're
+  // comments too, and the 24h dedupe keeps a thread from spamming. List
+  // comments don't fan out: there's no tracked show/movie to key on.
+  if (targetType !== "list") {
+    c.executionCtx.waitUntil(
+      notifyFollowersOfComment(c.env, uid, targetType as "episode" | "show" | "movie", targetId).catch((e) =>
+        console.error("notify failed", e)
+      )
     );
   }
   // Reddit auto-upvotes your own comment; best-effort — a miss just means a

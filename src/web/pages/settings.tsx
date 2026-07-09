@@ -140,13 +140,14 @@ function EmailVerification({ data, reload }: { data: EmailData; reload: () => vo
 
 interface NotificationPrefs {
   followWatch: boolean;
+  followComment: boolean;
   pushPublicKey: string | null;
 }
 
-// Notification settings (issue #129): the per-type toggle plus the Web Push
-// opt-in for this device. Push is layered on top — the in-app type toggle
-// gates whether the notification exists at all, push only changes whether
-// this device buzzes about it.
+// Notification settings (issues #129/#141): the per-type toggles plus the
+// Web Push opt-in for this device. Push is layered on top — the in-app type
+// toggles gate whether the notification exists at all, push only changes
+// whether this device buzzes about it.
 function NotificationSettings({ prefs, reload }: { prefs: NotificationPrefs; reload: () => void }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -163,11 +164,12 @@ function NotificationSettings({ prefs, reload }: { prefs: NotificationPrefs; rel
     };
   }, [supported]);
 
-  const toggleFollowWatch = async () => {
+  // One toggle per notification type; the PUT takes just the flipped key.
+  const togglePref = async (patch: { followWatch?: boolean; followComment?: boolean }) => {
     setBusy(true);
     setErr(null);
     try {
-      await put("/notifications/prefs", { followWatch: !prefs.followWatch });
+      await put("/notifications/prefs", patch);
       reload();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Something went wrong");
@@ -201,10 +203,30 @@ function NotificationSettings({ prefs, reload }: { prefs: NotificationPrefs; rel
   return (
     <>
       <label className="settings-toggle">
-        <input type="checkbox" checked={prefs.followWatch} disabled={busy} onChange={toggleFollowWatch} />
+        <input
+          type="checkbox"
+          checked={prefs.followWatch}
+          disabled={busy}
+          onChange={() => togglePref({ followWatch: !prefs.followWatch })}
+        />
         <span>
           Someone you follow watched a show
           <span className="settings-hint">Get a notification when people you follow watch shows and movies.</span>
+        </span>
+      </label>
+
+      <label className="settings-toggle">
+        <input
+          type="checkbox"
+          checked={prefs.followComment}
+          disabled={busy}
+          onChange={() => togglePref({ followComment: !prefs.followComment })}
+        />
+        <span>
+          Someone you follow commented on a show you track
+          <span className="settings-hint">
+            Get a notification when people you follow comment on shows and movies in your library.
+          </span>
         </span>
       </label>
 

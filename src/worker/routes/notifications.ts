@@ -31,7 +31,7 @@ notifications.get("/", async (c) => {
   // episode-title fix shows through and a since-deleted episode degrades to the
   // show-only text (issue #129 follow-up).
   const { results } = await c.env.DB.prepare(
-    `SELECT n.id, n.type, n.target_type, n.target_id, n.read_at, n.created_at,
+    `SELECT n.id, n.type, n.target_type, n.target_id, n.episode_id, n.read_at, n.created_at,
             u.username AS actor,
             COALESCE(s.title, m.title) AS title,
             COALESCE(s.poster_url, m.poster_url) AS poster,
@@ -51,6 +51,7 @@ notifications.get("/", async (c) => {
       type: string;
       target_type: "show" | "movie" | null;
       target_id: number | null;
+      episode_id: number | null;
       read_at: string | null;
       created_at: string;
       actor: string | null;
@@ -69,7 +70,11 @@ notifications.get("/", async (c) => {
     targetId: r.target_id,
     title: r.title,
     poster: r.poster,
-    // Present only for episode watches whose episode is still in the catalog.
+    // The raw episode id lets an episode-comment notification deep-link the
+    // episode page (where the thread lives); season/number/title below are
+    // the display fields and go null when the episode left the catalog.
+    episodeId: r.episode_id,
+    // Present only for episode rows whose episode is still in the catalog.
     season: r.ep_season,
     number: r.ep_number,
     episodeTitle: r.ep_title,
@@ -115,23 +120,35 @@ notifications.post("/read-all", async (c) => {
 // subscriptions it can never send to), and the client hides the push toggle
 // accordingly.
 notifications.get("/prefs", async (c) => {
-  const row = await c.env.DB.prepare("SELECT follow_watch FROM notification_prefs WHERE user_id = ?1 AND show_id = 0")
+  const row = await c.env.DB.prepare(
+    "SELECT follow_watch, follow_comment FROM notification_prefs WHERE user_id = ?1 AND show_id = 0"
+  )
     .bind(c.get("uid"))
-    .first<{ follow_watch: number }>();
+    .first<{ follow_watch: number; follow_comment: number }>();
   return c.json({
-    followWatch: row ? !!row.follow_watch : true, // default on, matching the fan-out's COALESCE
+    // Defaults on when no row, matching the fan-outs' COALESCE.
+    followWatch: row ? !!row.follow_watch : true,
+    followComment: row ? !!row.follow_comment : true,
     pushPublicKey: vapidConfigured(c.env) ? c.env.VAPID_PUBLIC_KEY! : null,
   });
 });
 
+// Partial update: the settings page flips one toggle at a time, so each key
+// is optional — but at least one must be present. An omitted key keeps its
+// stored value (or its default, on the INSERT arm).
 notifications.put("/prefs", async (c) => {
   const body = await c.req.json().catch(() => ({}));
-  if (typeof body.followWatch !== "boolean") return c.json({ error: "bad request" }, 400);
+  const followWatch = typeof body.followWatch === "boolean" ? (body.followWatch ? 1 : 0) : null;
+  const followComment = typeof body.followComment === "boolean" ? (body.followComment ? 1 : 0) : null;
+  if (followWatch == null && followComment == null) return c.json({ error: "bad request" }, 400);
   await c.env.DB.prepare(
-    `INSERT INTO notification_prefs (user_id, show_id, follow_watch) VALUES (?1, 0, ?2)
-     ON CONFLICT (user_id, show_id) DO UPDATE SET follow_watch = excluded.follow_watch`
+    `INSERT INTO notification_prefs (user_id, show_id, follow_watch, follow_comment)
+     VALUES (?1, 0, COALESCE(?2, 1), COALESCE(?3, 1))
+     ON CONFLICT (user_id, show_id) DO UPDATE SET
+       follow_watch = COALESCE(?2, follow_watch),
+       follow_comment = COALESCE(?3, follow_comment)`
   )
-    .bind(c.get("uid"), body.followWatch ? 1 : 0)
+    .bind(c.get("uid"), followWatch, followComment)
     .run();
   return c.json({ ok: true });
 });
