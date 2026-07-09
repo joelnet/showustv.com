@@ -98,20 +98,6 @@ export function Wordmark() {
   );
 }
 
-// Sign-in call to action for signed-out visitors on shared title pages
-// (issue #159): stands in where the tracking controls render for signed-in
-// users. `children` completes the sentence, e.g. "to track your episodes."
-export function SignInCta({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="signin-cta">
-      <Link to="/login" className="btn">
-        Sign in
-      </Link>
-      <span>{children}</span>
-    </div>
-  );
-}
-
 // Off-site links for detail pages (issue #12). IMDb links straight to the
 // title once the catalog row has synced its imdb_id; until then (and always
 // for Rotten Tomatoes and Reddit, which expose no stable id mapping) the

@@ -6,7 +6,7 @@ import { useApi, getCached, setCached, dropCached } from "../hooks";
 import { useAuth } from "../app";
 import { poster, backdrop } from "../img";
 import { fmtAirDate, fmtEpisodeDate } from "../format";
-import { Slate, ErrorNote, Progress, CheckButton, ScorePicker, ExternalLinks, SignInCta } from "../components/ui";
+import { Slate, ErrorNote, Progress, CheckButton, ScorePicker, ExternalLinks } from "../components/ui";
 import { ShowPageSkeleton } from "../components/skeleton";
 import { WhereToWatch, type WatchInfo } from "../components/where-to-watch";
 import { Comments } from "../components/comments";
@@ -134,10 +134,10 @@ function AlsoWatching({ showId }: { showId: string }) {
 }
 
 // Signed-out view of a show (issue #159): the public catalog content — hero,
-// overview, where-to-watch, seasons and air dates — with a sign-in CTA where
-// the tracking controls live for signed-in users. No watch state, progress,
-// rating, or comments render here; the server omits those fields from
-// anonymous payloads anyway.
+// overview, where-to-watch, seasons and air dates — plus the read-only
+// comment thread. No tracking controls, watch state, progress, or rating: the
+// server omits those fields from anonymous payloads. Seasons start collapsed
+// (openSeason is null for anonymous viewers; they expand what they want).
 function PublicShowView({
   data,
   openSeason,
@@ -173,7 +173,6 @@ function PublicShowView({
                 </p>
               )}
               <div className="show-actions">
-                <SignInCta>to follow this show and track your episodes.</SignInCta>
                 <ShareButton
                   title={show.title}
                   text={`Check out ${show.title} on Show Us TV.`}
@@ -231,9 +230,7 @@ function PublicShowView({
           })}
       </section>
 
-      <p className="settings-hint list-comments-note">
-        <Link to="/login">Sign in</Link> to read and post comments.
-      </p>
+      <Comments targetType="show" targetId={show.id} />
     </div>
   );
 }
@@ -254,7 +251,9 @@ export function ShowPage() {
   const [data, setData] = useState<ShowPayload | null>(seed ?? null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [openSeason, setOpenSeason] = useState<number | null>(seed ? pickOpenSeason(seed) : null);
+  // Signed-out viewers (issue #159) start with every season collapsed; only a
+  // signed-in visit auto-opens the season they're working through.
+  const [openSeason, setOpenSeason] = useState<number | null>(seed && user ? pickOpenSeason(seed) : null);
   // Once the user makes a (persisted) optimistic change, a background refetch
   // that started before it holds pre-change state — skip applying it so it
   // can't visually revert the change. The seed makes the page interactive
@@ -275,7 +274,7 @@ export function ShowPage() {
     const cached = getCached<ShowPayload>(cacheKey);
     setData(cached ?? null); // instant warm paint, or the skeleton on a cold load
     setError(null);
-    if (cached) setOpenSeason(pickOpenSeason(cached));
+    if (cached) setOpenSeason(user ? pickOpenSeason(cached) : null);
     api<ShowPayload>(cacheKey)
       .then((d) => {
         // Skip if unmounted/superseded, or if the user already made a change
@@ -284,8 +283,9 @@ export function ShowPage() {
         setCached(cacheKey, d); // refresh the shared cache for the next visit
         setData(d);
         // Only pick the open season on a cold load; a seed (and any season the
-        // user has since toggled) already settled it.
-        if (cached === undefined) setOpenSeason(pickOpenSeason(d));
+        // user has since toggled) already settled it. Anonymous viewers keep
+        // everything collapsed (issue #159).
+        if (cached === undefined) setOpenSeason(user ? pickOpenSeason(d) : null);
       })
       .catch((e) => {
         if (!live) return;

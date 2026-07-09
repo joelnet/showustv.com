@@ -12,7 +12,7 @@ import { ratings } from "./routes/ratings";
 import { lists } from "./routes/lists";
 import { profile } from "./routes/profile";
 import { social } from "./routes/social";
-import { comments } from "./routes/comments";
+import { comments, commentReads } from "./routes/comments";
 import { admin } from "./routes/admin";
 import { importer } from "./routes/import";
 import { notifications } from "./routes/notifications";
@@ -71,6 +71,13 @@ app.route("/public", pub);
 // prefixes — every watch/favorite/follow mutation included — falls through
 // to requireAuth below.
 app.route("/", titles);
+
+// Comment READS (issue #159): listing, load-more, continue-thread, and edit
+// history accept anonymous requests so a signed-out visitor on a shared title
+// link can read the thread. optionalAuth per route attaches the viewer's own
+// myVote/mine only when signed in. Every comment WRITE (post/edit/vote/
+// delete) stays in the `comments` router mounted behind requireAuth below.
+app.route("/comments", commentReads);
 
 // Everything below requires a session.
 app.use("*", requireAuth);

@@ -6,7 +6,7 @@ import { post, put, del } from "../api";
 import { useAuth } from "../app";
 import { poster } from "../img";
 import { fmtAirDate, fmtDateTime, runtimeStr } from "../format";
-import { ErrorNote, ScorePicker, EmojiPicker, ExternalLinks, SignInCta } from "../components/ui";
+import { ErrorNote, ScorePicker, EmojiPicker, ExternalLinks } from "../components/ui";
 import { MediaDetailSkeleton } from "../components/skeleton";
 import { WhereToWatch, type WatchInfo } from "../components/where-to-watch";
 import { IconCheck, IconBookmark, IconHeart, IconHeartOutline } from "../components/icons";
@@ -89,7 +89,6 @@ export function MoviePage() {
             {movie.overview && <p className="show-overview">{movie.overview}</p>}
 
             <div className="show-actions">
-              <SignInCta>to add this movie to your watchlist and mark it watched.</SignInCta>
               <ShareButton
                 title={movie.title}
                 text={`Check out ${movie.title} on Show Us TV.`}

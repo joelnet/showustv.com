@@ -1102,11 +1102,6 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
    right. The centered brand-only header above stays for profile/list pages. */
 .public-page .header--public { justify-content: space-between; }
 
-/* Sign-in call to action standing in for the tracking controls on public
-   title pages (issue #159). */
-.signin-cta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.signin-cta span { color: var(--muted); }
-
 /* Public list: detailed cards with poster + overview so a shared list reads
    like a recommendation, not a bare thumbnail wall (issue #87). */
 .pub-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }

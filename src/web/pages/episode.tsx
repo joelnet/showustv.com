@@ -6,7 +6,7 @@ import { post, put, del } from "../api";
 import { useAuth } from "../app";
 import { still } from "../img";
 import { fmtDateTime, fmtEpisodeDate, runtimeStr } from "../format";
-import { Slate, ErrorNote, ScorePicker, EmojiPicker, SignInCta } from "../components/ui";
+import { Slate, ErrorNote, ScorePicker, EmojiPicker } from "../components/ui";
 import { MediaDetailSkeleton } from "../components/skeleton";
 import { Comments } from "../components/comments";
 import { useCelebrate } from "../components/celebration";
@@ -67,9 +67,10 @@ export function EpisodePage() {
   // signed-out visitors on shared links (issue #159).
   const tz = user ? user.tz : Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-  // Signed-out visitors (shared links, issue #159): public catalog content
-  // with a sign-in CTA in place of the watch/rating controls, and a sign-in
-  // note where the comment thread renders for signed-in users.
+  // Signed-out visitors (shared links, issue #159): public catalog content,
+  // no watch/rating controls. Comments render read-only (the thread is public
+  // for a public title); the Comments component itself shows a quiet sign-in
+  // line in place of the composer.
   if (!user) {
     return (
       <div className="episode-page">
@@ -86,15 +87,9 @@ export function EpisodePage() {
             </div>
             <h1>{ep.title ?? `Episode ${ep.number}`}</h1>
             {ep.overview && <p className="episode-overview">{ep.overview}</p>}
-
-            <div className="episode-actions">
-              <SignInCta>to track and rate this episode.</SignInCta>
-            </div>
           </div>
         </div>
-        <p className="settings-hint list-comments-note">
-          <Link to="/login">Sign in</Link> to read and post comments.
-        </p>
+        <Comments targetType="episode" targetId={ep.id} />
       </div>
     );
   }

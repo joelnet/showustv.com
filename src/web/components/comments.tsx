@@ -165,7 +165,13 @@ export function Comments({ targetType, targetId }: { targetType: "episode" | "mo
           ))}
         </div>
       </div>
-      {verified ? (
+      {!user ? (
+        // Anonymous readers (shared links, issue #159) can read the thread but
+        // not write — a quiet sign-in line stands in for the composer.
+        <p className="comments-gate">
+          <Link to="/login">Sign in</Link> to join the conversation.
+        </p>
+      ) : verified ? (
         <Composer placeholder="What did you think?" submitLabel="Comment" onSubmit={postTopLevel} />
       ) : (
         <p className="comments-gate">
@@ -179,7 +185,8 @@ export function Comments({ targetType, targetId }: { targetType: "episode" | "mo
           <CommentsSkeleton />
         ) : null
       ) : thread.comments.length === 0 ? (
-        <p className="comments-empty">No comments yet. Start the thread.</p>
+        // "Start the thread" only makes sense for someone who can write.
+        <p className="comments-empty">{user ? "No comments yet. Start the thread." : "No comments yet."}</p>
       ) : (
         <div className="comment-list">
           {thread.comments.map((n) => (
@@ -216,10 +223,13 @@ function CommentItem({ node: n, act }: { node: CommentNode; act: Act }) {
     }
   };
 
+  // No profile timezone for a signed-out reader — the browser's own is the
+  // stand-in for the exact-time tooltips (issue #159).
+  const tz = user?.tz ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
   const author = n.user ?? "[deleted]";
   const points = `${n.score} ${n.score === 1 || n.score === -1 ? "point" : "points"}`;
   const when = (
-    <span className="comment-time mono" title={fmtDateTime(n.createdAt, user!.tz)}>
+    <span className="comment-time mono" title={fmtDateTime(n.createdAt, tz)}>
       {fmtAgo(n.createdAt)}
     </span>
   );
@@ -275,7 +285,7 @@ function CommentItem({ node: n, act }: { node: CommentNode; act: Act }) {
             <button
               type="button"
               className="link-btn edited-marker mono"
-              title={fmtDateTime(n.editedAt, user!.tz)}
+              title={fmtDateTime(n.editedAt, tz)}
               aria-expanded={!!history}
               onClick={toggleHistory}
             >
@@ -302,7 +312,7 @@ function CommentItem({ node: n, act }: { node: CommentNode; act: Act }) {
           <div className="comment-history">
             {history.map((v, i) => (
               <p key={i} className="comment-history-item">
-                <span className="mono" title={fmtDateTime(v.editedAt, user!.tz)}>
+                <span className="mono" title={fmtDateTime(v.editedAt, tz)}>
                   until {fmtAgo(v.editedAt)}:
                 </span>{" "}
                 {v.body}

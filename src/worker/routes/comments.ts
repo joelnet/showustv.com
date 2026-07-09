@@ -28,12 +28,23 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
 import type { AppEnv } from "../env";
+import { optionalAuth } from "../lib/session";
 import { nowIso } from "../lib/dates";
 import { checkAchievements } from "../lib/achievements";
 import { notifyFollowersOfComment } from "../lib/notifications";
 import { COMMENT_MAX_LEN, COMMENT_URL_RE } from "../../shared/constants";
 
+// Write endpoints (post/edit/vote/delete). Mounted behind requireAuth.
 export const comments = new Hono<AppEnv>();
+
+// Read endpoints (listing, load-more, continue-thread, edit history), split
+// out so index.ts can mount them BEFORE the auth wall: comments on public
+// titles are themselves public, so a signed-out visitor on a shared link can
+// read the thread (issue #159). Each route runs optionalAuth — a signed-in
+// reader still gets their own myVote/mine flags; an anonymous reader gets the
+// same public thread with myVote 0, mine false, and shadow-banned authors
+// ghosted (they never match the missing uid). No write path lives here.
+export const commentReads = new Hono<AppEnv>();
 
 const TARGET_TABLE: Record<string, { table: string; pk: string }> = {
   episode: { table: "episodes", pk: "id" },
@@ -147,7 +158,7 @@ async function loadTree(c: Context<AppEnv>, targetType: string, targetId: number
      ORDER BY c.created_at, c.id
      LIMIT ?4`
   )
-    .bind(c.get("uid"), targetType, targetId, FETCH_CAP)
+    .bind(c.get("uid") ?? null, targetType, targetId, FETCH_CAP)
     .all<Row>();
 
   const byId = new Map<number, TreeNode>();
@@ -237,6 +248,13 @@ function shapeLevel(
 const badTarget = (targetType: string, targetId: number) =>
   !TARGET_TABLE[targetType] || !Number.isInteger(targetId) || targetId <= 0;
 
+// Issue #159 opened comment reads on show/movie/episode titles only. List
+// comment threads keep their prior behavior — a session is required to read
+// them (the public-list page gates its comments behind sign-in), so an
+// anonymous request for a list thread stays a 401 exactly as before.
+const listReadBlocked = (c: Context<AppEnv>, targetType: string): boolean =>
+  targetType === "list" && c.get("uid") == null;
+
 // Commenting, voting, and deleting require a verified email (issue #13) —
 // reading (listings, load-more, thread) stays open to any signed-in user.
 async function verifiedEmail(c: Context<AppEnv>): Promise<boolean> {
@@ -261,13 +279,14 @@ function bodyError(body: string): string | null {
 
 // Continue-this-thread: the subtree below comment :id, re-rooted (depth and
 // budget reset), like following a Reddit permalink deeper into a thread.
-comments.get("/:id/thread", async (c) => {
+commentReads.get("/:id/thread", optionalAuth, async (c) => {
   const id = Number(c.req.param("id"));
   if (!Number.isInteger(id) || id <= 0) return c.json({ error: "bad id" }, 400);
   const target = await c.env.DB.prepare("SELECT target_type, target_id FROM comments WHERE id = ?1")
     .bind(id)
     .first<{ target_type: string; target_id: number }>();
   if (!target) return c.json({ error: "not found" }, 404);
+  if (listReadBlocked(c, target.target_type)) return c.json({ error: "unauthorized" }, 401);
   const { byId } = await loadTree(c, target.target_type, target.target_id);
   const node = byId.get(id);
   if (!node || !node.visible) return c.json({ error: "not found" }, 404);
@@ -277,17 +296,19 @@ comments.get("/:id/thread", async (c) => {
 });
 
 // Edit history: the versions a comment's body replaced, newest first.
-// Public to any signed-in reader — visible history keeps edits honest.
-// Deleted comments 404 (their history is wiped on delete).
-comments.get("/:id/history", async (c) => {
+// Public — visible history keeps edits honest, and the comment it belongs to
+// is already public. Deleted comments 404 (their history is wiped on delete).
+commentReads.get("/:id/history", optionalAuth, async (c) => {
   const id = Number(c.req.param("id"));
   if (!Number.isInteger(id) || id <= 0) return c.json({ error: "bad id" }, 400);
   const cm = await c.env.DB.prepare(
-    "SELECT c.deleted_at, c.user_id, u.shadow_banned FROM comments c JOIN users u ON u.id = c.user_id WHERE c.id = ?1"
+    "SELECT c.target_type, c.deleted_at, c.user_id, u.shadow_banned FROM comments c JOIN users u ON u.id = c.user_id WHERE c.id = ?1"
   )
     .bind(id)
-    .first<{ deleted_at: string | null; user_id: number; shadow_banned: number }>();
+    .first<{ target_type: string; deleted_at: string | null; user_id: number; shadow_banned: number }>();
   if (!cm || cm.deleted_at) return c.json({ error: "not found" }, 404);
+  // List comment history keeps its pre-#159 sign-in requirement.
+  if (listReadBlocked(c, cm.target_type)) return c.json({ error: "unauthorized" }, 401);
   // A ghost's comment reads as [deleted] to others — its history must too.
   if (cm.shadow_banned && cm.user_id !== c.get("uid")) return c.json({ error: "not found" }, 404);
   const { results } = await c.env.DB.prepare(
@@ -300,10 +321,13 @@ comments.get("/:id/history", async (c) => {
 
 // Full listing for a target. `count` is every visible comment (placeholders
 // included), even the ones beyond this page's budget.
-comments.get("/:type/:id", async (c) => {
-  const targetType = c.req.param("type");
+commentReads.get("/:type/:id", optionalAuth, async (c) => {
+  // Interposing optionalAuth widens Hono's param type to string | undefined;
+  // "" fails badTarget's TARGET_TABLE lookup, so a missing type still 400s.
+  const targetType = c.req.param("type") ?? "";
   const targetId = Number(c.req.param("id"));
   if (badTarget(targetType, targetId)) return c.json({ error: "bad target" }, 400);
+  if (listReadBlocked(c, targetType)) return c.json({ error: "unauthorized" }, 401);
   if (await listCommentsClosed(c, targetType, targetId)) return c.json({ comments: [], more: null, count: 0 });
   const sort = parseSort(c.req.query("sort"));
   const { roots, total } = await loadTree(c, targetType, targetId);
@@ -312,13 +336,15 @@ comments.get("/:type/:id", async (c) => {
 });
 
 // Expand a load-more stub: shape the requested subtrees (Reddit's
-// morechildren). Ids resolve inside the target's tree, so foreign or pruned
-// ids just drop out.
-comments.post("/more", async (c) => {
+// morechildren). A read despite the POST verb (the id list can be large), so
+// it lives with the other reads and takes optionalAuth. Ids resolve inside
+// the target's tree, so foreign or pruned ids just drop out.
+commentReads.post("/more", optionalAuth, async (c) => {
   const b = await c.req.json().catch(() => ({}));
   const targetType = String(b.target_type ?? "");
   const targetId = Number(b.target_id);
   if (badTarget(targetType, targetId)) return c.json({ error: "bad target" }, 400);
+  if (listReadBlocked(c, targetType)) return c.json({ error: "unauthorized" }, 401);
   if (await listCommentsClosed(c, targetType, targetId)) return c.json({ comments: [], more: null });
   const sort = parseSort(typeof b.sort === "string" ? b.sort : undefined);
   const rawIds: unknown[] = Array.isArray(b.ids) ? b.ids : [];
