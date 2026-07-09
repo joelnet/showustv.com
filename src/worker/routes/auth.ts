@@ -50,7 +50,7 @@ auth.post("/register", async (c) => {
         .first<{ id: number }>();
       c.set("uid", row!.id); // attribute this request in the activity log
       await issueSession(c, row!.id, tz);
-      return c.json({ user: { id: row!.id, username, tz, emailVerified: false, isAdmin: false } });
+      return c.json({ user: { id: row!.id, username, tz, emailVerified: false, isAdmin: false, installed: false } });
     } catch (e: any) {
       const msg = String(e.message);
       if (msg.includes("users.email")) return c.json({ error: "That email is already in use" }, 409);
@@ -68,7 +68,7 @@ auth.post("/login", async (c) => {
   const password = String(body.password ?? "");
 
   const user = await c.env.DB.prepare(
-    "SELECT id, username, pw_hash, tz, email_verified_at, is_admin FROM users WHERE (email = ?1 OR username = ?1) AND deleted_at IS NULL"
+    "SELECT id, username, pw_hash, tz, email_verified_at, is_admin, installed_at FROM users WHERE (email = ?1 OR username = ?1) AND deleted_at IS NULL"
   )
     .bind(login)
     .first<{
@@ -78,6 +78,7 @@ auth.post("/login", async (c) => {
       tz: string;
       email_verified_at: string | null;
       is_admin: number;
+      installed_at: string | null;
     }>();
 
   if (!user || !(await verifyPassword(password, user.pw_hash))) {
@@ -93,6 +94,7 @@ auth.post("/login", async (c) => {
       tz: user.tz,
       emailVerified: !!user.email_verified_at,
       isAdmin: !!user.is_admin,
+      installed: !!user.installed_at,
     },
   });
 });
@@ -108,14 +110,41 @@ auth.post("/logout", async (c) => {
 
 auth.get("/me", requireAuth, async (c) => {
   const user = await c.env.DB.prepare(
-    "SELECT id, username, tz, (email_verified_at IS NOT NULL) AS verified, is_admin FROM users WHERE id = ?1"
+    "SELECT id, username, tz, (email_verified_at IS NOT NULL) AS verified, is_admin, (installed_at IS NOT NULL) AS installed FROM users WHERE id = ?1"
   )
     .bind(c.get("uid"))
-    .first<{ id: number; username: string; tz: string; verified: number; is_admin: number }>();
+    .first<{ id: number; username: string; tz: string; verified: number; is_admin: number; installed: number }>();
   if (!user) return c.json({ error: "unauthorized" }, 401);
   return c.json({
-    user: { id: user.id, username: user.username, tz: user.tz, emailVerified: !!user.verified, isAdmin: !!user.is_admin },
+    user: {
+      id: user.id,
+      username: user.username,
+      tz: user.tz,
+      emailVerified: !!user.verified,
+      isAdmin: !!user.is_admin,
+      installed: !!user.installed,
+    },
   });
+});
+
+// A confirmed PWA install self-reports here (issue #145): Chromium's
+// appinstalled event, or the first signed-in standalone boot on iOS (which
+// fires no install event at all). The activity_log middleware records the
+// POST, so the install lands in the activity logs attributed and timestamped
+// like every other user action; installed_at keeps its set-once semantics
+// from migration 0015. Idempotent: the conditional UPDATE is atomic, so
+// racing pings (several open tabs all receiving appinstalled) yield exactly
+// one 201 — the tracked install event — and the client's `installed` flag
+// stops re-pings on later standalone launches. A duplicate ping still gets
+// an ordinary request-audit row (status 200) like every mutating endpoint
+// does; only the 201 row means "install recorded". Unlike the pre-#82 flag,
+// nothing gates the Install button on this.
+auth.post("/installed", requireAuth, async (c) => {
+  const { meta } = await c.env.DB.prepare("UPDATE users SET installed_at = ?2 WHERE id = ?1 AND installed_at IS NULL")
+    .bind(c.get("uid"), nowIso())
+    .run();
+  // 201 = first transition (the tracked install); 200 = already recorded.
+  return c.json({ ok: true }, (meta.changes ?? 0) > 0 ? 201 : 200);
 });
 
 // Consume a verification token. POST only: the emailed link lands on the

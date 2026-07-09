@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, NavLink, Link, Outlet, Navigate, useNavigate } from "react-router-dom";
-import { api, ApiError } from "./api";
+import { api, post, ApiError } from "./api";
 import { setOfflineUser, useOffline } from "./offline";
 import { Spinner, Wordmark, SiteFooter } from "./components/ui";
 import { ConfirmProvider } from "./components/dialog";
@@ -36,6 +36,12 @@ export interface User {
   tz: string;
   emailVerified: boolean;
   isAdmin: boolean;
+  // True once this user's PWA install has been recorded (issue #145). Only
+  // guards the install self-report in App so re-launches don't re-ping — it
+  // must never gate the Install button, which stays on runtime isStandalone()
+  // so it self-heals after an iOS uninstall (issue #82). Older cached users
+  // may lack it — treat a missing value as false.
+  installed: boolean;
 }
 
 // Last-known signed-in identity, mirrored to localStorage (issue #51). On an
@@ -245,6 +251,34 @@ export function App() {
   useEffect(() => {
     setOfflineUser(user?.id ?? null);
   }, [user]);
+
+  // Track a successful install in the activity logs (issue #145). Chromium
+  // fires appinstalled only when an install actually completes (never on a
+  // dismissed prompt); iOS fires nothing, so the installed app self-reports
+  // on its first signed-in standalone boot instead. The server records it in
+  // activity_log via POST /auth/installed (set-once, so races can't double-
+  // log) and `user.installed` stops re-pings on later launches. Installs made
+  // while signed out are caught by the standalone-boot path after sign-in.
+  useEffect(() => {
+    if (!user || user.installed) return;
+    // `stale` guards the async completion: if the user signs out (or switches
+    // accounts) while the ping is in flight, cleanup has run and the captured
+    // `user` must not be written back into state/localStorage.
+    let stale = false;
+    const report = () => {
+      post("/auth/installed")
+        .then(() => {
+          if (!stale) setUser({ ...user, installed: true });
+        })
+        .catch(() => {}); // best-effort — retried on the next standalone launch
+    };
+    if (isStandalone()) report();
+    window.addEventListener("appinstalled", report);
+    return () => {
+      stale = true;
+      window.removeEventListener("appinstalled", report);
+    };
+  }, [user, setUser]);
 
   if (!booted) return <Spinner />;
 
