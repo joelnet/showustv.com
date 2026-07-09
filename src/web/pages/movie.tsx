@@ -4,10 +4,11 @@ import { useApi } from "../hooks";
 import { mediaPath, idFromParam } from "../paths";
 import { post, put, del } from "../api";
 import { useAuth } from "../app";
-import { poster, providerLogo } from "../img";
+import { poster } from "../img";
 import { fmtAirDate, fmtDateTime, runtimeStr } from "../format";
 import { ErrorNote, ScorePicker, EmojiPicker, ExternalLinks } from "../components/ui";
 import { MediaDetailSkeleton } from "../components/skeleton";
+import { WhereToWatch, type WatchInfo } from "../components/where-to-watch";
 import { IconCheck, IconBookmark, IconHeart, IconHeartOutline } from "../components/icons";
 import { AddToList } from "./lists";
 
@@ -29,7 +30,7 @@ interface MoviePayload {
     rating: { score: number | null; emoji: string | null } | null;
     favorited: boolean;
   };
-  providers: { name: string; logo: string | null }[];
+  watch: WatchInfo;
 }
 
 export function MoviePage() {
@@ -62,7 +63,7 @@ export function MoviePage() {
   if (error) return <ErrorNote message={error} />;
   if (!data) return null;
 
-  const { movie, user: mine, providers } = data;
+  const { movie, user: mine, watch } = data;
   const tz = user!.tz;
   const state = queuedState ? (queuedState === "watched" ? "watched" : null) : mine.state;
   const favorited = favedOverride ?? mine.favorited;
@@ -161,15 +162,7 @@ export function MoviePage() {
             />
           </div>
 
-          {providers.length > 0 && (
-            <div className="providers">
-              <span className="providers-label">Where to watch</span>
-              {providers.map((p) =>
-                p.logo ? <img key={p.name} src={providerLogo(p.logo)!} alt={p.name} title={p.name} /> : <span key={p.name}>{p.name}</span>
-              )}
-              <span className="justwatch">Streaming data by JustWatch</span>
-            </div>
-          )}
+          <WhereToWatch watch={watch} />
 
           <ExternalLinks title={movie.title} imdbId={movie.imdbId} />
         </div>

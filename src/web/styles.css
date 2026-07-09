@@ -832,9 +832,27 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 }
 .emoji-btn.is-on { border-color: var(--amber); background: var(--amber-soft); filter: none; }
 
-.providers { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+/* Where to watch (issue #144): label · provider shelf · attribution caption.
+   The shelf carries the same language as the external-chip row below it —
+   surface riser, 1px line, pill — and links out to the title's TMDB watch
+   page. Label, shelf, and credit are single flex items, so on wrap each moves
+   as a unit instead of logos and credit interleaving. */
+.providers { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; margin-bottom: 20px; }
 .providers-label { color: var(--muted); font-size: 13px; }
-.providers img { width: 34px; height: 34px; border-radius: 8px; }
+.providers-shelf {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 12px;
+}
+.providers-shelf img { display: block; width: 26px; height: 26px; border-radius: 6px; }
+.provider-name { color: var(--text); font-size: 13px; font-weight: 500; white-space: nowrap; }
+.providers-out { color: var(--muted); font-size: 13px; }
+a.providers-shelf:hover { border-color: var(--amber); text-decoration: none; }
+a.providers-shelf:hover .providers-out { color: var(--amber); }
 .justwatch { color: var(--muted); font-size: 11px; }
 
 /* Off-site link chips (IMDb / Rotten Tomatoes / Reddit) — same shelf

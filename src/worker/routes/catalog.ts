@@ -118,7 +118,7 @@ catalog.get("/shows/:id", async (c) => {
       total: regular.length,
     },
     nextEpisode,
-    providers: await watchProviders(c.env, "tv", id),
+    watch: await watchProviders(c.env, "tv", id),
   });
 });
 
@@ -163,7 +163,7 @@ catalog.get("/movies/:id", async (c) => {
       rating: rating ? { score: rating.score, emoji: rating.emoji_reaction } : null,
       favorited: favR.results.length > 0,
     },
-    providers: await watchProviders(c.env, "movie", id),
+    watch: await watchProviders(c.env, "movie", id),
   });
 });
 

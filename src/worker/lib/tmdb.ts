@@ -194,16 +194,118 @@ export async function ensureMovie(env: Env, tmdbId: number, force = false): Prom
     .run();
 }
 
-// US flatrate providers for the where-to-watch strip. Requires JustWatch
-// attribution wherever rendered.
-export async function watchProviders(env: Env, kind: "tv" | "movie", tmdbId: number): Promise<any[]> {
+// TMDB models every ad tier and third-party reseller as its own provider, so
+// a title's flatrate list can carry the same service several times: Netflix +
+// "Netflix Standard with Ads", or "HBO Max" + "HBO Max Amazon Channel". The
+// strip wants one row per underlying service, so variants are collapsed onto
+// a canonical service id. Ids are stable across TMDB rebrands (names are
+// not), which is why the curated table is keyed on ids.
+const PROVIDER_ALIASES: Record<number, number> = {
+  175: 8, // Netflix Kids -> Netflix
+  1796: 8, // Netflix Standard with Ads -> Netflix
+  613: 9, // Amazon Prime Video Free with Ads -> Amazon Prime Video
+  2100: 9, // Amazon Prime Video with Ads -> Amazon Prime Video
+  384: 1899, // HBO Max (legacy id) -> HBO Max
+  1825: 1899, // HBO Max Amazon Channel -> HBO Max
+  387: 386, // Peacock Premium Plus -> Peacock Premium
+  2553: 386, // Peacock Premium Plus Amazon Channel -> Peacock Premium
+  582: 531, // Paramount+ Amazon Channel -> Paramount+
+  633: 531, // Paramount+ Roku Premium Channel -> Paramount+
+  1770: 531, // Paramount+ with Showtime -> Paramount+
+  1853: 531, // Paramount Plus Apple TV Channel -> Paramount+
+  2303: 531, // Paramount Plus Premium -> Paramount+
+  2616: 531, // Paramount Plus Essential -> Paramount+
+  2243: 350, // Apple TV Amazon Channel -> Apple TV+
+};
+
+// Ad-supported tiers: shown only when no other tier of the same service is
+// listed. "Can I watch this right now" doesn't care which tier you're on.
+const AD_TIER_IDS = new Set([613, 1796, 2100, 2616]);
+
+// The long tail of channel resellers (hundreds of "<Service> Amazon Channel",
+// "<Service> Apple TV Channel", "<Service> Roku Premium Channel" entries)
+// follows a strict naming scheme, so any reseller not in the curated table
+// collapses into its base service when that service appears in the same
+// payload. The match is scoped to one response and identity still resolves to
+// the base entry's stable id — this never merges two unrelated services.
+const RESELLER_SUFFIX = /\s*(?:amazon|apple\s*tv|roku\s*premium)\s+channel\s*$/i;
+
+// "Paramount Plus Apple TV Channel" and "Paramount+" must meet: lowercase,
+// spell out "+", then drop everything non-alphanumeric (JustWatch is loose
+// with spacing, e.g. "Discovery +" vs "Discovery+").
+const normalizeName = (name: string) => name.toLowerCase().replace(/\+/g, " plus ").replace(/[^a-z0-9]+/g, "");
+
+export interface WatchProvider {
+  name: string;
+  logo: string | null;
+}
+
+// Collapse a TMDB flatrate list to one entry per underlying service,
+// preserving TMDB's display_priority order. Within a service, the base entry
+// beats resellers, and anything beats an ad tier.
+export function dedupeWatchProviders(entries: any[]): WatchProvider[] {
+  // TMDB sends the list priority-sorted already; sort defensively (stable,
+  // and entries without a priority keep their given order at the end).
+  const prio = (p: any) => (typeof p.display_priority === "number" ? p.display_priority : Number.MAX_SAFE_INTEGER);
+  const sorted = [...entries].sort((a, b) => prio(a) - prio(b));
+
+  // Non-reseller entries indexed by normalized name, for the generic collapse.
+  const baseIdByName = new Map<string, number>();
+  for (const p of sorted) {
+    const name: string = p.provider_name ?? "";
+    if (RESELLER_SUFFIX.test(name)) continue;
+    const key = normalizeName(name);
+    if (key && !baseIdByName.has(key)) baseIdByName.set(key, PROVIDER_ALIASES[p.provider_id] ?? p.provider_id);
+  }
+
+  const serviceId = (p: any): number => {
+    const aliased = PROVIDER_ALIASES[p.provider_id];
+    if (aliased !== undefined) return aliased;
+    const name: string = p.provider_name ?? "";
+    if (RESELLER_SUFFIX.test(name)) {
+      const base = baseIdByName.get(normalizeName(name.replace(RESELLER_SUFFIX, "")));
+      if (base !== undefined) return base;
+    }
+    return p.provider_id;
+  };
+
+  // Lower rank wins the row; ties keep the earlier (higher-priority) entry.
+  // Base id, then non-reseller variants (legacy ids, plan tiers), then
+  // resellers, then ad tiers.
+  const rank = (p: any, canonical: number) => {
+    if (p.provider_id === canonical) return 0;
+    if (AD_TIER_IDS.has(p.provider_id)) return 3;
+    return RESELLER_SUFFIX.test(p.provider_name ?? "") ? 2 : 1;
+  };
+
+  // Map insertion order fixes each service at its first appearance, so e.g.
+  // HBO Max keeps the prominent slot its Amazon Channel row held even though
+  // the base entry sorts near the end.
+  const byService = new Map<number, any>();
+  for (const p of sorted) {
+    const id = serviceId(p);
+    const current = byService.get(id);
+    if (!current || rank(p, id) < rank(current, id)) byService.set(id, p);
+  }
+
+  return [...byService.values()].map((p) => ({ name: p.provider_name, logo: p.logo_path ?? null }));
+}
+
+export interface WatchInfo {
+  link: string | null;
+  providers: WatchProvider[];
+}
+
+// US flatrate providers for the where-to-watch strip, one row per service.
+// TMDB's watch-provider terms: attribute JustWatch wherever the data renders,
+// and send users to the returned TMDB watch page (which holds the real deep
+// links) rather than deep-linking providers directly.
+export async function watchProviders(env: Env, kind: "tv" | "movie", tmdbId: number): Promise<WatchInfo> {
   try {
     const data = await tmdb(env, `/${kind}/${tmdbId}/watch/providers`, {}, 86400);
-    return (data.results?.US?.flatrate ?? []).map((p: any) => ({
-      name: p.provider_name,
-      logo: p.logo_path,
-    }));
+    const us = data.results?.US;
+    return { link: us?.link ?? null, providers: dedupeWatchProviders(us?.flatrate ?? []) };
   } catch {
-    return [];
+    return { link: null, providers: [] };
   }
 }

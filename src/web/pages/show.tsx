@@ -4,10 +4,11 @@ import { api, post, put, del } from "../api";
 import { mediaPath, idFromParam } from "../paths";
 import { useApi } from "../hooks";
 import { useAuth } from "../app";
-import { poster, backdrop, providerLogo } from "../img";
+import { poster, backdrop } from "../img";
 import { fmtAirDate, fmtEpisodeDate } from "../format";
 import { Slate, ErrorNote, Progress, CheckButton, ScorePicker, ExternalLinks } from "../components/ui";
 import { ShowPageSkeleton } from "../components/skeleton";
+import { WhereToWatch, type WatchInfo } from "../components/where-to-watch";
 import { Comments } from "../components/comments";
 import { useCelebrate } from "../components/celebration";
 import { IconCheck, IconPlus, IconChevron, IconBookmark, IconHeart, IconHeartOutline } from "../components/icons";
@@ -46,7 +47,7 @@ interface ShowPayload {
   };
   progress: { watched: number; aired: number; total: number };
   nextEpisode: Episode | null;
-  providers: { name: string; logo: string | null }[];
+  watch: WatchInfo;
 }
 
 // Apply a watched-state change locally; progress counts only aired regular
@@ -158,7 +159,7 @@ export function ShowPage() {
   if (error) return <ErrorNote message={error} />;
   if (!data) return <ShowPageSkeleton />;
 
-  const { show, seasons, user: mine, progress, nextEpisode, providers } = data;
+  const { show, seasons, user: mine, progress, nextEpisode, watch } = data;
   const tz = user!.tz;
 
   // Whether the show has any trace in the account. Unfollowing keeps watch
@@ -356,15 +357,7 @@ export function ShowPage() {
         />
       </div>
 
-      {providers.length > 0 && (
-        <div className="providers">
-          <span className="providers-label">Where to watch</span>
-          {providers.map((p) =>
-            p.logo ? <img key={p.name} src={providerLogo(p.logo)!} alt={p.name} title={p.name} /> : <span key={p.name}>{p.name}</span>
-          )}
-          <span className="justwatch">Streaming data by JustWatch</span>
-        </div>
-      )}
+      <WhereToWatch watch={watch} />
 
       <ExternalLinks title={show.title} imdbId={show.imdbId} />
 
