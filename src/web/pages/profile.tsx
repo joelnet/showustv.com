@@ -10,6 +10,7 @@ import { ACHIEVEMENTS } from "../../shared/achievements";
 import { useAuth } from "../app";
 import { useConfirm } from "../components/dialog";
 import { Empty, ErrorNote } from "../components/ui";
+import { ShareButton } from "../components/share";
 import { ProfileSkeleton } from "../components/skeleton";
 import {
   IconHeart,
@@ -281,6 +282,15 @@ export function ProfilePage() {
           >
             {copied ? "Copied ✓" : "Copy link"}
           </button>
+          {/* Native share (issue #147) — hidden where unsupported; the copy
+              link above already covers those browsers. */}
+          <ShareButton
+            variant="link"
+            fallback="hide"
+            title={`${data.username} on Show Us TV`}
+            text={`See what ${data.username} has been watching on Show Us TV.`}
+            path={`/u/${data.username}`}
+          />
         </p>
       )}
 

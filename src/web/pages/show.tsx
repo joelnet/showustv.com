@@ -13,6 +13,7 @@ import { Comments } from "../components/comments";
 import { useCelebrate } from "../components/celebration";
 import { IconCheck, IconPlus, IconChevron, IconBookmark, IconHeart, IconHeartOutline } from "../components/icons";
 import { useConfirm } from "../components/dialog";
+import { ShareButton } from "../components/share";
 import { AddToList } from "./lists";
 
 interface Episode {
@@ -315,6 +316,11 @@ export function ShowPage() {
                   {mine.favorited ? <IconHeart size={18} /> : <IconHeartOutline size={18} />}
                 </button>
                 <AddToList type="show" id={show.id} />
+                <ShareButton
+                  title={show.title}
+                  text={`Check out ${show.title} on Show Us TV.`}
+                  path={mediaPath("show", show.id, show.title)}
+                />
                 {inLibrary && (
                   <button className="link-btn link-btn--danger" onClick={removeShow} disabled={busy}>
                     Remove

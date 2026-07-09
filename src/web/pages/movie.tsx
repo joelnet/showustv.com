@@ -10,6 +10,7 @@ import { ErrorNote, ScorePicker, EmojiPicker, ExternalLinks } from "../component
 import { MediaDetailSkeleton } from "../components/skeleton";
 import { WhereToWatch, type WatchInfo } from "../components/where-to-watch";
 import { IconCheck, IconBookmark, IconHeart, IconHeartOutline } from "../components/icons";
+import { ShareButton } from "../components/share";
 import { AddToList } from "./lists";
 
 interface MoviePayload {
@@ -143,6 +144,11 @@ export function MoviePage() {
               {favorited ? <IconHeart size={18} /> : <IconHeartOutline size={18} />}
             </button>
             <AddToList type="movie" id={movie.id} />
+            <ShareButton
+              title={movie.title}
+              text={`Check out ${movie.title} on Show Us TV.`}
+              path={mediaPath("movie", movie.id, movie.title)}
+            />
           </div>
           {state === "watched" && mine.watchedAt && (
             <p className="watched-note mono">

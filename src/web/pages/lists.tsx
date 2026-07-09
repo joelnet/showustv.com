@@ -19,6 +19,7 @@ import {
   IconComment,
 } from "../components/icons";
 import { Comments } from "../components/comments";
+import { ShareButton } from "../components/share";
 import { isAnime } from "../../shared/anime";
 import { useConfirm } from "../components/dialog";
 
@@ -298,6 +299,15 @@ export function ListDetailPage() {
           >
             {copied ? "Copied ✓" : "Copy link"}
           </button>
+          {/* Native share (issue #147) — hidden where unsupported; the copy
+              link above already covers those browsers. */}
+          <ShareButton
+            variant="link"
+            fallback="hide"
+            title={data.list.name}
+            text={`A list by ${user!.username} on Show Us TV.`}
+            path={publicListPath(user!.username, data.list.id, data.list.name)}
+          />
         </p>
       )}
 

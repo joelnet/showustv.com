@@ -12,6 +12,7 @@ import { poster } from "../img";
 import { mediaPath, publicListPath, type MediaType } from "../paths";
 import { fmtAgo } from "../format";
 import { Wordmark, SmpteBars, ErrorNote, Slate, SiteFooter } from "../components/ui";
+import { ShareButton } from "../components/share";
 import { ProfileSkeleton } from "../components/skeleton";
 import { IconList, IconCheck, IconPlus, IconEye } from "../components/icons";
 import { StatsGrid, type WatchStats } from "./profile";
@@ -95,6 +96,8 @@ type Relation = "none" | "following" | "self";
 
 // Follow/unfollow affordance, shown only to signed-in visitors on someone
 // else's profile. Social actions never queue offline — failures show inline.
+// Renders as a fragment inside the page's .public-actions row so it sits
+// beside the share button.
 function FollowActions({ username }: { username: string }) {
   const confirm = useConfirm();
   const [relation, setRelation] = useState<Relation | null>(null);
@@ -135,7 +138,7 @@ function FollowActions({ username }: { username: string }) {
   };
 
   return (
-    <div className="public-actions">
+    <>
       {relation === "none" && (
         <button className="btn" disabled={busy} onClick={act(() => post("/social/follow", { username }), "following")}>
           <IconPlus size={15} /> {followsYou ? "Follow back" : "Follow"}
@@ -161,7 +164,7 @@ function FollowActions({ username }: { username: string }) {
       )}
       {followsYou && <span className="friend-note">Follows you</span>}
       {error && <ErrorNote message={error} />}
-    </div>
+    </>
   );
 }
 
@@ -299,7 +302,16 @@ export function PublicProfilePage() {
           <>
             <h1 className="page-title">{data.username}</h1>
             <p className="public-byline">Watching TV on Show Us TV</p>
-            {user && <FollowActions username={data.username} />}
+            {/* This page only renders for public profiles (the server 404s
+                private ones), so the share affordance is always safe here. */}
+            <div className="public-actions">
+              <ShareButton
+                title={`${data.username} on Show Us TV`}
+                text={`See what ${data.username} has been watching on Show Us TV.`}
+                path={`/u/${data.username}`}
+              />
+              {user && <FollowActions username={data.username} />}
+            </div>
             {user?.isAdmin && <AdminTools username={data.username} tz={user.tz} />}
             <StatsGrid stats={data.stats} />
             <PublicAchievements ids={data.achievements} />

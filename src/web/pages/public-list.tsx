@@ -5,6 +5,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useApi } from "../hooks";
 import { useAuth } from "../app";
 import { Wordmark, SmpteBars, SiteFooter } from "../components/ui";
+import { ShareButton } from "../components/share";
 import { PubListSkeleton } from "../components/skeleton";
 import { Comments } from "../components/comments";
 import { poster } from "../img";
@@ -66,6 +67,15 @@ export function PublicListPage() {
               )}{" "}
               · {data.items.length} {data.items.length === 1 ? "title" : "titles"}
             </p>
+            {/* This page only renders for public lists (the server 404s
+                private ones), so the share affordance is always safe here. */}
+            <div className="public-actions">
+              <ShareButton
+                title={data.list.name}
+                text={`A list by ${data.list.username} on Show Us TV.`}
+                path={publicListPath(data.list.username, data.list.id, data.list.name)}
+              />
+            </div>
             {data.list.preamble && <p className="list-preamble">{data.list.preamble}</p>}
             <ul className="pub-list">
               {data.items.map((it) => {
