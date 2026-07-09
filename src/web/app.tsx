@@ -104,6 +104,28 @@ function Shell() {
   );
 }
 
+// Chrome for signed-out visitors on shared title pages (issue #159): the
+// brand header with a sign-in affordance instead of the signed-in app nav,
+// mirroring the public profile/list pages (which carry their own header).
+function PublicShell() {
+  return (
+    <div className="public-page">
+      <header className="header header--public">
+        <Link to="/" className="header-brand" aria-label="Show Us TV, home">
+          <Wordmark />
+        </Link>
+        <Link to="/login" className="btn btn-ghost">
+          Sign in
+        </Link>
+      </header>
+      <main className="main">
+        <Outlet />
+      </main>
+      <SiteFooter />
+    </div>
+  );
+}
+
 function Header() {
   const navigate = useNavigate();
   const { available, ios, install } = useInstallPrompt();
@@ -315,6 +337,17 @@ export function App() {
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/u/:username/lists/:id" element={<PublicListPage />} />
           <Route path="/u/:username" element={<PublicProfilePage />} />
+          {/* Shared title pages (issue #159): signed-out visitors can open
+              show/episode/movie links with public chrome instead of bouncing
+              to /login. Signed-in users skip these (the branch doesn't
+              register) and keep the full app Shell versions below. */}
+          {!user && (
+            <Route element={<PublicShell />}>
+              <Route path="/show/:id" element={<ShowPage />} />
+              <Route path="/episode/:id" element={<EpisodePage />} />
+              <Route path="/movie/:id" element={<MoviePage />} />
+            </Route>
+          )}
           <Route element={<Shell />}>
             <Route path="/" element={<WatchNext />} />
             <Route path="/watch/:key" element={<WatchSectionPage />} />

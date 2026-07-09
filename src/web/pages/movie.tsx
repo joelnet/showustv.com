@@ -6,7 +6,7 @@ import { post, put, del } from "../api";
 import { useAuth } from "../app";
 import { poster } from "../img";
 import { fmtAirDate, fmtDateTime, runtimeStr } from "../format";
-import { ErrorNote, ScorePicker, EmojiPicker, ExternalLinks } from "../components/ui";
+import { ErrorNote, ScorePicker, EmojiPicker, ExternalLinks, SignInCta } from "../components/ui";
 import { MediaDetailSkeleton } from "../components/skeleton";
 import { WhereToWatch, type WatchInfo } from "../components/where-to-watch";
 import { IconCheck, IconBookmark, IconHeart, IconHeartOutline } from "../components/icons";
@@ -24,13 +24,15 @@ interface MoviePayload {
     genres: string[];
     imdbId: string | null;
   };
+  // Null on the anonymous payload (issue #159) — the server never ships
+  // user-shaped fields without a session.
   user: {
     state: "watchlist" | "watched" | null;
     watchedAt: string | null;
     playCount: number;
     rating: { score: number | null; emoji: string | null } | null;
     favorited: boolean;
-  };
+  } | null;
   watch: WatchInfo;
 }
 
@@ -64,8 +66,53 @@ export function MoviePage() {
   if (error) return <ErrorNote message={error} />;
   if (!data) return null;
 
-  const { movie, user: mine, watch } = data;
-  const tz = user!.tz;
+  const { movie, watch } = data;
+  // No profile timezone without a session — the browser's own stands in for
+  // signed-out visitors on shared links (issue #159).
+  const tz = user ? user.tz : Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+  // Signed-out visitors (shared links, issue #159): public catalog content
+  // with a sign-in CTA in place of the tracking controls. The anonymous
+  // payload carries no user state to render.
+  if (!user) {
+    return (
+      <div className="movie-page">
+        <div className="movie-head">
+          {movie.poster && <img className="show-poster" src={poster(movie.poster)!} alt="" />}
+          <div>
+            <h1>{movie.title}</h1>
+            <p className="show-facts">
+              {[movie.releaseDate && fmtAirDate(movie.releaseDate, tz), runtimeStr(movie.runtime), movie.genres.join(", ")]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+            {movie.overview && <p className="show-overview">{movie.overview}</p>}
+
+            <div className="show-actions">
+              <SignInCta>to add this movie to your watchlist and mark it watched.</SignInCta>
+              <ShareButton
+                title={movie.title}
+                text={`Check out ${movie.title} on Show Us TV.`}
+                path={mediaPath("movie", movie.id, movie.title)}
+              />
+            </div>
+
+            <WhereToWatch watch={watch} />
+
+            <ExternalLinks title={movie.title} imdbId={movie.imdbId} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Signed-in requests always carry the viewer's state, but the service
+  // worker can replay a payload cached before sign-in (anonymous, no user
+  // fields) when the network is gone — treat that as still loading rather
+  // than render tracking controls with no state behind them.
+  if (!data.user) return <MediaDetailSkeleton kind="movie" />;
+
+  const mine = data.user;
   const state = queuedState ? (queuedState === "watched" ? "watched" : null) : mine.state;
   const favorited = favedOverride ?? mine.favorited;
 

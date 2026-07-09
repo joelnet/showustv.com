@@ -6,7 +6,7 @@ import { checkAchievements } from "./lib/achievements";
 import { TmdbError, ensureShow, ensureMovie } from "./lib/tmdb";
 import { auth } from "./routes/auth";
 import { pub } from "./routes/public";
-import { catalog } from "./routes/catalog";
+import { catalog, titles } from "./routes/catalog";
 import { library } from "./routes/library";
 import { ratings } from "./routes/ratings";
 import { lists } from "./routes/lists";
@@ -62,6 +62,15 @@ app.get("/healthz", async (c) => {
 
 app.route("/auth", auth);
 app.route("/public", pub);
+
+// Shareable title pages (issue #159): GET /shows/:id, /movies/:id, and
+// /episodes/:id accept anonymous requests so shared links open signed-out.
+// The router is GET-only and each handler serves public catalog data,
+// attaching the viewer's own state solely when a valid session cookie is
+// present (optionalAuth per route). Any other method or path on these
+// prefixes — every watch/favorite/follow mutation included — falls through
+// to requireAuth below.
+app.route("/", titles);
 
 // Everything below requires a session.
 app.use("*", requireAuth);

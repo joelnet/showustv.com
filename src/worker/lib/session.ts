@@ -77,3 +77,17 @@ export async function requireAuth(c: Context<AppEnv>, next: Next) {
   c.set("tz", session.tz);
   await next();
 }
+
+// Optional authentication for explicitly public reads (issue #159): attaches
+// uid/tz when a valid session cookie is present so the handler can include
+// the viewer's own state, and lets anonymous requests through with neither
+// set (handlers branch on `c.get("uid") ?? null`). Never use this on a
+// mutation or a user-scoped read — those stay behind requireAuth.
+export async function optionalAuth(c: Context<AppEnv>, next: Next) {
+  const session = await readSession(c);
+  if (session) {
+    c.set("uid", session.u);
+    c.set("tz", session.tz);
+  }
+  await next();
+}

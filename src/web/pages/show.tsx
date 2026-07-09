@@ -6,7 +6,7 @@ import { useApi, getCached, setCached, dropCached } from "../hooks";
 import { useAuth } from "../app";
 import { poster, backdrop } from "../img";
 import { fmtAirDate, fmtEpisodeDate } from "../format";
-import { Slate, ErrorNote, Progress, CheckButton, ScorePicker, ExternalLinks } from "../components/ui";
+import { Slate, ErrorNote, Progress, CheckButton, ScorePicker, ExternalLinks, SignInCta } from "../components/ui";
 import { ShowPageSkeleton } from "../components/skeleton";
 import { WhereToWatch, type WatchInfo } from "../components/where-to-watch";
 import { Comments } from "../components/comments";
@@ -23,8 +23,9 @@ interface Episode {
   title: string | null;
   air_date: string | null;
   aired: boolean;
-  watched: boolean;
-  playCount: number;
+  // Viewer state — absent on the anonymous payload (issue #159).
+  watched?: boolean;
+  playCount?: number;
 }
 
 interface ShowPayload {
@@ -40,19 +41,23 @@ interface ShowPayload {
     imdbId: string | null;
   };
   seasons: { id: number; number: number; name: string | null; episodes: Episode[] }[];
+  // `user` and `progress` are null on the anonymous payload (issue #159) —
+  // the server never ships user-shaped fields without a session.
   user: {
     followed: boolean;
     state: string | null;
     rating: { score: number | null; emoji: string | null } | null;
     favorited: boolean;
-  };
-  progress: { watched: number; aired: number; total: number };
+  } | null;
+  progress: { watched: number; aired: number; total: number } | null;
   nextEpisode: Episode | null;
   watch: WatchInfo;
 }
 
 // Apply a watched-state change locally; progress counts only aired regular
-// (season > 0) episodes, matching the server's definition.
+// (season > 0) episodes, matching the server's definition. Only reachable
+// signed-in (anonymous viewers have no watch controls), so the null guards
+// on user/progress are for the types, not a real code path.
 function applyWatch(d: ShowPayload, pred: (e: Episode) => boolean, watched: boolean): ShowPayload {
   let delta = 0;
   const seasons = d.seasons.map((s) => ({
@@ -63,11 +68,11 @@ function applyWatch(d: ShowPayload, pred: (e: Episode) => boolean, watched: bool
       return { ...e, watched, playCount: watched ? 1 : 0 };
     }),
   }));
-  return { ...d, seasons, progress: { ...d.progress, watched: d.progress.watched + delta } };
+  return { ...d, seasons, progress: d.progress && { ...d.progress, watched: d.progress.watched + delta } };
 }
 
-function withUser(d: ShowPayload, user: Partial<ShowPayload["user"]>): ShowPayload {
-  return { ...d, user: { ...d.user, ...user } };
+function withUser(d: ShowPayload, user: Partial<NonNullable<ShowPayload["user"]>>): ShowPayload {
+  return { ...d, user: d.user && { ...d.user, ...user } };
 }
 
 // Full removal (issue #20): drop the show from the account and reset every
@@ -76,7 +81,7 @@ function cleared(d: ShowPayload): ShowPayload {
   return {
     ...d,
     user: { followed: false, state: null, rating: null, favorited: false },
-    progress: { ...d.progress, watched: 0 },
+    progress: d.progress && { ...d.progress, watched: 0 },
     seasons: d.seasons.map((s) => ({
       ...s,
       episodes: s.episodes.map((e) => ({ ...e, watched: false, playCount: 0 })),
@@ -87,7 +92,8 @@ function cleared(d: ShowPayload): ShowPayload {
 // Fully caught up: every aired regular-season episode is watched. Uses the
 // same aired-only progress counts the server sends, so it matches the app's
 // definition of "no episodes left to watch right now" (issue #53).
-const isCaughtUp = (d: ShowPayload) => d.progress.aired > 0 && d.progress.watched >= d.progress.aired;
+const isCaughtUp = (d: ShowPayload) =>
+  d.progress != null && d.progress.aired > 0 && d.progress.watched >= d.progress.aired;
 
 const isBefore = (e: Episode, target: Episode) =>
   e.season_number < target.season_number ||
@@ -123,6 +129,111 @@ function AlsoWatching({ showId }: { showId: string }) {
           {f.username}
         </Link>
       ))}
+    </div>
+  );
+}
+
+// Signed-out view of a show (issue #159): the public catalog content — hero,
+// overview, where-to-watch, seasons and air dates — with a sign-in CTA where
+// the tracking controls live for signed-in users. No watch state, progress,
+// rating, or comments render here; the server omits those fields from
+// anonymous payloads anyway.
+function PublicShowView({
+  data,
+  openSeason,
+  setOpenSeason,
+}: {
+  data: ShowPayload;
+  openSeason: number | null;
+  setOpenSeason: (n: number | null) => void;
+}) {
+  const { show, seasons, nextEpisode, watch } = data;
+  // No profile timezone without a session — the browser's own is the best
+  // stand-in for air-date rendering.
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return (
+    <div className="show-page">
+      <section
+        className="show-hero"
+        style={show.backdrop ? { backgroundImage: `url(${backdrop(show.backdrop)})` } : undefined}
+      >
+        <div className="show-hero-scrim">
+          <div className="show-hero-inner">
+            {show.poster && <img className="show-poster" src={poster(show.poster)!} alt="" />}
+            <div className="show-hero-text">
+              <h1>{show.title}</h1>
+              <p className="show-facts">
+                {[show.firstAirDate?.slice(0, 4), show.status, show.genres.join(", ")].filter(Boolean).join(" · ")}
+              </p>
+              {nextEpisode && (
+                <p className="next-chip">
+                  <span className="on-air-dot" aria-hidden="true" />
+                  Next: <Slate season={nextEpisode.season_number} number={nextEpisode.number} />{" "}
+                  {fmtAirDate(nextEpisode.air_date, tz)}
+                </p>
+              )}
+              <div className="show-actions">
+                <SignInCta>to follow this show and track your episodes.</SignInCta>
+                <ShareButton
+                  title={show.title}
+                  text={`Check out ${show.title} on Show Us TV.`}
+                  path={mediaPath("show", show.id, show.title)}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {show.overview && <p className="show-overview">{show.overview}</p>}
+
+      <WhereToWatch watch={watch} />
+
+      <ExternalLinks title={show.title} imdbId={show.imdbId} />
+
+      <section className="seasons">
+        {seasons
+          .filter((s) => s.episodes.length > 0)
+          .map((season) => {
+            const open = openSeason === season.number;
+            return (
+              <div key={season.id} className="season">
+                <div className="season-head">
+                  <button
+                    type="button"
+                    className="season-toggle"
+                    aria-expanded={open}
+                    onClick={() => setOpenSeason(open ? null : season.number)}
+                  >
+                    <IconChevron size={14} />
+                    <span className="season-name">{season.name ?? `Season ${season.number}`}</span>
+                    <span className="mono season-count">
+                      {season.episodes.length} {season.episodes.length === 1 ? "episode" : "episodes"}
+                    </span>
+                  </button>
+                </div>
+                {open && (
+                  <ul className="episode-list">
+                    {season.episodes.map((e) => (
+                      <li key={e.id} className={`episode-row${e.aired ? "" : " is-future"}`}>
+                        <Slate season={e.season_number} number={e.number} />
+                        <Link to={mediaPath("episode", e.id, e.title)} className="episode-title">
+                          {e.title ?? `Episode ${e.number}`}
+                        </Link>
+                        <span className="episode-date mono">{fmtEpisodeDate(e.air_date, e.aired, tz)}</span>
+                        {!e.aired && <span className="on-air-dot on-air-dot--future" title="Not aired yet" />}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            );
+          })}
+      </section>
+
+      <p className="settings-hint list-comments-note">
+        <Link to="/login">Sign in</Link> to read and post comments.
+      </p>
     </div>
   );
 }
@@ -200,8 +311,22 @@ export function ShowPage() {
   if (error) return <ErrorNote message={error} />;
   if (!data) return <ShowPageSkeleton />;
 
-  const { show, seasons, user: mine, progress, nextEpisode, watch } = data;
-  const tz = user!.tz;
+  // Signed-out visitors (shared links, issue #159): the public catalog view
+  // with a sign-in CTA in place of the tracking controls. The server omits
+  // all user state from anonymous payloads, so nothing personal can render
+  // here even by accident.
+  if (!user) return <PublicShowView data={data} openSeason={openSeason} setOpenSeason={setOpenSeason} />;
+
+  // Signed-in requests always carry the viewer's state and progress, but the
+  // service worker can replay a payload cached before sign-in (anonymous, no
+  // user fields) when the network is gone — treat that as still loading
+  // rather than render tracking controls with no state behind them.
+  if (!data.user || !data.progress) return <ShowPageSkeleton />;
+
+  const { show, seasons, nextEpisode, watch } = data;
+  const mine = data.user;
+  const progress = data.progress;
+  const tz = user.tz;
 
   // Whether the show has any trace in the account. Unfollowing keeps watch
   // history and ratings, so "followed" alone would hide Remove for exactly the
@@ -361,7 +486,7 @@ export function ShowPage() {
                   disabled={busy}
                   onClick={run(
                     () => (mine.favorited ? del(`/shows/${show.id}/favorite`) : put(`/shows/${show.id}/favorite`)),
-                    (d) => withUser(d, { favorited: !d.user.favorited })
+                    (d) => withUser(d, { favorited: !d.user?.favorited })
                   )}
                 >
                   {mine.favorited ? <IconHeart size={18} /> : <IconHeartOutline size={18} />}
@@ -408,7 +533,7 @@ export function ShowPage() {
           onPick={(score) =>
             run(
               () => put("/ratings", { target_type: "show", target_id: show.id, score }),
-              (d) => withUser(d, { rating: { score, emoji: d.user.rating?.emoji ?? null } })
+              (d) => withUser(d, { rating: { score, emoji: d.user?.rating?.emoji ?? null } })
             )()
           }
         />
@@ -482,7 +607,7 @@ export function ShowPage() {
                         <span className="episode-date mono">{fmtEpisodeDate(e.air_date, e.aired, tz)}</span>
                         {e.aired ? (
                           <CheckButton
-                            checked={e.watched}
+                            checked={!!e.watched}
                             disabled={busy}
                             label={e.watched ? "Mark unwatched" : "Mark watched"}
                             onToggle={() => toggleEpisode(e)}

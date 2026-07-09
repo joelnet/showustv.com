@@ -6,7 +6,7 @@ import { post, put, del } from "../api";
 import { useAuth } from "../app";
 import { still } from "../img";
 import { fmtDateTime, fmtEpisodeDate, runtimeStr } from "../format";
-import { Slate, ErrorNote, ScorePicker, EmojiPicker } from "../components/ui";
+import { Slate, ErrorNote, ScorePicker, EmojiPicker, SignInCta } from "../components/ui";
 import { MediaDetailSkeleton } from "../components/skeleton";
 import { Comments } from "../components/comments";
 import { useCelebrate } from "../components/celebration";
@@ -26,12 +26,14 @@ interface EpisodePayload {
     overview: string | null;
     still: string | null;
   };
+  // Null on the anonymous payload (issue #159) — the server never ships
+  // user-shaped fields without a session.
   user: {
     watched: boolean;
     watchedAt: string | null;
     playCount: number;
     rating: { score: number | null; emoji: string | null } | null;
-  };
+  } | null;
 }
 
 export function EpisodePage() {
@@ -60,8 +62,50 @@ export function EpisodePage() {
   if (error) return <ErrorNote message={error} />;
   if (!data) return null;
 
-  const { episode: ep, user: mine } = data;
-  const tz = user!.tz;
+  const { episode: ep } = data;
+  // No profile timezone without a session — the browser's own stands in for
+  // signed-out visitors on shared links (issue #159).
+  const tz = user ? user.tz : Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+  // Signed-out visitors (shared links, issue #159): public catalog content
+  // with a sign-in CTA in place of the watch/rating controls, and a sign-in
+  // note where the comment thread renders for signed-in users.
+  if (!user) {
+    return (
+      <div className="episode-page">
+        <Link to={mediaPath("show", ep.showId, ep.showTitle)} className="episode-show-link">
+          {ep.showTitle}
+        </Link>
+        <div className="episode-head">
+          {ep.still && <img className="episode-still" src={still(ep.still)!} alt="" />}
+          <div>
+            <div className="episode-slate-row">
+              <Slate season={ep.season} number={ep.number} />
+              <span className="mono episode-date">{fmtEpisodeDate(ep.airDate, ep.aired, tz)}</span>
+              {ep.runtime ? <span className="mono">{runtimeStr(ep.runtime)}</span> : null}
+            </div>
+            <h1>{ep.title ?? `Episode ${ep.number}`}</h1>
+            {ep.overview && <p className="episode-overview">{ep.overview}</p>}
+
+            <div className="episode-actions">
+              <SignInCta>to track and rate this episode.</SignInCta>
+            </div>
+          </div>
+        </div>
+        <p className="settings-hint list-comments-note">
+          <Link to="/login">Sign in</Link> to read and post comments.
+        </p>
+      </div>
+    );
+  }
+
+  // Signed-in requests always carry the viewer's state, but the service
+  // worker can replay a payload cached before sign-in (anonymous, no user
+  // fields) when the network is gone — treat that as still loading rather
+  // than render tracking controls with no state behind them.
+  if (!data.user) return <MediaDetailSkeleton kind="episode" />;
+
+  const mine = data.user;
   const watched = queuedState ? queuedState === "watched" : mine.watched;
 
   const act = (fn: () => Promise<any>, queuedAs?: "watched" | "unwatched") => async () => {

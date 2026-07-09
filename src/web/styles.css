@@ -1068,6 +1068,14 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .public-byline a { color: var(--cyan); }
 .public-byline a:hover { color: var(--text); }
 .public-page .header { justify-content: center; }
+/* Signed-out chrome on shared title pages (issue #159): brand left, sign-in
+   right. The centered brand-only header above stays for profile/list pages. */
+.public-page .header--public { justify-content: space-between; }
+
+/* Sign-in call to action standing in for the tracking controls on public
+   title pages (issue #159). */
+.signin-cta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.signin-cta span { color: var(--muted); }
 
 /* Public list: detailed cards with poster + overview so a shared list reads
    like a recommendation, not a bare thumbnail wall (issue #87). */

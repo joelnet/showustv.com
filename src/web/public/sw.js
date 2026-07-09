@@ -90,8 +90,17 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(req.url);
 
   if (req.method !== "GET") {
-    // Never cached — but signing out must also empty the personal API cache.
-    if (url.pathname === "/api/auth/logout") {
+    // Never cached — but any identity change must empty the API cache.
+    // Sign-out: the next visitor on this browser must not replay this
+    // user's data. Sign-in/register (issue #159): the new session must not
+    // inherit responses cached before it — another account's payloads, or
+    // the anonymous title payloads (user: null), which would render a
+    // signed-in detail page with no state on an offline fallback.
+    const identityChange =
+      url.pathname === "/api/auth/logout" ||
+      url.pathname === "/api/auth/login" ||
+      url.pathname === "/api/auth/register";
+    if (identityChange) {
       event.respondWith(
         (async () => {
           const res = await fetch(req);
