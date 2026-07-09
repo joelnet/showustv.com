@@ -27,9 +27,7 @@ export function Landing() {
           <Link to="/import-help" className="landing-eyebrow landing-eyebrow--warn landing-eyebrow--link">
             <IconWarning size={13} /> TV Time is shutting down July 15: import your data here
           </Link>
-          <h1>
-            Track your shows. Pickup where you <em className="landing-bug">left off</em>.
-          </h1>
+          <h1>Track your shows. Pickup where you left off.</h1>
           <p className="landing-sub">
             Show Us TV keeps track of every show and movie you watch: what&rsquo;s next, what&rsquo;s
             airing soon, and everything you&rsquo;ve finished.
