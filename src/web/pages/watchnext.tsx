@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { useApi } from "../hooks";
 import { poster, backdrop, still } from "../img";
+import { epCode } from "../format";
 import { Empty, ErrorNote } from "../components/ui";
 import { HomeSkeleton, TileGridSkeleton } from "../components/skeleton";
 import { mediaPath } from "../paths";
@@ -20,6 +21,7 @@ interface HomeItem {
   episodeTitle?: string | null;
   count?: number;
   username?: string; // "From People You Follow": who watched it (issue #128)
+  episodeId?: number | null; // friends tiles: the exact episode they watched (issue #128)
 }
 
 interface HomeData {
@@ -36,7 +38,8 @@ type SectionKey = "continue" | "upcoming" | "haven" | "notstarted" | "history" |
 // "Not Started" (shows you follow but haven't begun) sits just above History —
 // the Library no longer carries it or "Watching" (issue #115); Watch Next owns
 // those now. "From People You Follow" (issue #128) anchors the bottom: shows
-// your followees watched recently, each credited to the watcher.
+// your followees watched recently, each credited to the watcher and naming
+// the exact episode they reached.
 const SECTIONS: { key: SectionKey; label: string; field: keyof HomeData }[] = [
   { key: "continue", label: "Continue Watching", field: "continueWatching" },
   { key: "upcoming", label: "Upcoming", field: "upcoming" },
@@ -47,15 +50,23 @@ const SECTIONS: { key: SectionKey; label: string; field: keyof HomeData }[] = [
 ];
 
 // The thumbnail and titles link to the show/movie; watch actions happen there
-// (#106). Landscape thumbnail, bold title, and one muted "S1·E3 - Episode
-// title" line. Friend-watched tiles add a "Watched by <user>" line whose
-// username links to that person's profile — a separate sibling link, since
-// anchors can't nest (issue #128).
+// (#106). Landscape thumbnail, bold title, and one muted "S02·E05 - Episode
+// title" line — the episode code uses the shared epCode slate format; the
+// " - " separator stays the tile convention (#106). Friend-watched
+// tiles add a "Watched by <user>" line whose username links to that person's
+// profile — a separate sibling link, since anchors can't nest (issue #128) —
+// and their media link goes to the exact episode the followee watched, so
+// tracking their progress is one tap (issue #128 follow-up). Missing episode
+// fields degrade to the plain show link.
 function Tile({ item }: { item: HomeItem }) {
   const thumb = still(item.still) ?? backdrop(item.backdrop) ?? poster(item.poster);
+  const to =
+    item.episodeId != null && item.season != null && item.number != null
+      ? mediaPath("episode", item.episodeId, item.episodeTitle)
+      : mediaPath(item.kind, item.id, item.title);
   return (
     <div className="wn-tile">
-      <Link to={mediaPath(item.kind, item.id, item.title)} className="wn-tile-link" draggable={false}>
+      <Link to={to} className="wn-tile-link" draggable={false}>
         <div className="wn-tile-thumb">
           {thumb ? <img src={thumb} alt="" loading="lazy" decoding="async" draggable={false} /> : <div className="poster-fallback">{item.title}</div>}
           {item.count != null && item.count > 0 && <span className="pill wn-tile-count">{item.count} left</span>}
@@ -64,7 +75,7 @@ function Tile({ item }: { item: HomeItem }) {
           <span className="wn-tile-show">{item.title}</span>
           {item.season != null && item.number != null && (
             <span className="wn-tile-ep">
-              S{item.season}·E{item.number}
+              {epCode(item.season, item.number)}
               {item.episodeTitle ? ` - ${item.episodeTitle}` : ""}
             </span>
           )}

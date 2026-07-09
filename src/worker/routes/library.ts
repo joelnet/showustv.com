@@ -159,6 +159,12 @@ library.get("/home", async (c) => {
   // also carries the "From People You Follow" query (issue #128): shows the
   // people you follow watched recently, one tile per show attributed to the
   // most recent watcher (a popular show is one tile, not one per follower).
+  // Each tile also carries the exact episode behind that winning watch so the
+  // client can name it and deep-link to it (issue #128 follow-up). Tiebreaks
+  // preserve the section's original attribution: watchers tied on timestamp
+  // still resolve by username first; only then, within the credited watcher's
+  // rows (a bulk mark-watched stamps many episodes with one timestamp), does
+  // the furthest episode win — the followee's actual progress point.
   const [histEp, histMov, friendsR] = await c.env.DB.batch([
     c.env.DB.prepare(
       `SELECT e.show_id AS id, s.title AS show_title, s.poster_url, s.backdrop_url, e.still_url,
@@ -180,17 +186,21 @@ library.get("/home", async (c) => {
        ),
        fw AS (
          SELECT e.show_id, u.username,
-                MAX(CASE WHEN ue.last_rewatched_at > ue.watched_at
-                         THEN ue.last_rewatched_at ELSE ue.watched_at END) AS ts
+                e.id AS episode_id, e.season_number, e.number, e.title AS episode_title,
+                CASE WHEN ue.last_rewatched_at > ue.watched_at
+                     THEN ue.last_rewatched_at ELSE ue.watched_at END AS ts
          FROM user_episodes ue
          JOIN following fo ON fo.fid = ue.user_id
          JOIN users u ON u.id = ue.user_id AND u.deleted_at IS NULL
          JOIN episodes e ON e.id = ue.episode_id
          WHERE (ue.watched_at >= ?2 OR ue.last_rewatched_at >= ?2) AND e.season_number > 0
-         GROUP BY e.show_id, ue.user_id
        )
-       SELECT f.show_id, f.username, s.title AS show_title, s.poster_url, s.backdrop_url
-       FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY show_id ORDER BY ts DESC, username) AS rn FROM fw) f
+       SELECT f.show_id, f.username, f.episode_id, f.season_number, f.number, f.episode_title,
+              s.title AS show_title, s.poster_url, s.backdrop_url
+       FROM (SELECT *, ROW_NUMBER() OVER (
+               PARTITION BY show_id
+               ORDER BY ts DESC, username, season_number DESC, number DESC) AS rn
+             FROM fw) f
        JOIN shows s ON s.tmdb_id = f.show_id
        WHERE f.rn = 1
        ORDER BY f.ts DESC
@@ -231,6 +241,10 @@ library.get("/home", async (c) => {
     backdrop: r.backdrop_url,
     still: null,
     username: r.username,
+    episodeId: r.episode_id,
+    season: r.season_number,
+    number: r.number,
+    episodeTitle: r.episode_title,
   }));
 
   return c.json({ continueWatching, upcoming, havenWatched, notStarted, history, friendsWatched });
