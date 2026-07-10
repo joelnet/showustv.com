@@ -7,7 +7,7 @@ import { Spinner, Wordmark, SiteFooter } from "./components/ui";
 import { ConfirmProvider } from "./components/dialog";
 import { CelebrationProvider } from "./components/celebration";
 import { IconPlay, IconSearch, IconLibrary, IconList, IconGear, IconUser, IconDownload, IconBell } from "./components/icons";
-import { useInstallPrompt, isStandalone } from "./pwa";
+import { useInstallPrompt, isStandalone, useUpdateReady, applyUpdate } from "./pwa";
 import { useUnreadNotifications, setUnread } from "./notifications";
 import { Landing } from "./pages/landing";
 import { Login } from "./pages/login";
@@ -236,6 +236,28 @@ function NetBanner() {
   return null;
 }
 
+// New-version toast (issue #172): rendered app-wide (any page, signed in or
+// out) once a fresh deploy's service worker is installed and waiting.
+// Update promotes it and reloads into the new version; Later leaves this
+// page as it is (the waiting worker activates on the next full app launch,
+// and any later reload picks up the new client from the network anyway).
+function UpdateToast() {
+  const ready = useUpdateReady();
+  const [dismissed, setDismissed] = useState(false);
+  if (!ready || dismissed) return null;
+  return (
+    <div className="update-toast" role="status">
+      <span>A new version is available.</span>
+      <button type="button" className="btn" onClick={applyUpdate}>
+        Update
+      </button>
+      <button type="button" className="btn btn-ghost" onClick={() => setDismissed(true)}>
+        Later
+      </button>
+    </div>
+  );
+}
+
 function TabBar() {
   return (
     <nav className="tabbar" aria-label="Primary">
@@ -385,6 +407,7 @@ export function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
+        <UpdateToast />
         </CelebrationProvider>
         </ConfirmProvider>
       </BrowserRouter>

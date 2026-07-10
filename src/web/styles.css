@@ -390,6 +390,42 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .net-banner.is-synced { background: rgba(88, 201, 131, 0.12); color: var(--green); }
 .net-banner.is-failed { background: rgba(255, 77, 61, 0.12); color: var(--red); }
 
+/* ---------- New-version toast (issue #172) ----------
+   Fixed at the bottom, app-wide, when a fresh deploy's service worker is
+   installed and waiting. Amber Update button per the One Bulb Rule: this is
+   the action. Sits above the mobile tabbar; below celebration (90). */
+.update-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 80;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 12px;
+  max-width: min(92vw, 440px);
+  padding: 10px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
+  animation: update-toast-in 0.3s ease-out both;
+}
+.update-toast span { font: 12.5px var(--font-mono); color: var(--text); }
+.update-toast .btn { font-size: 13px; padding: 6px 12px; }
+
+@keyframes update-toast-in {
+  0%   { opacity: 0; transform: translate(-50%, 8px); }
+  100% { opacity: 1; transform: translate(-50%, 0); }
+}
+
+@media (max-width: 719px) {
+  /* Clear the fixed tabbar (its own safe-area padding included). */
+  .update-toast { bottom: calc(64px + env(safe-area-inset-bottom)); }
+}
+
 /* ---------- Dialog ---------- */
 
 .dialog {

@@ -9,10 +9,17 @@
 //            only (like the HTTP cache) — nothing is proxied or stored
 //            server-side, in line with the TMDB hotlinking plan.
 //
-// sw.js itself is static while asset names change per build, so there is no
-// build-time precache manifest: install fetches "/" and caches whatever
-// assets that HTML references; later builds are picked up by the runtime
-// network-first navigation handler. Caches are capped, trimmed oldest-first.
+// There is no build-time precache manifest: install fetches "/" and caches
+// whatever assets that HTML references; later builds are picked up by the
+// runtime network-first navigation handler. Caches are capped, trimmed
+// oldest-first.
+//
+// New-version detection (issue #172): the build stamps BUILD below with a
+// hash of the built app (vite.config.ts), so every deploy changes sw.js and
+// the browser installs the update. Install no longer skipWaiting()s — the
+// fresh worker parks in `waiting`, the page shows an update toast
+// (src/web/pwa.ts), and only the user's click posts SKIP_WAITING to promote
+// it, after which the page reloads once on controllerchange.
 //
 // Mutations (non-GET) are never cached or intercepted — the app itself
 // queues offline mutations in IndexedDB (src/web/offline.ts) and replays
@@ -21,6 +28,14 @@
 // The app also warms these caches proactively: when Watch Next loads, it
 // fetches each Continue Watching show's detail payload and hero art through
 // this worker (src/web/precache.ts, issue #139) so those shows open offline.
+
+// Replaced at build time (sw-build-id plugin, vite.config.ts) with a hash of
+// the built client output, which changes whenever a deploy ships different
+// client bytes. Unused at runtime on purpose: its only job is to make sw.js
+// bytes differ between deploys, which is what makes the browser fetch and
+// install the new worker. Deliberately NOT part of the cache names below —
+// runtime caches stay valid across deploys.
+const BUILD = "__BUILD_ID__";
 
 const VERSION = "v1";
 const STATIC_CACHE = `static-${VERSION}`;
@@ -45,7 +60,18 @@ const MAX_API = 100;
 const MAX_IMG = 200;
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(precache().then(() => self.skipWaiting()));
+  // No skipWaiting here (issue #172): an updated worker parks in `waiting`
+  // until the page posts SKIP_WAITING (the user pressed Update in the toast)
+  // or every tab closes. A first-ever install has no predecessor, so it
+  // still activates immediately and clients.claim() takes the open page.
+  event.waitUntil(precache());
+});
+
+// The page posts this when the user accepts the update toast (issue #172):
+// promote the waiting worker now. Activation fires controllerchange in every
+// open tab; the one that asked reloads itself into the new version.
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
