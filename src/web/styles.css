@@ -712,14 +712,15 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   gap: 14px;
   overflow-x: auto;
   overscroll-behavior-x: contain;
-  scroll-snap-type: x proximity;
+  /* No scroll snapping: a drag should rest wherever the user releases it
+     (issue #176). The partial rightmost tile on first view comes from the
+     fixed 220px columns not fitting the container evenly, not from snapping. */
   padding-bottom: 8px;
   scrollbar-width: thin;
   cursor: grab; /* click-drag to scroll on desktop (issue #114) */
 }
-.wn-row.is-grabbing { cursor: grabbing; scroll-snap-type: none; user-select: none; }
+.wn-row.is-grabbing { cursor: grabbing; user-select: none; }
 .wn-row.is-grabbing img { pointer-events: none; }
-.wn-row > .wn-tile { scroll-snap-align: start; }
 .wn-row img { -webkit-user-drag: none; user-select: none; }
 
 .sr-only {
