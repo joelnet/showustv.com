@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { useAuth } from "../app";
 import { useApi } from "../hooks";
+import { post } from "../api";
 import { poster, backdrop, still } from "../img";
 import { epCode, fmtMonthDay } from "../format";
-import { Empty, ErrorNote } from "../components/ui";
+import { Empty, ErrorNote, CheckButton } from "../components/ui";
 import { IconEye, IconEyeSlash } from "../components/icons";
 import { HomeSkeleton, TileGridSkeleton } from "../components/skeleton";
+import { useCelebrate } from "../components/celebration";
 import { mediaPath } from "../paths";
 import { precacheContinueWatching } from "../precache";
 
@@ -23,7 +25,10 @@ interface HomeItem {
   episodeTitle?: string | null;
   count?: number;
   username?: string; // "From People You Follow": who watched it (issue #128)
-  episodeId?: number | null; // friends tiles: the exact episode they watched (issue #128)
+  // The exact episode behind the tile: what a followee watched on friends
+  // tiles (issue #128), the next-up episode on the queue sections' tiles —
+  // there it's what the mark-watched button marks (issue #186).
+  episodeId?: number | null;
   airDate?: string | null; // Upcoming tiles: the episode's air date, 'YYYY-MM-DD' (issue #175)
 }
 
@@ -51,6 +56,12 @@ const SECTIONS: { key: SectionKey; label: string; field: keyof HomeData }[] = [
   { key: "history", label: "History", field: "history" },
   { key: "friends", label: "From People You Follow", field: "friendsWatched" },
 ];
+
+// The queue sections: their tiles name the user's exact next-up episode, so
+// they carry a mark-watched check button (issue #186). The other sections
+// don't — Upcoming episodes haven't aired, History is already watched, and
+// friends tiles track someone else's viewing.
+const MARKABLE_SECTIONS: ReadonlySet<SectionKey> = new Set(["continue", "haven", "notstarted"]);
 
 // Sections the user has hidden on Watch Now (issue #185), persisted per user
 // so two accounts on the same browser keep separate layouts. A per-device UI
@@ -93,16 +104,71 @@ function saveHiddenSections(userId: number | undefined, hidden: Set<SectionKey>)
 // tiles add a "Watched by <user>" line whose username links to that person's
 // profile — a separate sibling link, since anchors can't nest (issue #128) —
 // and their media link goes to the exact episode the followee watched, so
-// tracking their progress is one tap (issue #128 follow-up). Missing episode
+// tracking their progress is one tap (issue #128 follow-up); the queue
+// sections' tiles carry an episodeId too now (issue #186) but keep linking
+// to the show, where the full watch flow lives (#106). Missing episode
 // fields degrade to the plain show link. Upcoming tiles carry an airDate and
 // wear it as a "Jan 17"-style pill on the thumb (issue #175), in the corner
 // the count pill uses elsewhere — the two never appear on the same tile.
-function Tile({ item }: { item: HomeItem }) {
+//
+// `markable` tiles (the queue sections, issue #186) get the app's check
+// button on the right edge of the tile body, marking exactly the next-up
+// episode the tile names. It sits OUTSIDE .wn-tile-link in the DOM —
+// interactive content can't nest inside an anchor, and as a sibling its
+// click can never bubble into the Link and navigate — and is absolutely
+// positioned over the body's right edge (the body reserves padding so text
+// never runs under it). The check flips green immediately; the response
+// then steers the update: queued offline it stays put (the post-sync
+// revalidation will refresh /home), online `onWatched` refetches /home so
+// the tile advances to the next episode or the show leaves the section.
+function Tile({ item, markable, onWatched }: { item: HomeItem; markable?: boolean; onWatched?: () => void }) {
+  const celebrate = useCelebrate();
+  // The episode id this tile has optimistically marked watched — compared
+  // against item.episodeId so the check unwinds by itself when fresh data
+  // advances the tile to the next episode.
+  const [markedId, setMarkedId] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
   const thumb = still(item.still) ?? backdrop(item.backdrop) ?? poster(item.poster);
   const to =
-    item.episodeId != null && item.season != null && item.number != null
+    item.username && item.episodeId != null && item.season != null && item.number != null
       ? mediaPath("episode", item.episodeId, item.episodeTitle)
       : mediaPath(item.kind, item.id, item.title);
+  const canMark = markable === true && item.episodeId != null;
+  const checked = item.episodeId != null && markedId === item.episodeId;
+
+  // Fresh /home data that still names the same episode means the mark never
+  // landed — the queued op was dropped on replay (4xx / cross-account). A
+  // mark that landed always advances episodeId, so unwind the optimistic
+  // check rather than let it lie. Identity-keyed: cached re-paints hand back
+  // the same object, so this fires only when a fetch actually parsed new
+  // data. Skipped while the POST is in flight (a connectivity-flap
+  // revalidation mustn't unwind a mark that's about to succeed).
+  useEffect(() => {
+    if (!busy) setMarkedId(null);
+    // Deliberately keyed on item identity alone: a busy flip must not unwind
+    // the check while the tile still shows pre-mutation data.
+  }, [item]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const markWatched = async () => {
+    const episodeId = item.episodeId;
+    if (episodeId == null || busy || checked) return; // already marked — undo lives on the episode/show page
+    setBusy(true);
+    setMarkedId(episodeId); // optimistic — the button reads watched right away
+    try {
+      const r = await post(`/episodes/${episodeId}/watch`);
+      // Queued offline: keep the optimistic check; refetching now would only
+      // serve the stale pre-change cache. The offline queue's post-sync
+      // revalidation refreshes /home once the mark lands (issue #183).
+      if (!r?.queued) onWatched?.();
+      // Same catch-up confetti as the episode/show pages (issue #53).
+      if (r?.caughtUp) celebrate(r.showTitle ?? item.title);
+    } catch {
+      setMarkedId(null); // rejected — unwind the optimistic check
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="wn-tile">
       <Link to={to} className="wn-tile-link" draggable={false}>
@@ -111,7 +177,7 @@ function Tile({ item }: { item: HomeItem }) {
           {item.count != null && item.count > 0 && <span className="pill wn-tile-count">{item.count} left</span>}
           {item.airDate && <span className="pill wn-tile-date">{fmtMonthDay(item.airDate)}</span>}
         </div>
-        <div className="wn-tile-body">
+        <div className={canMark ? "wn-tile-body has-check" : "wn-tile-body"}>
           <span className="wn-tile-show">{item.title}</span>
           {item.season != null && item.number != null && (
             <span className="wn-tile-ep">
@@ -121,6 +187,25 @@ function Tile({ item }: { item: HomeItem }) {
           )}
         </div>
       </Link>
+      {canMark && (
+        <span className="wn-tile-check">
+          {/* The show title in the label keeps repeated buttons apart for
+              screen-reader button navigation. Disabled once checked: the
+              mark is one-way here — undo lives on the episode/show page. */}
+          <CheckButton
+            checked={checked}
+            disabled={busy || checked}
+            label={
+              checked
+                ? `Marked ${item.title} watched`
+                : item.season != null && item.number != null
+                  ? `Mark ${item.title} ${epCode(item.season, item.number)} watched`
+                  : `Mark ${item.title} watched`
+            }
+            onToggle={markWatched}
+          />
+        </span>
+      )}
       {item.username && (
         <span className="wn-tile-ep wn-tile-user">
           Watched by{" "}
@@ -201,7 +286,7 @@ function useDragScroll<T extends HTMLElement>() {
 }
 
 // One section's horizontal row of tiles, drag-scrollable on desktop.
-function Row({ items }: { items: HomeItem[] }) {
+function Row({ items, markable, onWatched }: { items: HomeItem[]; markable?: boolean; onWatched?: () => void }) {
   const drag = useDragScroll<HTMLDivElement>();
   return (
     <div
@@ -212,7 +297,7 @@ function Row({ items }: { items: HomeItem[] }) {
       onDragStart={(e) => e.preventDefault()}
     >
       {items.map((it, i) => (
-        <Tile key={`${it.kind}-${it.id}-${i}`} item={it} />
+        <Tile key={`${it.kind}-${it.id}-${i}`} item={it} markable={markable} onWatched={onWatched} />
       ))}
     </div>
   );
@@ -227,7 +312,7 @@ function Row({ items }: { items: HomeItem[] }) {
 // hidden section keeps its header and toggle so it can be restored.
 export function WatchNext() {
   const { user } = useAuth();
-  const { data, loading, error } = useApi<HomeData>("/home");
+  const { data, loading, error, reload } = useApi<HomeData>("/home");
   const [hidden, setHidden] = useState<Set<SectionKey>>(() => loadHiddenSections(user?.id));
 
   // While online, warm the offline cache for the Continue Watching shows so
@@ -287,7 +372,7 @@ export function WatchNext() {
                 {isHidden ? <IconEyeSlash size={15} /> : <IconEye size={15} />}
               </button>
             </div>
-            {!isHidden && <Row items={s.items} />}
+            {!isHidden && <Row items={s.items} markable={MARKABLE_SECTIONS.has(s.key)} onWatched={reload} />}
           </section>
         );
       })}
@@ -300,7 +385,7 @@ export function WatchNext() {
 export function WatchSectionPage() {
   const { key } = useParams();
   const section = SECTIONS.find((s) => s.key === key);
-  const { data, loading, error } = useApi<HomeData>(section ? "/home" : null);
+  const { data, loading, error, reload } = useApi<HomeData>(section ? "/home" : null);
 
   // Same offline warming as the home page — /watch/* section pages load the
   // same /home payload, so a deep link here precaches Continue Watching too.
@@ -331,7 +416,7 @@ export function WatchSectionPage() {
       ) : (
         <div className="wn-grid">
           {items.map((it, i) => (
-            <Tile key={`${it.kind}-${it.id}-${i}`} item={it} />
+            <Tile key={`${it.kind}-${it.id}-${i}`} item={it} markable={MARKABLE_SECTIONS.has(section.key)} onWatched={reload} />
           ))}
         </div>
       )}

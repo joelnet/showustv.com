@@ -105,6 +105,9 @@ library.get("/home", async (c) => {
 
   // Bucket the queue into Continue Watching / Not Started / Haven't Watched
   // in a While by whether the show has been started and is recently active.
+  // episodeId names the exact next-up episode the tile is showing, so the
+  // client's mark-watched button (issue #186) can hit /episodes/:id/watch
+  // for precisely that episode.
   const showTile = (r: any) => ({
     kind: "show" as const,
     id: r.show_id,
@@ -112,6 +115,7 @@ library.get("/home", async (c) => {
     poster: r.poster_url,
     backdrop: r.backdrop_url,
     still: r.still_url,
+    episodeId: r.episode_id,
     season: r.season_number,
     number: r.number,
     episodeTitle: r.episode_title,

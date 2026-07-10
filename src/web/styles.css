@@ -633,6 +633,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
    The tile is a plain container; .wn-tile-link wraps the thumb + titles so a
    sibling link (the "Watched by" username, issue #128) can live beside it. */
 .wn-tile {
+  position: relative; /* anchors the mark-watched check on queue tiles (issue #186) */
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -662,6 +663,15 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .wn-tile-count,
 .wn-tile-date { position: absolute; bottom: 7px; right: 7px; background: rgba(15, 18, 24, 0.85); color: var(--text); }
 .wn-tile-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 8px 2px 0; }
+/* Mark-watched check on the queue sections' tiles (issue #186): pinned to
+   the body's right edge. In the DOM it's a sibling of .wn-tile-link (a
+   button can't nest inside an anchor, and this way its click can't reach
+   the Link), overlaid on the body, which reserves right padding so the
+   ellipsized title and episode line never run under it. These tiles never
+   carry the friends "Watched by" line, so the body is the bottom of the
+   tile and the check centers on its two text lines with a bottom offset. */
+.wn-tile-body.has-check { padding-right: 38px; }
+.wn-tile-check { position: absolute; right: 2px; bottom: 7px; }
 .wn-tile-show {
   font-family: var(--font-display);
   font-weight: 700;
@@ -1953,6 +1963,10 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   .sort-bar select, .add-to-list { font-size: 16px; }
 
   .wn-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px 10px; }
+  /* The 38px thumb-sized check needs more reserved body width, and nearly
+     spans the two text lines, so it hugs the tile bottom (issue #186). */
+  .wn-tile-body.has-check { padding-right: 46px; }
+  .wn-tile-check { bottom: 3px; }
 
   .show-hero-inner { flex-direction: column; align-items: flex-start; gap: 14px; }
   .show-poster { width: 104px; }
