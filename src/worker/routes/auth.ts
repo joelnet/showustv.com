@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import type { Context } from "hono";
 import type { AppEnv } from "../env";
 import { hashPassword, verifyPassword } from "../lib/password";
 import { issueSession, clearSession, readSession, requireAuth } from "../lib/session";
@@ -24,6 +25,49 @@ function randomHandle(): string {
   return `${a}${n}${buf[2] % 10000}`.slice(0, 20);
 }
 
+// Issue #174: submitting an existing account's email + correct password on
+// the create-account form means "sign me in", so /register hands the request
+// off here instead of erroring. Same password check (verifyPassword — PBKDF2
+// + timingSafeEqual) and same session (issueSession) as /login, and the same
+// deleted_at filter, so an account /login would refuse can't sneak in here.
+// The lookup is by email only: register's identifier is validated as an
+// email, and usernames (USERNAME_RE) can never contain "@", so it can't
+// ambiguously match a different user's username. Returns null on a wrong
+// password (or deleted account) — the caller keeps today's 409, so this path
+// is indistinguishable from the old behavior when the sign-in doesn't happen.
+async function signInExistingUser(c: Context<AppEnv>, email: string, password: string) {
+  const user = await c.env.DB.prepare(
+    "SELECT id, username, pw_hash, tz, email_verified_at, is_admin, installed_at, onboarded_at FROM users WHERE email = ?1 AND deleted_at IS NULL"
+  )
+    .bind(email)
+    .first<{
+      id: number;
+      username: string;
+      pw_hash: string;
+      tz: string;
+      email_verified_at: string | null;
+      is_admin: number;
+      installed_at: string | null;
+      onboarded_at: string | null;
+    }>();
+  if (!user || !(await verifyPassword(password, user.pw_hash))) return null;
+
+  await issueSession(c, user.id, user.tz);
+  c.set("uid", user.id); // attribute this request in the activity log
+  return c.json({
+    signedIn: true, // tells the client this was a sign-in, not a new account
+    user: {
+      id: user.id,
+      username: user.username,
+      tz: user.tz,
+      emailVerified: !!user.email_verified_at,
+      isAdmin: !!user.is_admin,
+      installed: !!user.installed_at,
+      onboarded: !!user.onboarded_at,
+    },
+  });
+}
+
 auth.post("/register", async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const email = String(body.email ?? "").trim().toLowerCase();
@@ -35,7 +79,9 @@ auth.post("/register", async (c) => {
   if (password.length < 8) return c.json({ error: "Password must be at least 8 characters" }, 400);
 
   const taken = await c.env.DB.prepare("SELECT 1 FROM users WHERE email = ?1").bind(email).first();
-  if (taken) return c.json({ error: "That email is already in use" }, 409);
+  if (taken) {
+    return (await signInExistingUser(c, email, password)) ?? c.json({ error: "That email is already in use" }, 409);
+  }
 
   const pwHash = await hashPassword(password);
   // Sign-up stores the email straight away (unverified) — it's the login. The
@@ -58,7 +104,10 @@ auth.post("/register", async (c) => {
       });
     } catch (e: any) {
       const msg = String(e.message);
-      if (msg.includes("users.email")) return c.json({ error: "That email is already in use" }, 409);
+      // Email landed between the pre-check and the insert (e.g. a double
+      // submit): same rule as above — right password signs in, else 409.
+      if (msg.includes("users.email"))
+        return (await signInExistingUser(c, email, password)) ?? c.json({ error: "That email is already in use" }, 409);
       if (msg.includes("users.username")) continue; // handle clash — pick another and retry
       throw e;
     }

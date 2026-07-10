@@ -35,12 +35,16 @@ export function AuthCard({
     }
     try {
       const d = await post(`/auth/${mode}`, body);
-      setUser(d.user as User);
+      const user = d.user as User;
+      setUser(user);
       // A brand-new account goes straight to the preferences step (issue
       // #160). Shell's onboarded guard would bounce it there from "/"
       // anyway — going direct just skips the flash. Sign-ins land on "/"
       // as before (and an unfinished signup still gets re-routed by Shell).
-      navigate(mode === "register" ? "/welcome" : "/", { replace: true });
+      // The create form can also sign in an existing account (issue #174):
+      // its payload carries `onboarded`, so route on that — an onboarded
+      // user lands on "/" like a normal sign-in, never back in onboarding.
+      navigate(mode === "register" && user.onboarded === false ? "/welcome" : "/", { replace: true });
     } catch (err: any) {
       setError(err.message);
     } finally {
