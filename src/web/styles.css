@@ -1027,7 +1027,16 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   flex-shrink: 0;
   transition: transform 0.1s, background 0.15s;
 }
-.check-btn:hover { border-color: var(--green); color: var(--green); }
+/* Hover only on devices with a real hover-capable pointer. On touch, a tap
+   applies :hover and it STICKS until the next tap elsewhere; because the
+   Watch Now tile advances in place after a mark (issue #186), the next
+   episode's unchecked button sits under the same spot and would show this
+   green as a stuck fake-hover (issue #186 follow-up). Focus needs no guard:
+   the app rings focus via :focus-visible (keyboard only), so a mouse/touch
+   click leaves no visible ring. */
+@media (hover: hover) {
+  .check-btn:hover { border-color: var(--green); color: var(--green); }
+}
 .check-btn.is-checked { background: var(--green); border-color: var(--green); color: #0c2416; }
 .check-btn:active { transform: scale(0.9); }
 .check-btn:disabled { opacity: 0.55; cursor: default; }
