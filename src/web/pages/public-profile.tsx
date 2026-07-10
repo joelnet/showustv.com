@@ -5,6 +5,9 @@
 // viewers still see the full page: the owner, and a mutual follow (issue
 // #184) — the server decides, this page just renders what it's sent.
 // Signed-in visitors also get a follow/unfollow affordance here.
+// Renders inside the standard site chrome like every other page (issue
+// #200): the app Shell when signed in, PublicShell when signed out — no
+// bespoke header here.
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, post, put, del } from "../api";
@@ -14,7 +17,7 @@ import { useConfirm } from "../components/dialog";
 import { poster } from "../img";
 import { mediaPath, publicListPath, type MediaType } from "../paths";
 import { fmtAgo } from "../format";
-import { Wordmark, SmpteBars, ErrorNote, Slate, SiteFooter } from "../components/ui";
+import { SmpteBars, ErrorNote, Slate } from "../components/ui";
 import { ShareButton } from "../components/share";
 import { ProfileSkeleton } from "../components/skeleton";
 import { IconList, IconCheck, IconPlus, IconEye, IconLock } from "../components/icons";
@@ -339,103 +342,95 @@ export function PublicProfilePage() {
   }, [data, path]);
 
   return (
-    <div className="public-page">
-      <header className="header">
-        <Link to="/" className="header-brand" aria-label="Show Us TV, home">
-          <Wordmark />
-        </Link>
-      </header>
-      <main className="main">
-        {loading ? (
-          <ProfileSkeleton />
-        ) : error || !data ? (
+    <>
+      {loading ? (
+        <ProfileSkeleton />
+      ) : error || !data ? (
+        <div className="empty">
+          <SmpteBars />
+          <h3>Nothing to see here</h3>
+          <p>This profile doesn&rsquo;t exist.</p>
+        </div>
+      ) : !data.stats ? (
+        // Private profile teaser (issue #158): the server sent the username
+        // and nothing else. Signed-in visitors keep the follow affordance —
+        // following works regardless of profile visibility, and following
+        // back someone who already follows you makes the pair mutual, so
+        // the refetch swaps the teaser for the full profile (issue #184).
+        <>
+          <h1 className="page-title">{data.username}</h1>
+          <p className="public-byline">Watching TV on Show Us TV</p>
+          {user && (
+            <div className="public-actions">
+              <FollowActions username={data.username} onChange={reload} />
+            </div>
+          )}
+          {user?.isAdmin && <AdminTools username={data.username} tz={user.tz} />}
           <div className="empty">
-            <SmpteBars />
-            <h3>Nothing to see here</h3>
-            <p>This profile doesn&rsquo;t exist.</p>
+            <IconLock size={26} />
+            <h3>This profile is private</h3>
+            <p>Only {data.username} can see what&rsquo;s on it.</p>
           </div>
-        ) : !data.stats ? (
-          // Private profile teaser (issue #158): the server sent the username
-          // and nothing else. Signed-in visitors keep the follow affordance —
-          // following works regardless of profile visibility, and following
-          // back someone who already follows you makes the pair mutual, so
-          // the refetch swaps the teaser for the full profile (issue #184).
-          <>
-            <h1 className="page-title">{data.username}</h1>
-            <p className="public-byline">Watching TV on Show Us TV</p>
-            {user && (
+        </>
+      ) : (
+        <>
+          <h1 className="page-title">{data.username}</h1>
+          <p className="public-byline">Watching TV on Show Us TV</p>
+          {data.private ? (
+            // A private profile served in full. No share button in either
+            // case — visitors would only get the teaser. The owner gets a
+            // reminder of what everyone else sees; a mutual follow (issue
+            // #184) gets no privacy note — they already have access, so
+            // the message is noise (issue #198) — just the usual follow
+            // affordance.
+            user?.username === data.username ? (
+              <p className="public-private-note">
+                <IconLock size={13} /> Your profile is private: visitors see only your username. Make it public from
+                your <Link to="/profile">profile</Link>.
+              </p>
+            ) : (
               <div className="public-actions">
                 <FollowActions username={data.username} onChange={reload} />
               </div>
-            )}
-            {user?.isAdmin && <AdminTools username={data.username} tz={user.tz} />}
-            <div className="empty">
-              <IconLock size={26} />
-              <h3>This profile is private</h3>
-              <p>Only {data.username} can see what&rsquo;s on it.</p>
+            )
+          ) : (
+            <div className="public-actions">
+              <ShareButton
+                title={`${data.username} on Show Us TV`}
+                text={`See what ${data.username} has been watching on Show Us TV.`}
+                path={`/u/${data.username}`}
+              />
+              {user && <FollowActions username={data.username} onChange={reload} />}
             </div>
-          </>
-        ) : (
-          <>
-            <h1 className="page-title">{data.username}</h1>
-            <p className="public-byline">Watching TV on Show Us TV</p>
-            {data.private ? (
-              // A private profile served in full. No share button in either
-              // case — visitors would only get the teaser. The owner gets a
-              // reminder of what everyone else sees; a mutual follow (issue
-              // #184) gets no privacy note — they already have access, so
-              // the message is noise (issue #198) — just the usual follow
-              // affordance.
-              user?.username === data.username ? (
-                <p className="public-private-note">
-                  <IconLock size={13} /> Your profile is private: visitors see only your username. Make it public from
-                  your <Link to="/profile">profile</Link>.
-                </p>
-              ) : (
-                <div className="public-actions">
-                  <FollowActions username={data.username} onChange={reload} />
-                </div>
-              )
-            ) : (
-              <div className="public-actions">
-                <ShareButton
-                  title={`${data.username} on Show Us TV`}
-                  text={`See what ${data.username} has been watching on Show Us TV.`}
-                  path={`/u/${data.username}`}
-                />
-                {user && <FollowActions username={data.username} onChange={reload} />}
+          )}
+          {user?.isAdmin && <AdminTools username={data.username} tz={user.tz} />}
+          <StatsGrid stats={data.stats} />
+          <PublicAchievements ids={data.achievements} />
+          <ProfileComments comments={data.comments} />
+          {data.lists.length > 0 && (
+            <>
+              <h2 className="section-title">Lists</h2>
+              <div className="lists-grid">
+                {data.lists.map((l) => (
+                  <Link key={l.id} to={publicListPath(username!, l.id, l.name)} className="list-card">
+                    <div className="list-collage">
+                      {l.posters.length ? (
+                        l.posters.map((p, i) => <img key={i} src={poster(p, "w154")!} alt="" loading="lazy" />)
+                      ) : (
+                        <IconList size={28} />
+                      )}
+                    </div>
+                    <span className="list-name">{l.name}</span>
+                    <span className="mono list-count">
+                      {l.count} {l.count === 1 ? "title" : "titles"}
+                    </span>
+                  </Link>
+                ))}
               </div>
-            )}
-            {user?.isAdmin && <AdminTools username={data.username} tz={user.tz} />}
-            <StatsGrid stats={data.stats} />
-            <PublicAchievements ids={data.achievements} />
-            <ProfileComments comments={data.comments} />
-            {data.lists.length > 0 && (
-              <>
-                <h2 className="section-title">Lists</h2>
-                <div className="lists-grid">
-                  {data.lists.map((l) => (
-                    <Link key={l.id} to={publicListPath(username!, l.id, l.name)} className="list-card">
-                      <div className="list-collage">
-                        {l.posters.length ? (
-                          l.posters.map((p, i) => <img key={i} src={poster(p, "w154")!} alt="" loading="lazy" />)
-                        ) : (
-                          <IconList size={28} />
-                        )}
-                      </div>
-                      <span className="list-name">{l.name}</span>
-                      <span className="mono list-count">
-                        {l.count} {l.count === 1 ? "title" : "titles"}
-                      </span>
-                    </Link>
-                  ))}
-                </div>
-              </>
-            )}
-          </>
-        )}
-      </main>
-      <SiteFooter />
-    </div>
+            </>
+          )}
+        </>
+      )}
+    </>
   );
 }

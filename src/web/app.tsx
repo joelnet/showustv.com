@@ -116,9 +116,9 @@ function Shell() {
   );
 }
 
-// Chrome for signed-out visitors on shared title pages (issue #159): the
-// brand header with a sign-in affordance instead of the signed-in app nav,
-// mirroring the public profile/list pages (which carry their own header).
+// Chrome for signed-out visitors on shared title pages (issue #159) and
+// public profiles (issue #200): the brand header with a sign-in affordance
+// instead of the signed-in app nav.
 function PublicShell() {
   return (
     <div className="public-page">
@@ -386,16 +386,16 @@ export function App() {
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/u/:username/lists/:id" element={<PublicListPage />} />
-          <Route path="/u/:username" element={<PublicProfilePage />} />
-          {/* Shared title pages (issue #159): signed-out visitors can open
-              show/episode/movie links with public chrome instead of bouncing
-              to /login. Signed-in users skip these (the branch doesn't
-              register) and keep the full app Shell versions below. */}
+          {/* Shared title pages (issue #159) and user profiles (issue #200):
+              signed-out visitors open these links with public chrome instead
+              of bouncing to /login. Signed-in users skip these (the branch
+              doesn't register) and keep the full app Shell versions below. */}
           {!user && (
             <Route element={<PublicShell />}>
               <Route path="/show/:id" element={<ShowPage />} />
               <Route path="/episode/:id" element={<EpisodePage />} />
               <Route path="/movie/:id" element={<MoviePage />} />
+              <Route path="/u/:username" element={<PublicProfilePage />} />
             </Route>
           )}
           <Route element={<Shell />}>
@@ -414,6 +414,9 @@ export function App() {
             <Route path="/following" element={<FollowingPage />} />
             <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/profile" element={<ProfilePage />} />
+            {/* Someone else's profile gets the same app chrome as every
+                other signed-in page (issue #200). */}
+            <Route path="/u/:username" element={<PublicProfilePage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/settings/import" element={<ImportPage />} />
             <Route path="/about" element={<AboutPage />} />

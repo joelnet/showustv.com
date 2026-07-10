@@ -1184,8 +1184,9 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .public-byline a { color: var(--cyan); }
 .public-byline a:hover { color: var(--text); }
 .public-page .header { justify-content: center; }
-/* Signed-out chrome on shared title pages (issue #159): brand left, sign-in
-   right. The centered brand-only header above stays for profile/list pages. */
+/* Signed-out chrome on shared title pages (issue #159) and public profiles
+   (issue #200): brand left, sign-in right. The centered brand-only header
+   above stays for public list pages. */
 .public-page .header--public { justify-content: space-between; }
 
 /* Public list: detailed cards with poster + overview so a shared list reads
