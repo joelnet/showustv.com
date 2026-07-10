@@ -20,10 +20,10 @@ import { fmtAgo } from "../format";
 import { SmpteBars, ErrorNote, Slate } from "../components/ui";
 import { ShareButton } from "../components/share";
 import { ProfileSkeleton } from "../components/skeleton";
-import { IconList, IconCheck, IconPlus, IconEye, IconLock } from "../components/icons";
+import { IconList, IconCheck, IconPlus, IconEye, IconLock, IconChevron } from "../components/icons";
 import { StatsGrid, type WatchStats } from "./profile";
 import { fmtDateTime } from "../format";
-import { ACHIEVEMENTS_BY_ID } from "../../shared/achievements";
+import { ACHIEVEMENTS, ACHIEVEMENTS_BY_ID } from "../../shared/achievements";
 
 interface ProfileComment {
   body: string | null; // null for anonymous visitors — metadata only
@@ -60,26 +60,24 @@ interface PrivateTeaser {
 
 type PublicProfile = FullProfile | PrivateTeaser;
 
-// Unlocked achievements only — a public profile is a brag wall, not a
-// checklist of what the person hasn't done.
-function PublicAchievements({ ids }: { ids: string[] }) {
-  const unlocked = ids.map((id) => ACHIEVEMENTS_BY_ID.get(id)).filter((a) => a != null);
-  if (!unlocked.length) return null;
+// Compact link to the dedicated achievements page (issue #201) — the grid
+// used to render here and crowded the page. The count is earned/total; the
+// page itself still shows unlocked only (a public profile is a brag wall,
+// not a checklist of what the person hasn't done), so zero earned hides the
+// row entirely rather than advertising an empty page.
+function PublicAchievements({ username, ids }: { username: string; ids: string[] }) {
+  const earned = ids.filter((id) => ACHIEVEMENTS_BY_ID.has(id)).length;
+  if (!earned) return null;
   return (
-    <>
-      <h2 className="section-title">Achievements</h2>
-      <div className="ach-grid">
-        {unlocked.map((a) => (
-          <div key={a.id} className="ach is-unlocked" title={a.desc}>
-            <span className="ach-emoji" aria-hidden="true">
-              {a.emoji}
-            </span>
-            <span className="ach-title">{a.title}</span>
-            <span className="ach-desc">{a.desc}</span>
-          </div>
-        ))}
-      </div>
-    </>
+    <h2 className="section-title">
+      <Link to={`/u/${username}/achievements`} className="ach-page-link">
+        Achievements{" "}
+        <span className="mono ach-count">
+          ({earned}/{ACHIEVEMENTS.length})
+        </span>
+        <IconChevron size={11} />
+      </Link>
+    </h2>
   );
 }
 
@@ -405,7 +403,7 @@ export function PublicProfilePage() {
           )}
           {user?.isAdmin && <AdminTools username={data.username} tz={user.tz} />}
           <StatsGrid stats={data.stats} />
-          <PublicAchievements ids={data.achievements} />
+          <PublicAchievements username={data.username} ids={data.achievements} />
           <ProfileComments comments={data.comments} />
           {data.lists.length > 0 && (
             <>

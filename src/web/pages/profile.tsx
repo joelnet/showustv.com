@@ -1,11 +1,13 @@
 // The signed-in user's profile: watch stats, public/private toggle, and the
 // lists pinned to it (add / remove / reorder). Email verification lives on the
-// Settings page (settings.tsx). Public view: public-profile.tsx.
+// Settings page (settings.tsx). Public view: public-profile.tsx. The
+// achievements grid lives on its own page (achievements.tsx, issue #201) —
+// here it's just a linked count.
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useApi } from "../hooks";
 import { post, put, del } from "../api";
-import { watchTimeStr, fmtDateTime } from "../format";
+import { watchTimeStr } from "../format";
 import { ACHIEVEMENTS } from "../../shared/achievements";
 import { useAuth } from "../app";
 import { useConfirm } from "../components/dialog";
@@ -23,6 +25,7 @@ import {
   IconClock,
   IconFilm,
   IconPencil,
+  IconChevron,
 } from "../components/icons";
 
 export interface WatchStats {
@@ -47,29 +50,6 @@ interface ProfileData {
   followersCount: number;
   lists: ProfileList[];
   otherLists: Omit<ProfileList, "posters">[];
-}
-
-// Only the earned achievements, lit up (issue #19, #86). The locked catalog
-// is clutter on your own profile — a brag wall, not a checklist. Kept in
-// catalog order (grouped by category) so it stays visually coherent.
-export function AchievementGrid({ unlocked, tz }: { unlocked: Map<string, string | null>; tz?: string }) {
-  const earned = ACHIEVEMENTS.filter((a) => unlocked.has(a.id));
-  return (
-    <div className="ach-grid">
-      {earned.map((a) => {
-        const at = unlocked.get(a.id);
-        return (
-          <div key={a.id} className="ach is-unlocked" title={at && tz ? `Unlocked ${fmtDateTime(at, tz)}` : a.desc}>
-            <span className="ach-emoji" aria-hidden="true">
-              {a.emoji}
-            </span>
-            <span className="ach-title">{a.title}</span>
-            <span className="ach-desc">{a.desc}</span>
-          </div>
-        );
-      })}
-    </div>
-  );
 }
 
 // Rename the auto-assigned handle (issue #23). Sign-up gives a random
@@ -169,7 +149,6 @@ export function StatsGrid({ stats }: { stats: WatchStats }) {
 }
 
 export function ProfilePage() {
-  const { user } = useAuth();
   const confirm = useConfirm();
   const { data, loading, error, reload } = useApi<ProfileData>("/profile");
   const [busy, setBusy] = useState(false);
@@ -308,14 +287,19 @@ export function ProfilePage() {
 
       <StatsGrid stats={data.stats} />
 
+      {/* The grid moved to its own page (issue #201) — the heading itself is
+          now the link, with the earned/total count, so the profile stays
+          tidy. Zero earned still links out: the page doubles as the goal
+          catalog, so it answers "how do I get one?" better than a hint. */}
       <h2 className="section-title">
-        Achievements <span className="mono ach-count">({data.achievements.length}/{ACHIEVEMENTS.length})</span>
+        <Link to="/profile/achievements" className="ach-page-link">
+          Achievements{" "}
+          <span className="mono ach-count">
+            ({data.achievements.length}/{ACHIEVEMENTS.length})
+          </span>
+          <IconChevron size={11} />
+        </Link>
       </h2>
-      {data.achievements.length ? (
-        <AchievementGrid unlocked={new Map(data.achievements.map((a) => [a.id, a.unlockedAt]))} tz={user!.tz} />
-      ) : (
-        <Empty title="No achievements yet" hint="Watch episodes, post comments, and build lists to start earning them." />
-      )}
 
       <h2 className="section-title">Lists on your profile</h2>
       {!data.lists.length ? (

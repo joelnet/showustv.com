@@ -24,6 +24,7 @@ import { ListsPage, ListDetailPage } from "./pages/lists";
 import { PublicListPage } from "./pages/public-list";
 import { ProfilePage } from "./pages/profile";
 import { PublicProfilePage } from "./pages/public-profile";
+import { MyAchievementsPage, PublicAchievementsPage } from "./pages/achievements";
 import { FollowingPage } from "./pages/following";
 import { NotificationsPage } from "./pages/notifications";
 import { SettingsPage } from "./pages/settings";
@@ -396,6 +397,7 @@ export function App() {
               <Route path="/episode/:id" element={<EpisodePage />} />
               <Route path="/movie/:id" element={<MoviePage />} />
               <Route path="/u/:username" element={<PublicProfilePage />} />
+              <Route path="/u/:username/achievements" element={<PublicAchievementsPage />} />
             </Route>
           )}
           <Route element={<Shell />}>
@@ -414,9 +416,13 @@ export function App() {
             <Route path="/following" element={<FollowingPage />} />
             <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/profile" element={<ProfilePage />} />
+            {/* Your achievements moved off the profile to their own page
+                (issue #201). */}
+            <Route path="/profile/achievements" element={<MyAchievementsPage />} />
             {/* Someone else's profile gets the same app chrome as every
                 other signed-in page (issue #200). */}
             <Route path="/u/:username" element={<PublicProfilePage />} />
+            <Route path="/u/:username/achievements" element={<PublicAchievementsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/settings/import" element={<ImportPage />} />
             <Route path="/about" element={<AboutPage />} />

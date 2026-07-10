@@ -2143,6 +2143,13 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 
 /* Achievements (issue #19). */
 .ach-count { font-size: 13px; }
+/* The profile pages link out to the achievements page (issue #201) instead
+   of rendering the grid inline — the section heading itself is the link. */
+.ach-page-link { display: inline-flex; align-items: center; gap: 8px; color: inherit; }
+.ach-page-link:hover { color: var(--amber); text-decoration: none; }
+/* On the achievements page the count sits inside the 28px h1 — scale it up
+   from the 13px it uses inside section titles. */
+.page-title .ach-count { font-size: 16px; font-weight: 500; color: var(--muted); }
 .ach-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
