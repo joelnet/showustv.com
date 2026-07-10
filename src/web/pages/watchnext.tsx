@@ -1,9 +1,11 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
+import { useAuth } from "../app";
 import { useApi } from "../hooks";
 import { poster, backdrop, still } from "../img";
 import { epCode, fmtMonthDay } from "../format";
 import { Empty, ErrorNote } from "../components/ui";
+import { IconEye, IconEyeSlash } from "../components/icons";
 import { HomeSkeleton, TileGridSkeleton } from "../components/skeleton";
 import { mediaPath } from "../paths";
 import { precacheContinueWatching } from "../precache";
@@ -49,6 +51,40 @@ const SECTIONS: { key: SectionKey; label: string; field: keyof HomeData }[] = [
   { key: "history", label: "History", field: "history" },
   { key: "friends", label: "From People You Follow", field: "friendsWatched" },
 ];
+
+// Sections the user has hidden on Watch Now (issue #185), persisted per user
+// so two accounts on the same browser keep separate layouts. A per-device UI
+// preference, so localStorage is the right home (no API round-trip; the
+// tradeoff is it doesn't follow the account to other devices). Keyed by the
+// stable section keys above — the same ones the /watch/:key routes use —
+// never by index or display label, so reordering or renaming sections can't
+// scramble a saved layout.
+const hiddenSectionsKey = (userId: number) => `watchnext-hidden-sections:${userId}`;
+
+function loadHiddenSections(userId: number | undefined): Set<SectionKey> {
+  if (userId == null) return new Set();
+  try {
+    const raw = localStorage.getItem(hiddenSectionsKey(userId));
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return new Set();
+    // Drop anything that isn't a known section key — a stale or tampered
+    // entry must not survive into state and get written back on next toggle.
+    const known = new Set<string>(SECTIONS.map((s) => s.key));
+    return new Set(parsed.filter((k): k is SectionKey => typeof k === "string" && known.has(k)));
+  } catch {
+    return new Set(); // storage disabled or corrupt — every section stays visible
+  }
+}
+
+function saveHiddenSections(userId: number | undefined, hidden: Set<SectionKey>): void {
+  if (userId == null) return;
+  try {
+    localStorage.setItem(hiddenSectionsKey(userId), JSON.stringify([...hidden]));
+  } catch {
+    // storage disabled/full — the toggle still works for this visit
+  }
+}
 
 // The thumbnail and titles link to the show/movie; watch actions happen there
 // (#106). Landscape thumbnail, bold title, and one muted "S02·E05 - Episode
@@ -183,9 +219,16 @@ function Row({ items }: { items: HomeItem[] }) {
 }
 
 // Home: horizontally-scrollable rows (issue #105), one per section, each with a
-// clickable header that opens the full list for that section.
+// clickable header that opens the full list for that section. Each section
+// header also carries an eye toggle at the far right (issue #185): hiding a
+// section collapses its row and sinks the whole section to the bottom of the
+// page — visible sections keep their normal order up top, hidden ones sit
+// below in their original relative order, no divider between the two. A
+// hidden section keeps its header and toggle so it can be restored.
 export function WatchNext() {
+  const { user } = useAuth();
   const { data, loading, error } = useApi<HomeData>("/home");
+  const [hidden, setHidden] = useState<Set<SectionKey>>(() => loadHiddenSections(user?.id));
 
   // While online, warm the offline cache for the Continue Watching shows so
   // tapping one of these tiles still works in airplane mode (issue #139).
@@ -197,7 +240,18 @@ export function WatchNext() {
   if (error) return <ErrorNote message={error} />;
   if (!data) return null;
 
-  const rows = SECTIONS.map((s) => ({ ...s, items: data[s.field] ?? [] })).filter((s) => s.items.length > 0);
+  function toggleHidden(key: SectionKey) {
+    const next = new Set(hidden);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    setHidden(next);
+    saveHiddenSections(user?.id, next);
+  }
+
+  // Empty sections never render (so they never get a toggle); hidden ones
+  // sink below the visible ones (issue #185).
+  const sections = SECTIONS.map((s) => ({ ...s, items: data[s.field] ?? [] })).filter((s) => s.items.length > 0);
+  const rows = [...sections.filter((s) => !hidden.has(s.key)), ...sections.filter((s) => hidden.has(s.key))];
   if (rows.length === 0) {
     return (
       <>
@@ -213,15 +267,30 @@ export function WatchNext() {
   return (
     <div className="wn-home">
       <h1 className="sr-only">Watch</h1>
-      {rows.map((s) => (
-        <section key={s.key} className="wn-section">
-          <Link to={`/watch/${s.key}`} className="wn-section-head">
-            <h2>{s.label}</h2>
-            <span className="wn-section-more" aria-hidden="true">›</span>
-          </Link>
-          <Row items={s.items} />
-        </section>
-      ))}
+      {rows.map((s) => {
+        const isHidden = hidden.has(s.key);
+        return (
+          <section key={s.key} className={isHidden ? "wn-section is-hidden" : "wn-section"}>
+            <div className="wn-section-bar">
+              <Link to={`/watch/${s.key}`} className="wn-section-head">
+                <h2>{s.label}</h2>
+                <span className="wn-section-more" aria-hidden="true">›</span>
+              </Link>
+              <button
+                type="button"
+                className="btn btn-ghost wn-section-toggle"
+                aria-expanded={!isHidden}
+                aria-label={isHidden ? `Show ${s.label}` : `Hide ${s.label}`}
+                title={isHidden ? `Show ${s.label}` : `Hide ${s.label}`}
+                onClick={() => toggleHidden(s.key)}
+              >
+                {isHidden ? <IconEyeSlash size={15} /> : <IconEye size={15} />}
+              </button>
+            </div>
+            {!isHidden && <Row items={s.items} />}
+          </section>
+        );
+      })}
     </div>
   );
 }

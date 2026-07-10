@@ -683,16 +683,26 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
    the link inherits the global cyan. */
 .wn-tile-user { padding: 2px 2px 0; }
 
-/* Home: horizontally-scrollable section rows (issue #105). */
+/* Home: horizontally-scrollable section rows (issue #105). The header line is
+   a bar (issue #185): the section link on the left, the hide/show eye toggle
+   pushed to the far right on the same line as the h2. */
 .wn-home { display: flex; flex-direction: column; gap: 28px; }
+.wn-section-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 12px;
+}
 .wn-section-head {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  margin: 0 0 12px;
+  margin: 0;
   color: var(--text);
   text-decoration: none;
   width: fit-content;
+  min-width: 0;
 }
 .wn-section-head:hover { text-decoration: none; }
 .wn-section-head:hover h2,
@@ -705,6 +715,23 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   margin: 0;
 }
 .wn-section-more { font-size: 22px; line-height: 1; color: var(--muted); }
+/* The eye toggle: compact icon-only button, muted so it doesn't compete with
+   the heading (issue #185). Sized like the profile privacy toggle. */
+.wn-section-toggle {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.wn-section-toggle:hover { color: var(--text); }
+/* A hidden section keeps its header as the restore handle, dimmed; its row is
+   gone entirely. The header link still works (and still ambers on hover). */
+.wn-section.is-hidden .wn-section-head h2,
+.wn-section.is-hidden .wn-section-more { color: var(--muted); }
+.wn-section.is-hidden .wn-section-head:hover h2,
+.wn-section.is-hidden .wn-section-head:hover .wn-section-more { color: var(--amber); }
 .wn-row {
   display: grid;
   grid-auto-flow: column;
@@ -1956,7 +1983,8 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   .list-item-actions { gap: 4px; }
   .list-item-actions .btn-ghost { padding: 9px 10px; min-width: 40px; min-height: 40px; }
   .profile-edit-btn,
-  .profile-privacy-btn { width: 40px; height: 40px; }
+  .profile-privacy-btn,
+  .wn-section-toggle { width: 40px; height: 40px; }
 
   .import-actions { flex-wrap: wrap; }
 
