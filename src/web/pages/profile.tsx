@@ -22,6 +22,7 @@ import {
   IconPlay,
   IconClock,
   IconFilm,
+  IconPencil,
 } from "../components/icons";
 
 export interface WatchStats {
@@ -73,21 +74,33 @@ export function AchievementGrid({ unlocked, tz }: { unlocked: Map<string, string
 
 // Rename the auto-assigned handle (issue #23). Sign-up gives a random
 // username; this lets the user change it, updating the auth context so the
-// rest of the app (share links, etc.) reflects it immediately. The username
-// itself is now the page heading (issue #162), so at rest this is just the
-// small affordance to change it.
-function UsernameEditor({ username, reload }: { username: string; reload: () => void }) {
+// rest of the app (share links, etc.) reflects it immediately. Just the
+// inline form: the trigger is the pencil button in the profile header (issue
+// #182), and the parent mounts this only while editing, so the input and any
+// error start fresh each time it opens. `busy` lives in the parent so the
+// pencil can't unmount the form (and eat the error) mid-save.
+function UsernameEditor({
+  username,
+  reload,
+  close,
+  busy,
+  setBusy,
+}: {
+  username: string;
+  reload: () => void;
+  close: () => void;
+  busy: boolean;
+  setBusy: (b: boolean) => void;
+}) {
   const { user, setUser } = useAuth();
-  const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(username);
-  const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     const next = value.trim();
     if (next === username) {
-      setEditing(false);
+      close();
       return;
     }
     setBusy(true);
@@ -95,7 +108,7 @@ function UsernameEditor({ username, reload }: { username: string; reload: () => 
     try {
       const r = await put("/profile/username", { username: next });
       if (user) setUser({ ...user, username: r.username });
-      setEditing(false);
+      close();
       reload();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Something went wrong");
@@ -104,51 +117,26 @@ function UsernameEditor({ username, reload }: { username: string; reload: () => 
     }
   };
 
-  if (editing) {
-    return (
-      <form className="username-form" onSubmit={save}>
-        <input
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          minLength={3}
-          maxLength={20}
-          pattern="[A-Za-z0-9_]+"
-          aria-label="Username"
-          autoFocus
-          required
-        />
-        <button type="submit" className="btn" disabled={busy}>
-          Save
-        </button>
-        <button
-          type="button"
-          className="btn btn-ghost"
-          disabled={busy}
-          onClick={() => {
-            setEditing(false);
-            setValue(username);
-            setErr(null);
-          }}
-        >
-          Cancel
-        </button>
-        {err && <span className="email-err">{err}</span>}
-      </form>
-    );
-  }
-
   return (
-    <p className="profile-username-edit">
-      <button
-        className="link-btn"
-        onClick={() => {
-          setValue(username);
-          setEditing(true);
-        }}
-      >
-        Edit username
+    <form className="username-form" onSubmit={save}>
+      <input
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        minLength={3}
+        maxLength={20}
+        pattern="[A-Za-z0-9_]+"
+        aria-label="Username"
+        autoFocus
+        required
+      />
+      <button type="submit" className="btn" disabled={busy}>
+        Save
       </button>
-    </p>
+      <button type="button" className="btn btn-ghost" disabled={busy} onClick={close}>
+        Cancel
+      </button>
+      {err && <span className="email-err">{err}</span>}
+    </form>
   );
 }
 
@@ -185,6 +173,8 @@ export function ProfilePage() {
   const confirm = useConfirm();
   const { data, loading, error, reload } = useApi<ProfileData>("/profile");
   const [busy, setBusy] = useState(false);
+  const [editingUsername, setEditingUsername] = useState(false);
+  const [usernameBusy, setUsernameBusy] = useState(false);
 
   if (loading) return <ProfileSkeleton action />;
   if (error) return <ErrorNote message={error} />;
@@ -237,12 +227,23 @@ export function ProfilePage() {
   return (
     <div>
       {/* The username is the page title (issue #162) — a "Profile" heading told
-          you nothing. The privacy toggle sits right beside it as an icon-only
-          button (eye = public, lock = private, matching the public page's lock
+          you nothing. The pencil beside it (issue #182) toggles the inline
+          rename form below; then the privacy toggle, an icon-only button
+          (eye = public, lock = private, matching the public page's lock
           teaser) with the state spelled out alongside, so the icon never has
           to carry the meaning alone. */}
       <div className="profile-head">
         <h1 className="page-title">{data.username}</h1>
+        <button
+          className="btn btn-ghost profile-edit-btn"
+          disabled={usernameBusy}
+          aria-label="Edit username"
+          title="Edit username"
+          aria-expanded={editingUsername}
+          onClick={() => setEditingUsername((v) => !v)}
+        >
+          <IconPencil size={15} />
+        </button>
         <div className="profile-privacy">
           <button
             className="btn btn-ghost profile-privacy-btn"
@@ -282,7 +283,15 @@ export function ProfilePage() {
         </p>
       )}
 
-      <UsernameEditor username={data.username} reload={reload} />
+      {editingUsername && (
+        <UsernameEditor
+          username={data.username}
+          reload={reload}
+          close={() => setEditingUsername(false)}
+          busy={usernameBusy}
+          setBusy={setUsernameBusy}
+        />
+      )}
 
       {/* Following/Followers counts (issue #130). The header nav dropped its
           Following link, so this row is the entry point to /following on every

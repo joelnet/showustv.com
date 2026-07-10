@@ -212,19 +212,22 @@ export function PubListSkeleton({ count = 4 }: { count?: number }) {
   );
 }
 
-// Profile (own and public): username title (plus the icon-only privacy
-// toggle and its status text on your own, issue #162), identity line, the
-// three stat cards, then a section of rows.
+// Profile (own and public): username title (plus the icon-only rename pencil,
+// privacy toggle, and its status text on your own, issues #162/#182), identity
+// line, the three stat cards, then a section of rows.
 export function ProfileSkeleton({ action = false }: { action?: boolean }) {
   return (
     <SkeletonShell>
       <div className="profile-head">
         <Skeleton className="skel-page-title" />
         {action && (
-          <div className="profile-privacy">
+          <>
             <Skeleton className="skel-btn skel-btn--icon" />
-            <Skeleton className="skel-line skel-line--sm" style={{ width: 130 }} />
-          </div>
+            <div className="profile-privacy">
+              <Skeleton className="skel-btn skel-btn--icon" />
+              <Skeleton className="skel-line skel-line--sm" style={{ width: 130 }} />
+            </div>
+          </>
         )}
       </div>
       <Skeleton className="skel-line" style={{ width: 190, maxWidth: "60%" }} />

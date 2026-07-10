@@ -1246,12 +1246,14 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 /* ---------- Profile ---------- */
 
 /* Own-profile header (issue #162): your username is the page title, with the
-   privacy toggle as a compact icon-only button right beside it and its state
-   spelled out in muted words alongside — the name stays dominant, the state
-   reads at a glance. Wraps as one cluster under a long username. */
+   rename pencil (issue #182) and the privacy toggle as compact icon-only
+   buttons right beside it, the privacy state spelled out in muted words
+   alongside — the name stays dominant, the state reads at a glance. Wraps as
+   one cluster under a long username. */
 .profile-head { display: flex; align-items: center; gap: 6px 14px; flex-wrap: wrap; margin: 4px 0 2px; }
 .profile-head .page-title { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .profile-privacy { display: inline-flex; align-items: center; gap: 10px; }
+.profile-edit-btn,
 .profile-privacy-btn { width: 34px; height: 34px; padding: 0; justify-content: center; flex-shrink: 0; }
 .profile-privacy-note { color: var(--muted); font-size: 13.5px; }
 /* The shareable profile URL, flat under the username with Share right beside
@@ -1260,8 +1262,6 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
    a narrow screen; the row itself wraps as a last resort. */
 .profile-url { display: flex; align-items: center; flex-wrap: wrap; gap: 0 4px; margin: 2px 0 0; font-size: 13.5px; }
 .profile-url > a { min-width: 0; overflow-wrap: anywhere; }
-/* Nudge the link-btn's padding away so "Edit username" aligns with the name. */
-.profile-username-edit { margin: 6px 0 0 -6px; }
 
 .profile-stats {
   display: grid;
@@ -1955,6 +1955,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   .list-pos { width: 16px; }
   .list-item-actions { gap: 4px; }
   .list-item-actions .btn-ghost { padding: 9px 10px; min-width: 40px; min-height: 40px; }
+  .profile-edit-btn,
   .profile-privacy-btn { width: 40px; height: 40px; }
 
   .import-actions { flex-wrap: wrap; }

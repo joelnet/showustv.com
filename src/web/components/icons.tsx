@@ -32,6 +32,7 @@ import {
   faBell,
   faShareNodes,
   faLock,
+  faPencil,
 } from "@fortawesome/free-solid-svg-icons";
 import { faHeart as faHeartOutline } from "@fortawesome/free-regular-svg-icons";
 
@@ -70,6 +71,7 @@ export const IconClose = wrap(faXmark);
 export const IconBell = wrap(faBell);
 export const IconShare = wrap(faShareNodes);
 export const IconLock = wrap(faLock);
+export const IconPencil = wrap(faPencil);
 
 // Brand glyphs — not in the Font Awesome free-solid/regular sets, so inlined
 // to avoid pulling in the free-brands package for two icons. `currentColor`
