@@ -359,22 +359,18 @@ export function PublicProfilePage() {
               // A private profile served in full. No share button in either
               // case — visitors would only get the teaser. The owner gets a
               // reminder of what everyone else sees; a mutual follow (issue
-              // #184) gets an explanation of why they can see the page, plus
-              // the usual follow affordance.
+              // #184) gets no privacy note — they already have access, so
+              // the message is noise (issue #198) — just the usual follow
+              // affordance.
               user?.username === data.username ? (
                 <p className="public-private-note">
                   <IconLock size={13} /> Your profile is private: visitors see only your username. Make it public from
                   your <Link to="/profile">profile</Link>.
                 </p>
               ) : (
-                <>
-                  <p className="public-private-note">
-                    <IconLock size={13} /> This profile is private. You can see it because you follow each other.
-                  </p>
-                  <div className="public-actions">
-                    <FollowActions username={data.username} onChange={reload} />
-                  </div>
-                </>
+                <div className="public-actions">
+                  <FollowActions username={data.username} onChange={reload} />
+                </div>
               )
             ) : (
               <div className="public-actions">
