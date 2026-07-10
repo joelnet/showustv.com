@@ -11,11 +11,13 @@ export const pub = new Hono<AppEnv>();
 // Instagram-style teaser — the canonical username and `private: true`,
 // nothing else — so the page can say "this profile is private" instead of
 // pretending the person doesn't exist. Only a genuinely unknown (or deleted)
-// username 404s. The owner is the one viewer who still gets their full
-// profile here (nobody else does — followers included, since profile privacy
-// hides the page content from everyone but the owner). Of the lists, only
-// those BOTH pinned to the profile AND individually shared are served — a
-// pinned private list stays private.
+// username 404s. Two viewers still get the full profile of a private
+// account: the owner, and a MUTUAL follow (issue #184) — the owner following
+// the viewer back is a deliberate signal that they want to be seen. A
+// one-way follow never unlocks anything: follows are instant and unapproved,
+// so a viewer could self-grant one (that's why issue #158 kept followers
+// out). Of the lists, only those BOTH pinned to the profile AND individually
+// shared are served — a pinned private list stays private.
 pub.get("/profile/:username", async (c) => {
   const username = c.req.param("username");
   const user = await c.env.DB.prepare(
@@ -29,9 +31,24 @@ pub.get("/profile/:username", async (c) => {
 
   // The teaser (issue #158): confirms the profile exists and is private, and
   // must never carry the private content — no stats, lists, achievements,
-  // comments, or counts.
+  // comments, or counts. A mutual follow (issue #184) is the one non-owner
+  // viewer who gets past it, and the check demands BOTH directions be active
+  // in a single self-join: `f` is viewer→owner, `r` is owner→viewer. The
+  // owner's row already proved them not-deleted above; the users join
+  // re-checks the viewer, since sessions are stateless HMAC cookies that can
+  // outlive a soft-deleted account.
   if (!user.profile_public && viewer?.u !== user.id) {
-    return c.json({ username: user.username, private: true });
+    const mutual =
+      viewer &&
+      (await c.env.DB.prepare(
+        `SELECT 1 FROM follows f
+         JOIN follows r ON r.follower_id = f.followee_id AND r.followee_id = f.follower_id AND r.state = 'active'
+         JOIN users v ON v.id = f.follower_id AND v.deleted_at IS NULL
+         WHERE f.follower_id = ?1 AND f.followee_id = ?2 AND f.state = 'active'`
+      )
+        .bind(viewer.u, user.id)
+        .first());
+    if (!mutual) return c.json({ username: user.username, private: true });
   }
 
   const [statsR, listsR, postersR, commentsR, achR] = await c.env.DB.batch([
@@ -91,15 +108,18 @@ pub.get("/profile/:username", async (c) => {
     arr.push(r.poster);
     posters.set(r.list_id, arr);
   }
-  // The owner's preview of their own private profile is personal content on
-  // a public, viewer-varying URL — no-store keeps it out of the service
-  // worker's API cache (sw.js honors this), so it can't be replayed to a
-  // later, unauthenticated visitor on the same browser.
+  // A private profile served in full — to its owner or to a mutual follow —
+  // is personal content on a public, viewer-varying URL — no-store keeps it
+  // out of the service worker's API cache (sw.js honors this), so it can't
+  // be replayed to a later, unauthenticated or non-mutual visitor on the
+  // same browser.
   if (!user.profile_public) c.header("Cache-Control", "no-store");
   return c.json({
     username: user.username,
-    // Only ever true for the owner previewing their own private profile —
-    // every other viewer of a private profile got the teaser above.
+    // True only when a private profile is served in full: to its owner, or
+    // to a mutual follow (issue #184) — every other viewer got the teaser
+    // above. The page uses it to suppress the share button and explain why
+    // the viewer can see the page.
     private: !user.profile_public,
     stats: statsFromRow(statsR.results[0]),
     lists: (listsR.results as any[]).map((l) => ({ ...l, posters: posters.get(l.id) ?? [] })),

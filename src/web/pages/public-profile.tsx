@@ -1,13 +1,14 @@
 // Public, read-only profile — reachable without an account at /u/:username.
 // A public profile shows watch stats plus the lists the owner pinned (public
 // lists only). A private profile shows an Instagram-style teaser instead:
-// the username and a "this profile is private" note (issue #158), with the
-// owner as the one viewer who still sees the full page. Signed-in visitors
-// also get a follow/unfollow affordance here.
+// the username and a "this profile is private" note (issue #158). Two
+// viewers still see the full page: the owner, and a mutual follow (issue
+// #184) — the server decides, this page just renders what it's sent.
+// Signed-in visitors also get a follow/unfollow affordance here.
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, post, put, del } from "../api";
-import { useApi } from "../hooks";
+import { useApi, dropCached } from "../hooks";
 import { useAuth } from "../app";
 import { useConfirm } from "../components/dialog";
 import { poster } from "../img";
@@ -36,8 +37,9 @@ interface ProfileComment {
 
 interface FullProfile {
   username: string;
-  // True only on the owner's preview of their own private profile — every
-  // other viewer of a private profile gets the teaser instead.
+  // True when a private profile is served in full — to its owner, or to a
+  // mutual follow (issue #184). Every other viewer of a private profile gets
+  // the teaser instead.
   private?: boolean;
   stats: WatchStats;
   lists: { id: number; name: string; count: number; posters: string[] }[];
@@ -112,8 +114,12 @@ type Relation = "none" | "following" | "self";
 // Follow/unfollow affordance, shown only to signed-in visitors on someone
 // else's profile. Social actions never queue offline — failures show inline.
 // Renders as a fragment inside the page's .public-actions row so it sits
-// beside the share button.
-function FollowActions({ username }: { username: string }) {
+// beside the share button. `onChange` fires after a successful follow or
+// unfollow — on a private profile the relationship decides what the server
+// serves (issue #184), so the page refetches: following back reveals a
+// mutual's full profile, and unfollowing drops the viewer back to the teaser
+// instead of leaving revoked-access content on screen.
+function FollowActions({ username, onChange }: { username: string; onChange?: () => void }) {
   const confirm = useConfirm();
   const [relation, setRelation] = useState<Relation | null>(null);
   const [followsYou, setFollowsYou] = useState(false);
@@ -145,6 +151,7 @@ function FollowActions({ username }: { username: string }) {
     try {
       await fn();
       setRelation(next);
+      onChange?.();
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -295,7 +302,17 @@ function AdminTools({ username, tz }: { username: string; tz: string }) {
 export function PublicProfilePage() {
   const { username } = useParams();
   const { user } = useAuth();
-  const { data, loading, error } = useApi<PublicProfile>(`/public/profile/${encodeURIComponent(username!)}`);
+  const path = `/public/profile/${encodeURIComponent(username!)}`;
+  const { data, loading, error, reload } = useApi<PublicProfile>(path);
+
+  // A private profile served in full is no-store on the wire (issues
+  // #158/#184) — the service worker honors that, and this mirrors it in the
+  // in-memory page cache: drop the entry so navigating back after access is
+  // revoked (unfollowed, or the owner unfollowed) cold-loads fresh instead
+  // of warm-painting the old private payload.
+  useEffect(() => {
+    if (data?.private && data.stats) dropCached(path);
+  }, [data, path]);
 
   return (
     <div className="public-page">
@@ -316,13 +333,15 @@ export function PublicProfilePage() {
         ) : !data.stats ? (
           // Private profile teaser (issue #158): the server sent the username
           // and nothing else. Signed-in visitors keep the follow affordance —
-          // following works regardless of profile visibility.
+          // following works regardless of profile visibility, and following
+          // back someone who already follows you makes the pair mutual, so
+          // the refetch swaps the teaser for the full profile (issue #184).
           <>
             <h1 className="page-title">{data.username}</h1>
             <p className="public-byline">Watching TV on Show Us TV</p>
             {user && (
               <div className="public-actions">
-                <FollowActions username={data.username} />
+                <FollowActions username={data.username} onChange={reload} />
               </div>
             )}
             {user?.isAdmin && <AdminTools username={data.username} tz={user.tz} />}
@@ -337,13 +356,26 @@ export function PublicProfilePage() {
             <h1 className="page-title">{data.username}</h1>
             <p className="public-byline">Watching TV on Show Us TV</p>
             {data.private ? (
-              // The owner previewing their own private profile: no share
-              // button (visitors would only get the teaser), just a reminder
-              // of what everyone else sees.
-              <p className="public-private-note">
-                <IconLock size={13} /> Your profile is private: visitors see only your username. Make it public from
-                your <Link to="/profile">profile</Link>.
-              </p>
+              // A private profile served in full. No share button in either
+              // case — visitors would only get the teaser. The owner gets a
+              // reminder of what everyone else sees; a mutual follow (issue
+              // #184) gets an explanation of why they can see the page, plus
+              // the usual follow affordance.
+              user?.username === data.username ? (
+                <p className="public-private-note">
+                  <IconLock size={13} /> Your profile is private: visitors see only your username. Make it public from
+                  your <Link to="/profile">profile</Link>.
+                </p>
+              ) : (
+                <>
+                  <p className="public-private-note">
+                    <IconLock size={13} /> This profile is private. You can see it because you follow each other.
+                  </p>
+                  <div className="public-actions">
+                    <FollowActions username={data.username} onChange={reload} />
+                  </div>
+                </>
+              )
             ) : (
               <div className="public-actions">
                 <ShareButton
@@ -351,7 +383,7 @@ export function PublicProfilePage() {
                   text={`See what ${data.username} has been watching on Show Us TV.`}
                   path={`/u/${data.username}`}
                 />
-                {user && <FollowActions username={data.username} />}
+                {user && <FollowActions username={data.username} onChange={reload} />}
               </div>
             )}
             {user?.isAdmin && <AdminTools username={data.username} tz={user.tz} />}
