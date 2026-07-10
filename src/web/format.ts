@@ -19,6 +19,13 @@ export function fmtEpisodeDate(d: string | null, aired: boolean, tz: string): st
   return fmtAirDate(d, tz);
 }
 
+// Compact calendar date for pills (issue #175): short month + day with no
+// leading zero, e.g. "Jan 17", "Feb 3". Date-only input, so like fmtAirDate
+// it formats in UTC from the literal parts and never shifts across timezones.
+export function fmtMonthDay(d: string): string {
+  return dateOnlyUTC(d).toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
+}
+
 export function fmtAirDate(d: string | null, tz: string): string {
   if (!d) return "TBA";
   const today = todayStr(tz);

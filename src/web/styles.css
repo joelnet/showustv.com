@@ -657,7 +657,10 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   display: block;
 }
 .wn-tile-thumb .poster-fallback { display: flex; align-items: center; justify-content: center; text-align: center; }
-.wn-tile-count { position: absolute; bottom: 7px; right: 7px; background: rgba(15, 18, 24, 0.85); color: var(--text); }
+/* Overlay pills on the thumb corner: episodes-left count, and the air-date
+   pill on Upcoming tiles (issue #175). Same spot — no tile carries both. */
+.wn-tile-count,
+.wn-tile-date { position: absolute; bottom: 7px; right: 7px; background: rgba(15, 18, 24, 0.85); color: var(--text); }
 .wn-tile-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 8px 2px 0; }
 .wn-tile-show {
   font-family: var(--font-display);

@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { useApi } from "../hooks";
 import { poster, backdrop, still } from "../img";
-import { epCode } from "../format";
+import { epCode, fmtMonthDay } from "../format";
 import { Empty, ErrorNote } from "../components/ui";
 import { HomeSkeleton, TileGridSkeleton } from "../components/skeleton";
 import { mediaPath } from "../paths";
@@ -22,6 +22,7 @@ interface HomeItem {
   count?: number;
   username?: string; // "From People You Follow": who watched it (issue #128)
   episodeId?: number | null; // friends tiles: the exact episode they watched (issue #128)
+  airDate?: string | null; // Upcoming tiles: the episode's air date, 'YYYY-MM-DD' (issue #175)
 }
 
 interface HomeData {
@@ -57,7 +58,9 @@ const SECTIONS: { key: SectionKey; label: string; field: keyof HomeData }[] = [
 // profile — a separate sibling link, since anchors can't nest (issue #128) —
 // and their media link goes to the exact episode the followee watched, so
 // tracking their progress is one tap (issue #128 follow-up). Missing episode
-// fields degrade to the plain show link.
+// fields degrade to the plain show link. Upcoming tiles carry an airDate and
+// wear it as a "Jan 17"-style pill on the thumb (issue #175), in the corner
+// the count pill uses elsewhere — the two never appear on the same tile.
 function Tile({ item }: { item: HomeItem }) {
   const thumb = still(item.still) ?? backdrop(item.backdrop) ?? poster(item.poster);
   const to =
@@ -70,6 +73,7 @@ function Tile({ item }: { item: HomeItem }) {
         <div className="wn-tile-thumb">
           {thumb ? <img src={thumb} alt="" loading="lazy" decoding="async" draggable={false} /> : <div className="poster-fallback">{item.title}</div>}
           {item.count != null && item.count > 0 && <span className="pill wn-tile-count">{item.count} left</span>}
+          {item.airDate && <span className="pill wn-tile-date">{fmtMonthDay(item.airDate)}</span>}
         </div>
         <div className="wn-tile-body">
           <span className="wn-tile-show">{item.title}</span>

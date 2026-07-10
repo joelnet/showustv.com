@@ -153,6 +153,9 @@ library.get("/home", async (c) => {
     season: r.season_number,
     number: r.number,
     episodeTitle: r.episode_title,
+    // Date-only 'YYYY-MM-DD'; the query guarantees it exists and is in the
+    // future. Feeds the tile's date pill (issue #175).
+    airDate: r.air_date,
   }));
 
   // History: recently watched episodes and movies, newest first. The batch
