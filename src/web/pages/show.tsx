@@ -114,6 +114,60 @@ function pickOpenSeason(d: ShowPayload): number | null {
   return current?.number ?? d.seasons.find((s) => s.number > 0)?.number ?? null;
 }
 
+// Episode display order (issue #187). Ascending is the server's order (season
+// 1 first, E1 first). Descending mirrors both levels — latest season first,
+// latest episode first within each season — so the most recent episode is the
+// first row on the page; specials (season 0) fall to the bottom. One global
+// preference per user, never per-show or per-season, stored under a per-user
+// key like the Watch Now section layout (issue #185) so two accounts on the
+// same browser keep separate choices. Signed-out viewers can flip the order
+// for the visit, but nothing is persisted without an account.
+type EpisodeSort = "asc" | "desc";
+
+const episodeSortKey = (userId: number) => `show-episode-sort:${userId}`;
+
+function loadEpisodeSort(userId: number | undefined): EpisodeSort {
+  if (userId == null) return "asc";
+  try {
+    return localStorage.getItem(episodeSortKey(userId)) === "desc" ? "desc" : "asc";
+  } catch {
+    return "asc"; // storage disabled — the default order still renders
+  }
+}
+
+function saveEpisodeSort(userId: number | undefined, sort: EpisodeSort): void {
+  if (userId == null) return;
+  try {
+    localStorage.setItem(episodeSortKey(userId), sort);
+  } catch {
+    // storage disabled/full — the choice still applies for this visit
+  }
+}
+
+// Non-destructive display copy: the payload's seasons stay in server
+// (ascending) order because the progress logic (pickOpenSeason,
+// priorUnwatched, applyWatch) and the cached copy read them.
+function orderSeasons(seasons: ShowPayload["seasons"], sort: EpisodeSort): ShowPayload["seasons"] {
+  if (sort === "asc") return seasons;
+  return seasons.map((s) => ({ ...s, episodes: [...s.episodes].reverse() })).reverse();
+}
+
+// The order dropdown above the seasons list — the Library's sort-bar control,
+// same styling and label placement (issue #187).
+function EpisodeSortBar({ sort, onChange }: { sort: EpisodeSort; onChange: (s: EpisodeSort) => void }) {
+  return (
+    <div className="sort-bar">
+      <label>
+        Episode order
+        <select value={sort} onChange={(e) => onChange(e.target.value as EpisodeSort)}>
+          <option value="asc">Ascending (oldest first)</option>
+          <option value="desc">Descending (newest first)</option>
+        </select>
+      </label>
+    </div>
+  );
+}
+
 // People you follow who track this show — username chips linking to their
 // profile. Quietly renders nothing while loading, with none, or offline.
 function AlsoWatching({ showId }: { showId: string }) {
@@ -142,15 +196,23 @@ function PublicShowView({
   data,
   openSeason,
   setOpenSeason,
+  episodeSort,
+  onEpisodeSort,
 }: {
   data: ShowPayload;
   openSeason: number | null;
   setOpenSeason: (n: number | null) => void;
+  episodeSort: EpisodeSort;
+  onEpisodeSort: (s: EpisodeSort) => void;
 }) {
   const { show, seasons, nextEpisode, watch } = data;
   // No profile timezone without a session — the browser's own is the best
   // stand-in for air-date rendering.
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const visibleSeasons = orderSeasons(
+    seasons.filter((s) => s.episodes.length > 0),
+    episodeSort
+  );
   return (
     <div className="show-page">
       <section
@@ -190,44 +252,44 @@ function PublicShowView({
 
       <ExternalLinks title={show.title} imdbId={show.imdbId} />
 
+      {visibleSeasons.length > 0 && <EpisodeSortBar sort={episodeSort} onChange={onEpisodeSort} />}
+
       <section className="seasons">
-        {seasons
-          .filter((s) => s.episodes.length > 0)
-          .map((season) => {
-            const open = openSeason === season.number;
-            return (
-              <div key={season.id} className="season">
-                <div className="season-head">
-                  <button
-                    type="button"
-                    className="season-toggle"
-                    aria-expanded={open}
-                    onClick={() => setOpenSeason(open ? null : season.number)}
-                  >
-                    <IconChevron size={14} />
-                    <span className="season-name">{season.name ?? `Season ${season.number}`}</span>
-                    <span className="mono season-count">
-                      {season.episodes.length} {season.episodes.length === 1 ? "episode" : "episodes"}
-                    </span>
-                  </button>
-                </div>
-                {open && (
-                  <ul className="episode-list">
-                    {season.episodes.map((e) => (
-                      <li key={e.id} className={`episode-row${e.aired ? "" : " is-future"}`}>
-                        <Slate season={e.season_number} number={e.number} />
-                        <Link to={mediaPath("episode", e.id, e.title)} className="episode-title">
-                          {e.title ?? `Episode ${e.number}`}
-                        </Link>
-                        <span className="episode-date mono">{fmtEpisodeDate(e.air_date, e.aired, tz)}</span>
-                        {!e.aired && <span className="on-air-dot on-air-dot--future" title="Not aired yet" />}
-                      </li>
-                    ))}
-                  </ul>
-                )}
+        {visibleSeasons.map((season) => {
+          const open = openSeason === season.number;
+          return (
+            <div key={season.id} className="season">
+              <div className="season-head">
+                <button
+                  type="button"
+                  className="season-toggle"
+                  aria-expanded={open}
+                  onClick={() => setOpenSeason(open ? null : season.number)}
+                >
+                  <IconChevron size={14} />
+                  <span className="season-name">{season.name ?? `Season ${season.number}`}</span>
+                  <span className="mono season-count">
+                    {season.episodes.length} {season.episodes.length === 1 ? "episode" : "episodes"}
+                  </span>
+                </button>
               </div>
-            );
-          })}
+              {open && (
+                <ul className="episode-list">
+                  {season.episodes.map((e) => (
+                    <li key={e.id} className={`episode-row${e.aired ? "" : " is-future"}`}>
+                      <Slate season={e.season_number} number={e.number} />
+                      <Link to={mediaPath("episode", e.id, e.title)} className="episode-title">
+                        {e.title ?? `Episode ${e.number}`}
+                      </Link>
+                      <span className="episode-date mono">{fmtEpisodeDate(e.air_date, e.aired, tz)}</span>
+                      {!e.aired && <span className="on-air-dot on-air-dot--future" title="Not aired yet" />}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          );
+        })}
       </section>
 
       <Comments targetType="show" targetId={show.id} />
@@ -254,6 +316,21 @@ export function ShowPage() {
   // Signed-out viewers (issue #159) start with every season collapsed; only a
   // signed-in visit auto-opens the season they're working through.
   const [openSeason, setOpenSeason] = useState<number | null>(seed && user ? pickOpenSeason(seed) : null);
+  // Global episode order (issue #187): restored once per mount from the
+  // per-user key and kept across show-to-show navigation — it's one setting
+  // for the whole account, so no per-show reset.
+  const [episodeSort, setEpisodeSort] = useState<EpisodeSort>(() => loadEpisodeSort(user?.id));
+  const changeEpisodeSort = (s: EpisodeSort) => {
+    setEpisodeSort(s);
+    saveEpisodeSort(user?.id, s);
+  };
+
+  // Re-read the order preference if the signed-in identity changes while the
+  // page stays mounted, so one account's in-memory choice can't bleed into
+  // another's session (the same cross-account hygiene as issue #185).
+  useEffect(() => {
+    setEpisodeSort(loadEpisodeSort(user?.id));
+  }, [user?.id]);
   // Once the user makes a (persisted) optimistic change, a background refetch
   // that started before it holds pre-change state — skip applying it so it
   // can't visually revert the change. The seed makes the page interactive
@@ -332,7 +409,16 @@ export function ShowPage() {
   // with a sign-in CTA in place of the tracking controls. The server omits
   // all user state from anonymous payloads, so nothing personal can render
   // here even by accident.
-  if (!user) return <PublicShowView data={data} openSeason={openSeason} setOpenSeason={setOpenSeason} />;
+  if (!user)
+    return (
+      <PublicShowView
+        data={data}
+        openSeason={openSeason}
+        setOpenSeason={setOpenSeason}
+        episodeSort={episodeSort}
+        onEpisodeSort={changeEpisodeSort}
+      />
+    );
 
   // Signed-in requests always carry the viewer's state and progress, but the
   // service worker can replay a payload cached before sign-in (anonymous, no
@@ -344,6 +430,12 @@ export function ShowPage() {
   const mine = data.user;
   const progress = data.progress;
   const tz = user.tz;
+  // Display-order copy only — every progress/catch-up computation above stays
+  // on the ascending source payload.
+  const visibleSeasons = orderSeasons(
+    seasons.filter((s) => s.episodes.length > 0),
+    episodeSort
+  );
 
   // Whether the show has any trace in the account. Unfollowing keeps watch
   // history and ratings, so "followed" alone would hide Remove for exactly the
@@ -560,85 +652,85 @@ export function ShowPage() {
 
       <ExternalLinks title={show.title} imdbId={show.imdbId} />
 
+      {visibleSeasons.length > 0 && <EpisodeSortBar sort={episodeSort} onChange={changeEpisodeSort} />}
+
       <section className="seasons">
-        {seasons
-          .filter((s) => s.episodes.length > 0)
-          .map((season) => {
-            const aired = season.episodes.filter((e) => e.aired);
-            const watchedCount = aired.filter((e) => e.watched).length;
-            const open = openSeason === season.number;
-            const seasonDone = aired.length > 0 && watchedCount === aired.length;
-            return (
-              <div key={season.id} className="season">
-                <div className="season-head">
-                  <button
-                    type="button"
-                    className="season-toggle"
-                    aria-expanded={open}
-                    onClick={() => setOpenSeason(open ? null : season.number)}
-                  >
-                    <IconChevron size={14} />
-                    <span className="season-name">{season.name ?? `Season ${season.number}`}</span>
-                    {seasonDone && (
-                      <span className="season-done" title="All aired episodes watched">
-                        <IconCheck size={13} />
-                      </span>
-                    )}
-                    <span className="mono season-count">
-                      {watchedCount}/{aired.length}
+        {visibleSeasons.map((season) => {
+          const aired = season.episodes.filter((e) => e.aired);
+          const watchedCount = aired.filter((e) => e.watched).length;
+          const open = openSeason === season.number;
+          const seasonDone = aired.length > 0 && watchedCount === aired.length;
+          return (
+            <div key={season.id} className="season">
+              <div className="season-head">
+                <button
+                  type="button"
+                  className="season-toggle"
+                  aria-expanded={open}
+                  onClick={() => setOpenSeason(open ? null : season.number)}
+                >
+                  <IconChevron size={14} />
+                  <span className="season-name">{season.name ?? `Season ${season.number}`}</span>
+                  {seasonDone && (
+                    <span className="season-done" title="All aired episodes watched">
+                      <IconCheck size={13} />
                     </span>
-                  </button>
-                  {aired.length > 0 &&
-                    (seasonDone ? (
-                      <button
-                        className="link-btn"
-                        onClick={run(
-                          () => del(`/shows/${show.id}/seasons/${season.number}/watch`),
-                          (d) => applyWatch(d, (e) => e.season_number === season.number, false)
-                        )}
-                        disabled={busy}
-                      >
-                        Clear season
-                      </button>
-                    ) : (
-                      <button
-                        className="link-btn"
-                        onClick={run(
-                          () => post(`/shows/${show.id}/seasons/${season.number}/watch`),
-                          (d) => applyWatch(d, (e) => e.season_number === season.number, true)
-                        )}
-                        disabled={busy}
-                      >
-                        <IconCheck size={14} /> Mark season
-                      </button>
-                    ))}
-                </div>
-                {open && (
-                  <ul className="episode-list">
-                    {season.episodes.map((e) => (
-                      <li key={e.id} className={`episode-row${e.watched ? " is-watched" : ""}${e.aired ? "" : " is-future"}`}>
-                        <Slate season={e.season_number} number={e.number} />
-                        <Link to={mediaPath("episode", e.id, e.title)} className="episode-title">
-                          {e.title ?? `Episode ${e.number}`}
-                        </Link>
-                        <span className="episode-date mono">{fmtEpisodeDate(e.air_date, e.aired, tz)}</span>
-                        {e.aired ? (
-                          <CheckButton
-                            checked={!!e.watched}
-                            disabled={busy}
-                            label={e.watched ? "Mark unwatched" : "Mark watched"}
-                            onToggle={() => toggleEpisode(e)}
-                          />
-                        ) : (
-                          <span className="on-air-dot on-air-dot--future" title="Not aired yet" />
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                  )}
+                  <span className="mono season-count">
+                    {watchedCount}/{aired.length}
+                  </span>
+                </button>
+                {aired.length > 0 &&
+                  (seasonDone ? (
+                    <button
+                      className="link-btn"
+                      onClick={run(
+                        () => del(`/shows/${show.id}/seasons/${season.number}/watch`),
+                        (d) => applyWatch(d, (e) => e.season_number === season.number, false)
+                      )}
+                      disabled={busy}
+                    >
+                      Clear season
+                    </button>
+                  ) : (
+                    <button
+                      className="link-btn"
+                      onClick={run(
+                        () => post(`/shows/${show.id}/seasons/${season.number}/watch`),
+                        (d) => applyWatch(d, (e) => e.season_number === season.number, true)
+                      )}
+                      disabled={busy}
+                    >
+                      <IconCheck size={14} /> Mark season
+                    </button>
+                  ))}
               </div>
-            );
-          })}
+              {open && (
+                <ul className="episode-list">
+                  {season.episodes.map((e) => (
+                    <li key={e.id} className={`episode-row${e.watched ? " is-watched" : ""}${e.aired ? "" : " is-future"}`}>
+                      <Slate season={e.season_number} number={e.number} />
+                      <Link to={mediaPath("episode", e.id, e.title)} className="episode-title">
+                        {e.title ?? `Episode ${e.number}`}
+                      </Link>
+                      <span className="episode-date mono">{fmtEpisodeDate(e.air_date, e.aired, tz)}</span>
+                      {e.aired ? (
+                        <CheckButton
+                          checked={!!e.watched}
+                          disabled={busy}
+                          label={e.watched ? "Mark unwatched" : "Mark watched"}
+                          onToggle={() => toggleEpisode(e)}
+                        />
+                      ) : (
+                        <span className="on-air-dot on-air-dot--future" title="Not aired yet" />
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          );
+        })}
       </section>
 
       <Comments targetType="show" targetId={show.id} />
