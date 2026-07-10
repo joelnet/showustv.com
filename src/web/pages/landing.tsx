@@ -1,11 +1,64 @@
 // Marketing landing page shown to logged-out visitors at "/".
 // Static and client-side only; every claim maps to a shipped feature.
 import { Link } from "react-router-dom";
-import { Wordmark, SiteFooter } from "../components/ui";
+import { Wordmark, SiteFooter, SmpteBars } from "../components/ui";
 import { InstallAppButton } from "../components/install";
 import { AuthCard } from "../components/auth-card";
 import { PosterWall } from "../components/poster-wall";
-import { IconCheck, IconWarning } from "../components/icons";
+import { IconCheck, IconChevron, IconWarning } from "../components/icons";
+
+// Developer link used in a couple of FAQ answers.
+function JoelLink() {
+  return (
+    <a href="https://x.com/joelnet" target="_blank" rel="noopener noreferrer">
+      Joel Thoms
+    </a>
+  );
+}
+
+// FAQ content (issue #195). Questions render as native <details>/<summary>
+// accordions: collapsed by default, click (or Enter/Space) toggles the answer.
+const FAQS: { q: string; a: React.ReactNode }[] = [
+  {
+    q: "Is there a native Android / iPhone app / Windows / MacOS?",
+    a: (
+      <>
+        Yes! After signup, click the <strong>Install App</strong> in the top header of the site. Use
+        Chrome or Safari for best results.
+      </>
+    ),
+  },
+  {
+    q: "Who is developing this app?",
+    a: (
+      <>
+        The app development is being handled by <JoelLink /> (software developer with over 30 years
+        of professional software development experience)
+      </>
+    ),
+  },
+  {
+    q: "Is this app vibe coded?",
+    a: (
+      <>
+        Yes and No. While AI is used to create this app, the features, architectural, and security
+        decisions are made by <JoelLink /> (a software developer with over 30 years of professional
+        software development experience)
+      </>
+    ),
+  },
+  {
+    q: "How does this app make money?",
+    a: (
+      <>
+        We don&rsquo;t. If the costs to run the site go up significantly, we&rsquo;ll introduce a
+        premium tier to help support the cost of the servers / API&rsquo;s, etc. The app was
+        specifically designed to run on Cloudflare infrastructure to keep costs down even when
+        traffic scales.
+      </>
+    ),
+  },
+];
 
 export function Landing() {
   return (
@@ -43,6 +96,31 @@ export function Landing() {
         {/* The exact same card as /login, opened in register mode. */}
         <section className="landing-signup" aria-label="Create your account">
           <AuthCard initialMode="register" />
+        </section>
+
+        {/* FAQ (issue #195): the last block before the footer. Native
+            <details> keeps the accordion keyboard-accessible with zero JS. */}
+        <section className="landing-section landing-faq" aria-labelledby="faq-title">
+          <div className="section-head">
+            <SmpteBars />
+            <p className="section-kicker">Viewer mail</p>
+            <h2 className="section-lead" id="faq-title">
+              Frequently asked questions
+            </h2>
+          </div>
+          <div className="faq-list">
+            {FAQS.map(({ q, a }) => (
+              <details key={q} className="faq-item">
+                <summary className="faq-q">
+                  <span>{q}</span>
+                  <span className="faq-chevron" aria-hidden="true">
+                    <IconChevron size={14} />
+                  </span>
+                </summary>
+                <p className="faq-a">{a}</p>
+              </details>
+            ))}
+          </div>
         </section>
       </main>
 

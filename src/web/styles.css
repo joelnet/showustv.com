@@ -1934,6 +1934,49 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
    of the landing page in register mode. */
 .landing-signup { display: flex; justify-content: center; margin-top: 128px; }
 
+/* FAQ accordion (issue #195): the last landing block before the footer.
+   Native <details> items ruled into one bordered panel per the Flat-Room
+   Rule; answers collapsed by default, the summary row is the toggle. Type
+   stays >= 18px per the landing type floor (issue #61). */
+.faq-list {
+  max-width: 720px;
+  margin: 0 auto;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.faq-item + .faq-item { border-top: 1px solid var(--line); }
+.faq-q {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 22px;
+  cursor: pointer;
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.35;
+  list-style: none; /* hide the default disclosure triangle; the chevron is the affordance */
+  transition: background 0.15s ease;
+}
+.faq-q::-webkit-details-marker { display: none; }
+.faq-q:hover { background: var(--surface-2); }
+/* Draw the focus ring inside the row; the panel's overflow:hidden would clip
+   the default outside-offset outline on the first/last items and the edges. */
+.faq-q:focus-visible { outline-offset: -3px; }
+/* Chevron points right when closed, rotates down when open. */
+.faq-chevron { display: inline-flex; color: var(--muted); flex-shrink: 0; transition: transform 0.2s ease; }
+.faq-item[open] .faq-chevron { transform: rotate(90deg); }
+.faq-a {
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1.55;
+  margin: 0;
+  padding: 0 22px 20px;
+  max-width: 62ch;
+}
+
 /* ---------- Responsive ---------- */
 
 @media (max-width: 719px) {
@@ -2023,6 +2066,8 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   .landing-final { margin-top: 88px; }
   .landing-signup { margin-top: 88px; }
   .section-head { margin-bottom: 24px; }
+  .faq-q { padding: 16px; font-size: 18px; }
+  .faq-a { padding: 0 16px 18px; }
 
   /* Rundown collapses to a single ruled column (keep real side padding so the
      bordered-panel identity survives on a phone). */
