@@ -53,6 +53,10 @@ TMDB_TOKEN=<your TMDB v4 read token or v3 API key>
 SESSION_SECRET=<any long random string, e.g. `openssl rand -hex 32`>
 ```
 
+To test browser push notifications locally, also add the two VAPID keys — see
+[Web Push notifications](#web-push-notifications-optional). Without them the
+app still works; it just stays in-app-notifications-only.
+
 Apply migrations to the local D1 database, then start the dev server:
 
 ```sh
@@ -90,6 +94,9 @@ npm run deploy
 
 `TMDB_API_BASE` and `TMDB_IMG_BASE` are plain vars already set in `wrangler.jsonc`.
 
+To enable browser push notifications, also set the two VAPID secrets — see
+[Web Push notifications](#web-push-notifications-optional).
+
 ### CI/CD (GitHub Actions)
 
 `.github/workflows/deploy.yml` typechecks and builds on pull requests and pushes
@@ -106,6 +113,58 @@ Actions):
 
 App secrets (`TMDB_TOKEN`, `SESSION_SECRET`) stay out of CI — set them once with
 `wrangler secret put`; they persist across deploys.
+
+## Web Push notifications (optional)
+
+In-app notifications always work. Browser push (the PWA kind, delivered via the
+service worker) is a feature flag: it stays dormant until **both** VAPID keys
+are configured. Until then push delivery no-ops and the settings page doesn't
+offer the push toggle (`/api/notifications/prefs` returns `pushPublicKey: null`).
+
+Generate a key pair once (the repo doesn't depend on `web-push`; `npx` fetches
+it on demand):
+
+```sh
+npx web-push generate-vapid-keys
+```
+
+Three values are involved:
+
+- `VAPID_PUBLIC_KEY` (secret) — the generated public key. Sent to browsers as
+  the push `applicationServerKey`.
+- `VAPID_PRIVATE_KEY` (secret) — the generated private key. Signs the VAPID JWT
+  on every push send. Never commit it.
+- `VAPID_SUBJECT` (plain var, already set in `wrangler.jsonc`) — an `https:` or
+  `mailto:` contact URL a push service can use to reach the operator. Defaults
+  to `https://showustv.com`; change it if you run your own instance.
+
+**Production** — set both keys as Worker secrets (like the other app secrets,
+they persist across deploys):
+
+```sh
+npx wrangler secret put VAPID_PUBLIC_KEY
+npx wrangler secret put VAPID_PRIVATE_KEY
+```
+
+**Local dev** — add the same two values to `.dev.vars` (push works on
+`http://localhost`, which browsers treat as a secure context):
+
+```sh
+VAPID_PUBLIC_KEY=<generated public key>
+VAPID_PRIVATE_KEY=<generated private key>
+```
+
+Notes:
+
+- Both keys must be present before push turns on; with only one set, push stays
+  off. But the guard checks presence, not that the pair matches — overwriting
+  just one key of an existing pair leaves push "on" with every send failing, so
+  always set/rotate the two together.
+- Changing the key pair later breaks existing subscriptions (they were minted
+  against the old public key) — affected users have to toggle push off and back
+  on in Settings. Treat the pair as set-once.
+- Push is best-effort by design — a failed send never fails the request that
+  triggered it (see `src/worker/lib/push.ts`).
 
 ## Admin CLI
 
