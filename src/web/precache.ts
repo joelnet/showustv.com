@@ -37,6 +37,7 @@
 // still bound total storage — nothing here grows a cache unbounded.
 
 import { backdrop, poster } from "./img";
+import { beginBackgroundActivity } from "./activity";
 import { cacheGeneration, setCached, getCached, readApiCache, SW_API_CACHE, SW_IMG_CACHE } from "./hooks";
 
 export interface PrecacheItem {
@@ -152,6 +153,8 @@ export function precacheContinueWatching(items: PrecacheItem[]): void {
   }
 
   running = true;
+  // The header shows its sync progress bar while this pass runs (issue #204).
+  const endActivity = beginBackgroundActivity();
   void (async () => {
     try {
       let batch: PrecacheItem[] | null = items;
@@ -176,6 +179,7 @@ export function precacheContinueWatching(items: PrecacheItem[]): void {
       }
     } finally {
       running = false;
+      endActivity();
     }
   })();
 }
@@ -331,10 +335,18 @@ export function precacheLibrary(freshIndexes = false): void {
       // controllerCaps above); the next launch runs under the new worker.
       const caps = await controllerCaps();
       if (!caps || caps.maxApi < LIBRARY_MAX) return;
-      do {
-        libQueued = false;
-        await libraryPass();
-      } while (libQueued);
+      // Header sync progress bar (issue #204): counted only while passes
+      // actually run, not during the caps handshake above — a pass that
+      // never starts (old SW in control) should never show progress.
+      const endActivity = beginBackgroundActivity();
+      try {
+        do {
+          libQueued = false;
+          await libraryPass();
+        } while (libQueued);
+      } finally {
+        endActivity();
+      }
     } finally {
       libRunning = false;
     }

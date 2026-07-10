@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from "rea
 import { BrowserRouter, Routes, Route, NavLink, Link, Outlet, Navigate, useNavigate } from "react-router-dom";
 import { api, post, ApiError } from "./api";
 import { setOfflineUser, useOffline } from "./offline";
+import { useBackgroundActivity } from "./activity";
 import { setCacheUser } from "./hooks";
 import { precacheLibrary } from "./precache";
 import { Spinner, Wordmark, SiteFooter } from "./components/ui";
@@ -185,7 +186,30 @@ function Header() {
       <Link to="/settings" className="header-gear" aria-label="Settings">
         <IconGear />
       </Link>
+      <HeaderProgress />
     </header>
+  );
+}
+
+// Thin indeterminate progress sweep pinned to the header's bottom edge
+// (issue #204) — a loading BAR, deliberately not a circular spinner. Visible
+// while activity is syncing (the offline queue replaying) or being downloaded
+// to the local cache (the precache passes); hidden otherwise. Always rendered
+// so it can fade in/out; the CSS delays the fade-in so near-instant passes
+// (everything already cached) never flash it.
+function HeaderProgress() {
+  const { syncing } = useOffline();
+  const caching = useBackgroundActivity();
+  const busy = syncing || caching;
+  return (
+    <div
+      className={`header-progress${busy ? " is-busy" : ""}`}
+      role="progressbar"
+      aria-label="Syncing"
+      aria-hidden={busy ? undefined : true}
+    >
+      <div className="header-progress-fill" />
+    </div>
   );
 }
 
