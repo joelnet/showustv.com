@@ -472,7 +472,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .skel-thumb { width: 100%; aspect-ratio: 16/9; }
 .skel-still { aspect-ratio: 16/9; }
 .skel-collage { height: 76px; margin-bottom: 6px; }
-.skel-stat { height: 128px; border-radius: 16px; }
+.skel-stat { height: 136px; border-radius: var(--radius); }
 .skel-season { height: 48px; }
 .skel-pub-poster { width: 84px; aspect-ratio: 2/3; border-radius: 8px; flex-shrink: 0; }
 .skel-list-poster { width: 42px; aspect-ratio: 2/3; border-radius: 8px; flex-shrink: 0; }
@@ -1223,51 +1223,41 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   gap: 14px;
   margin: 18px 0 26px;
 }
-/* Dribbble-style stat cards (issue #116): a soft gradient panel with an amber
-   icon chip, a big gradient number, and an uppercase label — matching the
-   achievement medallions' amber-glow language. */
+/* Flat stat cards (issue #170, replacing the glow treatment from #116): the
+   standard card — surface fill, 1px hairline, 10px radius — with an
+   amber-wash icon tile (the documented feature-icon idiom), a big warm-white
+   value, and a small uppercase label. Depth is tonal per the Flat-Room Rule:
+   no gradients, no shadows, no glow. */
 .stat-card {
-  position: relative;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: 6px;
   padding: 18px;
-  border-radius: 16px;
-  background:
-    radial-gradient(120% 100% at 100% 0%, rgba(255, 174, 46, 0.14), transparent 58%),
-    linear-gradient(160deg, var(--surface-2), var(--surface));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 10px 24px -16px rgba(0, 0, 0, 0.8);
-  transition: transform 0.16s ease, box-shadow 0.22s ease;
-}
-.stat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 16px 30px -16px rgba(0, 0, 0, 0.9);
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--line);
 }
 .stat-icon {
   display: grid;
   place-items: center;
   width: 34px;
   height: 34px;
-  border-radius: 50%;
+  border-radius: var(--radius);
   color: var(--amber);
-  background: rgba(255, 174, 46, 0.14);
-  box-shadow: inset 0 0 0 1px rgba(255, 174, 46, 0.35);
+  background: var(--amber-soft);
   margin-bottom: 4px;
 }
+/* No font-family here: the pure counts carry .mono in the markup (counts are
+   printed-on-the-tape), while the friendly "TV time" phrase stays in Lato.
+   Size and color are set after .mono in the file, so they win the cascade. */
 .stat-value {
-  font-family: var(--font-display);
-  font-weight: 800;
+  font-weight: 700;
   font-size: 27px;
-  line-height: 1.05;
-  color: var(--amber); /* fallback where background-clip:text is unsupported */
-  background: linear-gradient(135deg, #ffd27a, var(--amber));
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  line-height: 1.15;
+  color: var(--text);
 }
-.stat-value.mono { font-size: 27px; }
-.stat-label { color: var(--muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.06em; }
+.stat-value.mono { font-weight: 600; letter-spacing: 0.01em; }
+.stat-label { color: var(--muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.08em; }
 
 .profile-list-link { flex: 1; display: flex; flex-direction: column; gap: 2px; color: var(--text); min-width: 0; }
 .profile-list-link:hover { text-decoration: none; }
@@ -1905,7 +1895,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   .agenda-show { white-space: normal; }
   .agenda li { flex-wrap: wrap; gap: 6px 10px; }
 
-  /* Stack the gradient stat cards on phones; the verbose "TV time" value gets a
+  /* Stack the stat cards on phones; the verbose "TV time" value gets a
      full-width card instead of a cramped grid cell. */
   .profile-stats {
     grid-template-columns: 1fr;
@@ -2005,9 +1995,10 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   gap: 22px 12px;
   margin-bottom: 26px;
 }
-/* Dribbble-style award badges (issue #112): no card outline or fill — each
-   achievement is a glowing circular medallion holding the emoji, with its
-   title and one-line description stacked beneath. */
+/* Flat achievement coins (issue #170, replacing the glowing medallions from
+   #112): each achievement is the emoji on a plain surface-riser disc with a
+   1px hairline ring, title and one-line description stacked beneath. No
+   gloss, no amber glow, no hover lift — the Flat-Room Rule applies. */
 .ach {
   display: flex;
   flex-direction: column;
@@ -2025,30 +2016,12 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   border-radius: 50%;
   font-size: 29px;
   line-height: 1;
-  background:
-    radial-gradient(circle at 50% 34%, rgba(255, 174, 46, 0.28), rgba(255, 174, 46, 0.04) 68%),
-    var(--surface-2);
-  box-shadow:
-    inset 0 1px 2px rgba(255, 255, 255, 0.18),
-    inset 0 -7px 13px rgba(0, 0, 0, 0.35);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
   filter: grayscale(1);
-  transition: transform 0.16s ease, box-shadow 0.22s ease;
 }
 .ach.is-unlocked { opacity: 1; }
-.ach.is-unlocked .ach-emoji {
-  filter: none;
-  box-shadow:
-    0 0 0 1.5px rgba(255, 174, 46, 0.55),
-    0 10px 22px -8px rgba(255, 174, 46, 0.55),
-    inset 0 1px 2px rgba(255, 255, 255, 0.3);
-}
-.ach.is-unlocked:hover .ach-emoji {
-  transform: translateY(-2px);
-  box-shadow:
-    0 0 0 1.5px rgba(255, 174, 46, 0.85),
-    0 15px 28px -8px rgba(255, 174, 46, 0.65),
-    inset 0 1px 2px rgba(255, 255, 255, 0.35);
-}
+.ach.is-unlocked .ach-emoji { filter: none; }
 .ach-title { font-weight: 600; font-size: 13.5px; color: var(--text); }
 .ach-desc { color: var(--muted); font-size: 12px; line-height: 1.35; }
 
