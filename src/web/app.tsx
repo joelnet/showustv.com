@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, NavLink, Link, Outlet, Navigate, useNavig
 import { api, post, ApiError } from "./api";
 import { setOfflineUser, useOffline } from "./offline";
 import { setCacheUser } from "./hooks";
+import { precacheLibrary } from "./precache";
 import { Spinner, Wordmark, SiteFooter } from "./components/ui";
 import { ConfirmProvider } from "./components/dialog";
 import { CelebrationProvider } from "./components/celebration";
@@ -313,6 +314,18 @@ export function App() {
   useEffect(() => {
     setOfflineUser(user?.id ?? null);
   }, [user]);
+
+  // Warm the offline cache for the whole library (issue #183) once a
+  // signed-in, onboarded session is known — delayed so boot traffic (auth,
+  // the landing page's own data) settles first. Keyed on id + onboarded, not
+  // the user object, so profile edits don't re-trigger it; precacheLibrary
+  // itself dedupes concurrent runs, waits for SW control, retries when
+  // connectivity returns, and skips whatever is already cached fresh.
+  useEffect(() => {
+    if (!user || user.onboarded === false) return;
+    const t = window.setTimeout(precacheLibrary, 4000);
+    return () => window.clearTimeout(t);
+  }, [user?.id, user?.onboarded]);
 
   // Track a successful install in the activity logs (issue #145). Chromium
   // fires appinstalled only when an install actually completes (never on a

@@ -25,9 +25,13 @@
 // queues offline mutations in IndexedDB (src/web/offline.ts) and replays
 // them when connectivity returns.
 //
-// The app also warms these caches proactively: when Watch Next loads, it
-// fetches each Continue Watching show's detail payload and hero art through
-// this worker (src/web/precache.ts, issue #139) so those shows open offline.
+// The app also warms these caches proactively (src/web/precache.ts): when
+// Watch Next loads, it fetches each Continue Watching show's detail payload
+// and hero art through this worker (issue #139), and after sign-in a
+// background pass warms the user's entire library — index payloads, every
+// show/movie detail, and their posters (issue #183) — so the whole library
+// browses offline. Comments are deliberately never precached (space); they
+// are only readable offline when normal browsing already cached them.
 
 // Replaced at build time (sw-build-id plugin, vite.config.ts) with a hash of
 // the built client output, which changes whenever a deploy ships different
@@ -55,9 +59,14 @@ const STATIC_EXTRAS = [
   "/icons/apple-touch-icon.png",
 ];
 
+// Caps sized for a whole library offline (issue #183): the precache pass is
+// itself bounded (500 titles), leaving api headroom for indexes, comment
+// threads, and everything runtime browsing adds. Rough worst case ~30MB of
+// JSON + ~20MB of posters — well inside Cache Storage quotas. Oldest-first
+// trim still bounds both.
 const MAX_STATIC = 80;
-const MAX_API = 100;
-const MAX_IMG = 200;
+const MAX_API = 700;
+const MAX_IMG = 700;
 
 self.addEventListener("install", (event) => {
   // No skipWaiting here (issue #172): an updated worker parks in `waiting`
@@ -72,6 +81,14 @@ self.addEventListener("install", (event) => {
 // open tab; the one that asked reloads itself into the new version.
 self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "SKIP_WAITING") self.skipWaiting();
+  // Capability handshake (issue #183): the page asks the ACTIVE worker for
+  // its cache caps before running the full-library precache. An older worker
+  // (predating this message) never answers, so the pass skips instead of
+  // churning a smaller-capped cache — the parked update activates once every
+  // tab closes, and the next launch warms for real.
+  if (event.data && event.data.type === "GET_CAPS" && event.ports[0]) {
+    event.ports[0].postMessage({ maxApi: MAX_API, maxImg: MAX_IMG });
+  }
 });
 
 self.addEventListener("activate", (event) => {
@@ -134,7 +151,10 @@ self.addEventListener("fetch", (event) => {
       event.respondWith(
         (async () => {
           const res = await fetch(req);
-          if (res.ok) await caches.delete(API_CACHE);
+          if (res.ok) {
+            await caches.delete(API_CACHE);
+            identityChangedAt = Date.now();
+          }
           return res;
         })()
       );
@@ -171,8 +191,18 @@ self.addEventListener("fetch", (event) => {
   }
 });
 
+// When the signed-in identity last changed (login/logout/register/onboarding
+// above, or a 401 below) — the moment the api cache was wiped. Any GET that
+// was already in flight across that wipe belongs to the PREVIOUS session and
+// must not be re-inserted after it (issue #183: the full-library warm keeps
+// a request in flight for most of a long pass, so this race is real, and a
+// stale personal payload would then serve the next account's offline reads).
+// In-memory on purpose: an SW restart can't straddle an in-flight request.
+let identityChangedAt = 0;
+
 async function apiNetworkFirst(req) {
   const cache = await caches.open(API_CACHE);
+  const started = Date.now();
   let res;
   try {
     res = await fetch(req);
@@ -189,6 +219,11 @@ async function apiNetworkFirst(req) {
     });
   }
   if (res.ok) {
+    if (started <= identityChangedAt) {
+      // Fetched under the previous identity (see identityChangedAt above) —
+      // return it to the page that asked, but never store it.
+      return res;
+    }
     // no-store marks a response the server considers too personal to persist
     // (e.g. the owner's preview of their private profile on the public,
     // viewer-varying /api/public/profile URL) — honor it, and drop any older
@@ -202,6 +237,7 @@ async function apiNetworkFirst(req) {
   } else if (res.status === 401) {
     // Session over — drop the personal cache so nothing leaks after sign-out.
     await caches.delete(API_CACHE);
+    identityChangedAt = Date.now();
   }
   return res;
 }

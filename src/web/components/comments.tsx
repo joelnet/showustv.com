@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, post, put, del } from "../api";
 import { useApi } from "../hooks";
+import { useOffline } from "../offline";
 import { useAuth } from "../app";
 import { fmtAgo, fmtDateTime } from "../format";
 import { COMMENT_MAX_LEN, COMMENT_URL_RE } from "../../shared/constants";
@@ -76,6 +77,7 @@ function hiddenCount(n: CommentNode): number {
 
 export function Comments({ targetType, targetId }: { targetType: "episode" | "movie" | "show" | "list"; targetId: number }) {
   const { user } = useAuth();
+  const { online } = useOffline();
   const verified = !!user?.emailVerified; // server enforces too (403)
   const [sort, setSort] = useState<Sort>("top");
   const { data, loading, error } = useApi<Listing>(`/comments/${targetType}/${targetId}?sort=${sort}`);
@@ -179,7 +181,14 @@ export function Comments({ targetType, targetId }: { targetType: "episode" | "mo
         </p>
       )}
       {error ? (
-        <ErrorNote message={error} />
+        online ? (
+          <ErrorNote message={error} />
+        ) : (
+          // Comment threads are deliberately never precached (issue #183) —
+          // offline they load only when normal browsing already cached this
+          // thread (then `data` renders above). A calm note beats a red error.
+          <p className="comments-empty">Comments are unavailable offline.</p>
+        )
       ) : !thread ? (
         loading ? (
           <CommentsSkeleton />

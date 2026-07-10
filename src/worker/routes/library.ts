@@ -525,11 +525,18 @@ library.post("/episodes/:id/watch", async (c) => {
          SET state = 'watching', last_state_change = strftime('%Y-%m-%dT%H:%M:%fZ','now')
          WHERE user_shows.state = 'watch_later'`
     ).bind(uid, id),
-    // Re-marking a watched episode counts a rewatch.
+    // Re-marking a watched episode counts a rewatch — EXCEPT an exact replay
+    // of a mark we already recorded (identical watched_at), which is a no-op.
+    // The offline queue (issue #183) stamps watched_at at enqueue time and
+    // can retry an op whose response was lost (tab died / 5xx after apply),
+    // so the same timestamp arriving twice must not inflate play_count.
+    // Genuine rewatches always carry a fresh "now" (or distinct backdate).
     c.env.DB.prepare(
       `INSERT INTO user_episodes (user_id, episode_id, watched_at) VALUES (?1, ?2, ?3)
        ON CONFLICT (user_id, episode_id) DO UPDATE
-         SET play_count = play_count + 1, last_rewatched_at = excluded.watched_at`
+         SET play_count = play_count + 1, last_rewatched_at = excluded.watched_at
+         WHERE user_episodes.watched_at != excluded.watched_at
+           AND COALESCE(user_episodes.last_rewatched_at, '') != excluded.watched_at`
     ).bind(uid, id, watchedAt),
   ]);
 
@@ -650,10 +657,15 @@ library.post("/movies/:id/watch", async (c) => {
   const watchedAt = watchedAtFrom(await c.req.json().catch(() => ({})));
   if (!id || !watchedAt) return c.json({ error: "bad request" }, 400);
   await ensureMovie(c.env, id);
+  // The WHERE mirrors the episode-watch upsert (issue #183): an exact replay
+  // of an already-recorded mark (same watched_at, already watched) is a
+  // no-op so offline-queue retries can't inflate play_count; genuine
+  // rewatches carry a fresh timestamp and still count.
   await c.env.DB.prepare(
     `INSERT INTO user_movies (user_id, movie_id, state, watched_at, play_count) VALUES (?1, ?2, 'watched', ?3, 1)
      ON CONFLICT (user_id, movie_id) DO UPDATE
-       SET state = 'watched', watched_at = excluded.watched_at, play_count = user_movies.play_count + 1`
+       SET state = 'watched', watched_at = excluded.watched_at, play_count = user_movies.play_count + 1
+       WHERE user_movies.state != 'watched' OR COALESCE(user_movies.watched_at, '') != excluded.watched_at`
   )
     .bind(c.get("uid"), id, watchedAt)
     .run();

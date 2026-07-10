@@ -88,6 +88,31 @@ export function getCached<T = unknown>(path: string): T | undefined {
   return cache.get(path) as T | undefined;
 }
 
+// ---------- Service-worker cache reads (issue #183) ----------
+//
+// The SW's runtime cache names — MUST match VERSION in public/sw.js. Cache
+// Storage is shared between the worker and the page, so the app can read the
+// offline copies directly: useApi (below) and the show page paint a cold
+// mount from the SW cache while the network revalidates, and the library
+// precache (precache.ts) checks entry freshness before re-warming.
+export const SW_API_CACHE = "api-v1";
+export const SW_IMG_CACHE = "img-v1";
+
+// The SW's cached copy of a GET /api response, parsed — or undefined when
+// there's no entry (or no Cache Storage). Per-user safety matches the SW's
+// own fallback path: the api cache is emptied on login/logout/register/
+// onboarding and on any 401, so a hit always belongs to the current session.
+export async function readApiCache<T = unknown>(path: string): Promise<T | undefined> {
+  if (!("caches" in window)) return undefined;
+  try {
+    const hit = await (await caches.open(SW_API_CACHE)).match("/api" + path);
+    if (!hit) return undefined;
+    return (await hit.json()) as T;
+  } catch {
+    return undefined; // storage error / unparseable — treat as a cache miss
+  }
+}
+
 // Fetch `path`, recording the result for later warm renders. Successes only:
 // a failed refresh never clobbers good cached data.
 function revalidate<T>(path: string): Promise<T> {
@@ -126,11 +151,28 @@ export function useApi<T = any>(path: string | null) {
     // paint over the newer one (only the cache write races, and `latest`
     // settles that).
     let live = true;
+    let settled = false; // the network answered — the SW-cache read is moot
+    let painted = false; // the SW-cache copy is on screen (counts as "cached" below)
     const cached = cache.get(path) as T | undefined;
     set({ data: cached ?? null, loading: cached === undefined, error: null });
+    if (cached === undefined) {
+      // Cold mount: paint the service worker's offline copy instantly (issue
+      // #183) while the fetch below revalidates — precached library pages
+      // skip the skeleton even online. Deliberately NOT written to the
+      // in-memory cache: the revalidation below stores the fresher copy.
+      void readApiCache<T>(path).then((data) => {
+        if (!live || settled || data === undefined) return;
+        painted = true;
+        set({ data, loading: false, error: null });
+      });
+    }
     revalidate<T>(path)
-      .then((data) => live && set({ data, loading: false, error: null }))
+      .then((data) => {
+        settled = true;
+        if (live) set({ data, loading: false, error: null });
+      })
       .catch((e) => {
+        settled = true;
         if (!live) return;
         // With cached data on screen, a transient failure (offline, 5xx)
         // keeps the page as-is — the offline banner explains why. A
@@ -138,7 +180,7 @@ export function useApi<T = any>(path: string | null) {
         // stale copy and surface the error like a cold load would.
         const definitive = e instanceof ApiError && e.status >= 400 && e.status < 500;
         if (definitive) dropCached(path);
-        if (cached !== undefined && !definitive) return;
+        if ((cached !== undefined || painted) && !definitive) return;
         set({ data: null, loading: false, error: e.message });
       });
     return () => {

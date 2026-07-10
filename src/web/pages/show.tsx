@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api, post, put, del, ApiError } from "../api";
 import { mediaPath, idFromParam } from "../paths";
-import { useApi, getCached, setCached, dropCached } from "../hooks";
+import { useApi, getCached, setCached, dropCached, readApiCache } from "../hooks";
 import { useAuth } from "../app";
 import { poster, backdrop } from "../img";
 import { fmtAirDate, fmtEpisodeDate } from "../format";
@@ -270,36 +270,53 @@ export function ShowPage() {
 
   useEffect(() => {
     let live = true;
+    let settled = false; // the network answered — the SW-cache read is moot
+    let painted = false; // the SW-cache copy is on screen (counts like a seed below)
     dirty.current = false; // new show — let its refetch apply
     const cached = getCached<ShowPayload>(cacheKey);
     setData(cached ?? null); // instant warm paint, or the skeleton on a cold load
     setError(null);
     if (cached) setOpenSeason(user ? pickOpenSeason(cached) : null);
+    if (cached === undefined) {
+      // Cold load: paint the service worker's offline copy instantly (issue
+      // #183) while the fetch below revalidates — a precached library show
+      // skips the skeleton even online. Not written to the page cache: the
+      // refetch below stores the fresher copy.
+      void readApiCache<ShowPayload>(cacheKey).then((hit) => {
+        if (!live || settled || dirty.current || hit === undefined) return;
+        painted = true;
+        setData(hit);
+        setOpenSeason(user ? pickOpenSeason(hit) : null);
+      });
+    }
     api<ShowPayload>(cacheKey)
       .then((d) => {
+        settled = true;
         // Skip if unmounted/superseded, or if the user already made a change
         // this stale response predates (keep the optimistic view).
         if (!live || dirty.current) return;
         setCached(cacheKey, d); // refresh the shared cache for the next visit
         setData(d);
-        // Only pick the open season on a cold load; a seed (and any season the
-        // user has since toggled) already settled it. Anonymous viewers keep
-        // everything collapsed (issue #159).
-        if (cached === undefined) setOpenSeason(user ? pickOpenSeason(d) : null);
+        // Only pick the open season on a cold load; a seed or an SW-cache
+        // paint (and any season the user has since toggled) already settled
+        // it. Anonymous viewers keep everything collapsed (issue #159).
+        if (cached === undefined && !painted) setOpenSeason(user ? pickOpenSeason(d) : null);
       })
       .catch((e) => {
+        settled = true;
         if (!live) return;
         // A definitive 4xx (deleted / private show) means the seed is no longer
         // valid: drop it and surface the error, exactly as useApi does — don't
         // keep serving a page the server now refuses. A transient failure
-        // (offline / 5xx) keeps a good seed on screen (the offline banner
-        // explains why) and only errors on a cold load with nothing to show.
+        // (offline / 5xx) keeps a good seed (or SW-cache paint) on screen (the
+        // offline banner explains why) and only errors on a cold load with
+        // nothing to show.
         const definitive = e instanceof ApiError && e.status >= 400 && e.status < 500;
         if (definitive) {
           dropCached(cacheKey);
           setData(null);
           setError(e.message);
-        } else if (cached === undefined) {
+        } else if (cached === undefined && !painted) {
           setError(e.message);
         }
       });

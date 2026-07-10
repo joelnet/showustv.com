@@ -1,32 +1,43 @@
-// Precache Continue Watching (issue #139).
+// Precache for offline browsing: Continue Watching (issue #139) and, since
+// issue #183, the user's whole library.
 //
 // Offline support (issue #51) caches API responses and images as they're
 // fetched, so a show's detail page only works offline if the user happened
-// to open it while online. The Continue Watching row is exactly the set
-// they're most likely to open, so when /home data arrives we warm the
-// service worker's existing runtime caches for each of those shows:
+// to open it while online. Two proactive passes close that gap:
 //
-//   - the detail payload (GET /api/shows/:id) — flows through the SW's
-//     network-first API handler, landing in the api cache. The parsed body is
-//     also seeded into the in-memory page cache (hooks.ts, issue #154
-//     follow-up) so an ONLINE tap paints the detail page from cache instantly,
-//     with no loading skeleton, then refreshes it in the background;
-//   - the detail page's hero art (poster + backdrop, the same URLs img.ts
-//     builds) — flows through the SW's cache-first image handler.
+//   - precacheContinueWatching (issue #139): when /home data arrives, warm
+//     each Continue Watching show's detail payload + hero art (poster AND
+//     w1280 backdrop) and seed the parsed payload into the in-memory page
+//     cache (hooks.ts, issue #154 follow-up) so an ONLINE tap paints the
+//     detail page instantly.
+//   - precacheLibrary (issue #183): shortly after a signed-in session is
+//     known (app.tsx), warm the index payloads (/library, /watchlist,
+//     /lists, /home) and EVERY library title's detail payload + w342 poster
+//     (the same URL the Library grid and the detail hero render), so in
+//     airplane mode the Library, Watchlist, Lists index, Watch Next, and
+//     every show/movie page open from cache. Backdrops stay CW-only — w1280
+//     art for a whole library would blow the image budget; a detail page
+//     without its backdrop just renders without hero art. Comments are
+//     deliberately never precached (the issue: too much space) — offline
+//     they're readable only where normal browsing already cached them.
 //
-// A later offline tap on a tile then resolves entirely from cache: the SPA
-// shell serves the navigation, the cached payload renders the page, and
-// watch/favorite actions queue in the offline mutation queue (offline.ts).
+// All warming flows through the service worker's existing runtime caches
+// (network-first api, cache-first img) — offline navigation then resolves
+// entirely from cache, and watch/unwatch/favorite actions queue in the
+// offline mutation queue (offline.ts) to sync on reconnect.
 //
-// Bounds: only the front of the Continue Watching row (MAX_SHOWS), never the
-// whole library; each URL re-warms at most once per FRESH_MS per page load
-// (the API strategy is network-first, so every warm also refreshes the
-// copy); fetches run sequentially so warming never competes with the page
-// for bandwidth. The SW's cache caps (MAX_API/MAX_IMG, trimmed oldest-first)
+// Bounds: CW warms only the front of the row (MAX_SHOWS); the library pass
+// caps at LIBRARY_MAX titles and — because Cache Storage is shared between
+// the SW and the page — skips anything already cached fresh (detail payloads
+// younger than DETAIL_FRESH_MS, posters at all), so repeat passes fetch only
+// new and expired titles instead of re-downloading the library every boot.
+// Each URL also re-warms at most once per FRESH_MS per page load (warmedAt).
+// Fetches run sequentially so warming never competes with the page for
+// bandwidth. The SW's cache caps (MAX_API/MAX_IMG, trimmed oldest-first)
 // still bound total storage — nothing here grows a cache unbounded.
 
 import { backdrop, poster } from "./img";
-import { cacheGeneration, setCached } from "./hooks";
+import { cacheGeneration, setCached, getCached, readApiCache, SW_API_CACHE, SW_IMG_CACHE } from "./hooks";
 
 export interface PrecacheItem {
   kind: "show" | "movie";
@@ -167,4 +178,227 @@ export function precacheContinueWatching(items: PrecacheItem[]): void {
       running = false;
     }
   })();
+}
+
+// ---------- Full-library precache (issue #183) ----------
+
+// Titles per pass. Keeps the pass comfortably inside the SW's api cache cap
+// (MAX_API in sw.js) with headroom left for indexes, comment threads, and
+// everything else runtime browsing caches.
+const LIBRARY_MAX = 500;
+
+// A detail payload cached within the last day is "warm enough" for offline —
+// normal browsing (network-first) and the post-sync revalidation keep pages
+// the user actually opens fresher than this anyway.
+const DETAIL_FRESH_MS = 24 * 60 * 60 * 1000;
+
+// When `url`'s cached copy landed, by its response Date header: undefined =
+// no entry at all, null = an entry whose date can't be read (opaque no-cors
+// image responses have no visible headers, so poster hits land here).
+async function cachedAt(cacheName: string, url: string): Promise<number | null | undefined> {
+  if (!("caches" in window)) return undefined;
+  try {
+    const hit = await (await caches.open(cacheName)).match(url);
+    if (!hit) return undefined;
+    const t = Date.parse(hit.headers.get("date") ?? "");
+    return Number.isNaN(t) ? null : t;
+  } catch {
+    return undefined;
+  }
+}
+
+// An entry exists and is younger than maxAge. An unreadable date counts as
+// fresh: the entry is present and usable offline (which is what matters),
+// and re-fetching it forever would gain nothing.
+async function freshInCache(cacheName: string, url: string, maxAge: number): Promise<boolean> {
+  const at = await cachedAt(cacheName, url);
+  return at !== undefined && (at === null || Date.now() - at < maxAge);
+}
+
+// The library/watchlist rows carry exactly what the pass needs: the id to
+// build the detail URL and the poster path both the grid and the hero use.
+interface IndexTitle {
+  id: number;
+  poster: string | null;
+}
+interface LibraryIndex {
+  shows: IndexTitle[];
+  movies: IndexTitle[];
+  animeShows: IndexTitle[];
+  animeMovies: IndexTitle[];
+}
+interface WatchlistIndex {
+  shows: IndexTitle[];
+  movies: IndexTitle[];
+}
+
+// An index payload for the pass to enumerate: a fresh SW-cache entry is
+// reused as-is (seeding the in-memory page cache only when it's empty — the
+// page cache can hold a NEWER copy than the SW's, e.g. right after a
+// mutation-triggered refetch, and must not be clobbered with older data);
+// otherwise fetched, which lands it in the SW cache via the api handler and
+// seeds the page cache like warmSeed. Returns null when unavailable
+// (offline, error, cache fallback, 401) — the caller stops the pass; the
+// next trigger retries.
+async function indexPayload<T>(path: string, gen: number, force = false): Promise<T | null> {
+  const url = "/api" + path;
+  if (!force && (await freshInCache(SW_API_CACHE, url, FRESH_MS))) {
+    const data = await readApiCache<T>(path);
+    if (data !== undefined) {
+      if (getCached(path) === undefined) setCached(path, data, gen);
+      return data;
+    }
+  }
+  try {
+    const res = await fetch(url, { credentials: "same-origin" });
+    if (!res.ok || res.headers.has("x-sw-fallback")) {
+      void res.body?.cancel();
+      return null;
+    }
+    const data = (await res.json()) as T;
+    setCached(path, data, gen);
+    warmedAt.set(url, Date.now());
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+// Ask the ACTIVE service worker for its cache caps (issue #183). After a
+// deploy the page can be new while the controlling worker is still the old
+// one (updates park in `waiting` until the user accepts the toast or every
+// tab closes — issue #172). An old worker would trim the library warm right
+// back out of its smaller-capped caches, so the pass runs only once the
+// controller answers with caps that fit; an old worker never answers (it
+// predates GET_CAPS) and the timeout resolves null.
+function controllerCaps(): Promise<{ maxApi: number } | null> {
+  return new Promise((resolve) => {
+    const ctrl = navigator.serviceWorker.controller;
+    if (!ctrl) return resolve(null);
+    const ch = new MessageChannel();
+    const timer = window.setTimeout(() => resolve(null), 2000);
+    ch.port1.onmessage = (e) => {
+      window.clearTimeout(timer);
+      resolve(e.data && typeof e.data.maxApi === "number" ? { maxApi: e.data.maxApi } : null);
+    };
+    try {
+      ctrl.postMessage({ type: "GET_CAPS" }, [ch.port2]);
+    } catch {
+      window.clearTimeout(timer);
+      resolve(null);
+    }
+  });
+}
+
+let libRunning = false;
+let libQueued = false; // triggered again mid-pass (e.g. account switch) — run once more after
+let libWaiting = false; // parked on SW control / connectivity coming back
+let libForce = false; // the next pass must refetch the index payloads (post-import)
+
+// Warm the offline cache for the user's entire library (issue #183). Called
+// from app.tsx shortly after a signed-in session is known, and again when an
+// import finishes; fire-and-forget. Cheap when repeated: everything cached
+// fresh is skipped (see the header comment), so only new and expired titles
+// actually hit the network. `freshIndexes` forces the index payloads
+// (/library etc.) to refetch even when age-fresh — after an import their
+// cached copies are minutes old but no longer list the whole library.
+export function precacheLibrary(freshIndexes = false): void {
+  if (freshIndexes) libForce = true;
+  if (!("serviceWorker" in navigator)) return;
+
+  // Offline (or the SW not yet controlling a first-visit page): park ONE
+  // retry on the event that unblocks us. Both conditions re-check on re-entry.
+  if (!navigator.onLine || !navigator.serviceWorker.controller) {
+    if (libWaiting) return;
+    libWaiting = true;
+    const retry = () => {
+      libWaiting = false;
+      precacheLibrary();
+    };
+    if (!navigator.onLine) window.addEventListener("online", retry, { once: true });
+    else navigator.serviceWorker.addEventListener("controllerchange", retry, { once: true });
+    return;
+  }
+
+  if (libRunning) {
+    libQueued = true;
+    return;
+  }
+  libRunning = true;
+  void (async () => {
+    try {
+      // A pre-#183 worker still controls the page — skip this session (see
+      // controllerCaps above); the next launch runs under the new worker.
+      const caps = await controllerCaps();
+      if (!caps || caps.maxApi < LIBRARY_MAX) return;
+      do {
+        libQueued = false;
+        await libraryPass();
+      } while (libQueued);
+    } finally {
+      libRunning = false;
+    }
+  })();
+}
+
+async function libraryPass(): Promise<void> {
+  const force = libForce;
+  libForce = false;
+  // The account this pass belongs to, like warmSeed: a sign-out/sign-in
+  // mid-pass aborts (the SW api cache was wiped by the identity change, and
+  // the new account's own trigger re-runs the pass for its library).
+  const gen = cacheGeneration();
+
+  const lib = await indexPayload<LibraryIndex>("/library", gen, force);
+  if (!lib || cacheGeneration() !== gen) return;
+  const wl = await indexPayload<WatchlistIndex>("/watchlist", gen, force);
+  if (cacheGeneration() !== gen) return;
+
+  // Watch Next and the Lists index open offline too. Warm-only: Continue
+  // Watching details are precacheContinueWatching's job, and custom-list
+  // DETAIL payloads are deliberately not precached (bounded scope — titles
+  // that are also in the library are covered below anyway).
+  for (const path of ["/home", "/lists"]) {
+    if (!navigator.onLine || cacheGeneration() !== gen) return;
+    const url = "/api" + path;
+    if (force) warmedAt.delete(url); // an age-fresh copy predates the import — re-warm anyway
+    if ((force || !(await freshInCache(SW_API_CACHE, url, FRESH_MS))) && !(await warm(url))) return;
+  }
+
+  const title =
+    (kind: "show" | "movie") =>
+    (t: IndexTitle): { kind: "show" | "movie"; id: number; poster: string | null } => ({ kind, id: t.id, poster: t.poster });
+  // Defensive ?? []: an index can come from the SW cache, so never assume shape.
+  const items = [
+    ...(lib.shows ?? []).map(title("show")),
+    ...(lib.animeShows ?? []).map(title("show")),
+    ...(wl?.shows ?? []).map(title("show")),
+    ...(lib.movies ?? []).map(title("movie")),
+    ...(lib.animeMovies ?? []).map(title("movie")),
+    ...(wl?.movies ?? []).map(title("movie")),
+  ].slice(0, LIBRARY_MAX);
+
+  // Consecutive detail warms that produced no cached copy: the server being
+  // unreachable while navigator.onLine still reads true (captive portal,
+  // outage) fails every request — stop churning through the whole list after
+  // a few in a row. Isolated failures (one deleted title's 404) reset.
+  let misses = 0;
+
+  for (const item of items) {
+    if (!navigator.onLine || cacheGeneration() !== gen) return;
+    const url = `/api/${item.kind === "movie" ? "movies" : "shows"}/${item.id}`;
+    // Skip payloads cached in the last day (by normal browsing, the CW pass,
+    // or a previous library pass); a 401 ends the session — stop warming.
+    if (!(await freshInCache(SW_API_CACHE, url, DETAIL_FRESH_MS))) {
+      if (!(await warm(url))) return;
+      // warm() stamps warmedAt only when a real network response was cached,
+      // so a just-warmed URL reads fresh; an old stamp (>FRESH_MS) doesn't.
+      if (isFresh(url)) misses = 0;
+      else if (++misses >= 3) return; // unreachable or erroring — the next trigger retries
+    }
+    // The w342 poster both the Library grid and the detail hero render.
+    // Cache-first in the SW, so presence is enough — no age check.
+    const p = poster(item.poster);
+    if (p && (await cachedAt(SW_IMG_CACHE, p)) === undefined) await warm(p, { mode: "no-cors" });
+  }
 }
