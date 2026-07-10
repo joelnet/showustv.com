@@ -21,10 +21,10 @@ export const pub = new Hono<AppEnv>();
 pub.get("/profile/:username", async (c) => {
   const username = c.req.param("username");
   const user = await c.env.DB.prepare(
-    "SELECT id, username, profile_public, shadow_banned FROM users WHERE username = ?1 AND deleted_at IS NULL"
+    "SELECT id, username, profile_public, activity_public, shadow_banned FROM users WHERE username = ?1 AND deleted_at IS NULL"
   )
     .bind(username)
-    .first<{ id: number; username: string; profile_public: number; shadow_banned: number }>();
+    .first<{ id: number; username: string; profile_public: number; activity_public: number; shadow_banned: number }>();
   if (!user) return c.json({ error: "not found" }, 404);
 
   const viewer = await readSession(c);
@@ -51,7 +51,17 @@ pub.get("/profile/:username", async (c) => {
     if (!mutual) return c.json({ username: user.username, private: true });
   }
 
-  const [statsR, listsR, postersR, commentsR, achR] = await c.env.DB.batch([
+  // Recent activity (issue #202): the 20 most recent things this user did,
+  // derived at read time from the library/ratings tables — no event log to
+  // backfill. The owner can hide the section (users.activity_public); the
+  // gate is server-side, and the query doesn't even run for a hidden
+  // section, so nothing can leak past a client bug. The owner always gets
+  // their own activity — the eye toggle needs something to stand next to.
+  // Each branch is pre-trimmed to 20 before the UNION so a decade of watch
+  // history doesn't get sorted whole on every profile view.
+  const isOwner = viewer?.u === user.id;
+  const wantActivity = !!user.activity_public || isOwner;
+  const statements = [
     statsQuery(c.env.DB, user.id),
     c.env.DB.prepare(
       `SELECT l.id, l.name, COUNT(li.list_id) AS count
@@ -91,7 +101,68 @@ pub.get("/profile/:username", async (c) => {
        ORDER BY c.created_at DESC LIMIT 15`
     ).bind(user.id),
     c.env.DB.prepare("SELECT achievement_id FROM user_achievements WHERE user_id = ?1 ORDER BY unlocked_at").bind(user.id),
-  ]);
+  ];
+  if (wantActivity)
+    statements.push(
+      // Kinds mirror what the client can phrase: 'show_added' ("started
+      // following") vs 'show_saved' (watch later) comes from the row's
+      // current state — added_at doesn't record which one it was, and the
+      // current state is the truthful label for what's on the shelf now.
+      // Hidden shows stay hidden in every branch — the follow row itself,
+      // watched episodes of the show, and ratings of the show or its
+      // episodes. Movie watchlist adds have no timestamp
+      // (user_movies.watched_at is NULL until watched), so they can't
+      // appear. Rated rows join their heterogeneous target the same way the
+      // comments query above does, and drop rows whose catalog target
+      // vanished. Episode rows carry the show title; the episode's own title
+      // rides in episode_title for the link slug.
+      c.env.DB.prepare(
+        `SELECT kind, ts, type, id, title, season, episode, episode_title, score FROM (
+           SELECT * FROM (
+             SELECT CASE WHEN us.state = 'watch_later' THEN 'show_saved' ELSE 'show_added' END AS kind,
+                    us.added_at AS ts, 'show' AS type, s.tmdb_id AS id, s.title AS title,
+                    NULL AS season, NULL AS episode, NULL AS episode_title, NULL AS score
+             FROM user_shows us JOIN shows s ON s.tmdb_id = us.show_id
+             WHERE us.user_id = ?1 AND us.state != 'hidden'
+             ORDER BY us.added_at DESC LIMIT 20)
+           UNION ALL
+           SELECT * FROM (
+             SELECT 'episode_watched', ue.watched_at, 'episode', e.id, sh.title,
+                    e.season_number, e.number, e.title, NULL
+             FROM user_episodes ue
+             JOIN episodes e ON e.id = ue.episode_id
+             JOIN shows sh ON sh.tmdb_id = e.show_id
+             WHERE ue.user_id = ?1
+               AND NOT EXISTS (SELECT 1 FROM user_shows h
+                               WHERE h.user_id = ?1 AND h.show_id = e.show_id AND h.state = 'hidden')
+             ORDER BY ue.watched_at DESC LIMIT 20)
+           UNION ALL
+           SELECT * FROM (
+             SELECT 'movie_watched', um.watched_at, 'movie', m.tmdb_id, m.title,
+                    NULL, NULL, NULL, NULL
+             FROM user_movies um JOIN movies m ON m.tmdb_id = um.movie_id
+             WHERE um.user_id = ?1 AND um.state = 'watched' AND um.watched_at IS NOT NULL
+             ORDER BY um.watched_at DESC LIMIT 20)
+           UNION ALL
+           SELECT * FROM (
+             SELECT 'rated', r.created_at, r.target_type, r.target_id,
+                    COALESCE(s2.title, m2.title, es2.title),
+                    e2.season_number, e2.number, e2.title, r.score
+             FROM ratings r
+             LEFT JOIN shows s2 ON r.target_type = 'show' AND s2.tmdb_id = r.target_id
+             LEFT JOIN movies m2 ON r.target_type = 'movie' AND m2.tmdb_id = r.target_id
+             LEFT JOIN episodes e2 ON r.target_type = 'episode' AND e2.id = r.target_id
+             LEFT JOIN shows es2 ON es2.tmdb_id = e2.show_id
+             WHERE r.user_id = ?1 AND r.score IS NOT NULL
+               AND COALESCE(s2.title, m2.title, es2.title) IS NOT NULL
+               AND NOT EXISTS (SELECT 1 FROM user_shows h
+                               WHERE h.user_id = ?1 AND h.show_id = COALESCE(s2.tmdb_id, es2.tmdb_id)
+                                 AND h.state = 'hidden')
+             ORDER BY r.created_at DESC LIMIT 20)
+         ) ORDER BY ts DESC LIMIT 20`
+      ).bind(user.id)
+    );
+  const [statsR, listsR, postersR, commentsR, achR, activityR] = await c.env.DB.batch(statements);
 
   // Comment bodies are a signed-in surface (thread pages sit behind auth,
   // and episode snippets are spoiler-prone) — anonymous visitors get the
@@ -112,8 +183,10 @@ pub.get("/profile/:username", async (c) => {
   // is personal content on a public, viewer-varying URL — no-store keeps it
   // out of the service worker's API cache (sw.js honors this), so it can't
   // be replayed to a later, unauthenticated or non-mutual visitor on the
-  // same browser.
-  if (!user.profile_public) c.header("Cache-Control", "no-store");
+  // same browser. The owner viewing their own hidden activity on an
+  // otherwise-public profile is the same trap: that payload carries content
+  // every other viewer is denied, so it must not be cached either.
+  if (!user.profile_public || (isOwner && !user.activity_public)) c.header("Cache-Control", "no-store");
   return c.json({
     username: user.username,
     // True only when a private profile is served in full: to its owner, or
@@ -124,6 +197,25 @@ pub.get("/profile/:username", async (c) => {
     stats: statsFromRow(statsR.results[0]),
     lists: (listsR.results as any[]).map((l) => ({ ...l, posters: posters.get(l.id) ?? [] })),
     achievements: (achR.results as any[]).map((r) => r.achievement_id),
+    // Empty when the owner hid the section — indistinguishable from a user
+    // with nothing to show, so the hidden preference itself isn't
+    // advertised. `activityPublic` rides along for the owner alone: it
+    // drives their eye toggle, and its absence is how the page knows not to
+    // render one for anybody else.
+    activity: (wantActivity ? (activityR!.results as any[]) : []).map((r) => ({
+      kind: r.kind,
+      ts: r.ts,
+      score: r.score,
+      target: {
+        type: r.type,
+        id: r.id,
+        title: r.title,
+        season: r.season,
+        episode: r.episode,
+        episodeTitle: r.episode_title,
+      },
+    })),
+    ...(isOwner ? { activityPublic: !!user.activity_public } : {}),
     comments: (hideComments ? [] : (commentsR.results as any[])).map((r) => ({
       // Snippet only — profiles tease the conversation, the thread holds it.
       body: signedIn ? (r.body.length > 240 ? r.body.slice(0, 239) + "…" : r.body) : null,

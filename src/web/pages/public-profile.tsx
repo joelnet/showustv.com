@@ -20,7 +20,7 @@ import { fmtAgo } from "../format";
 import { SmpteBars, ErrorNote, Slate } from "../components/ui";
 import { ShareButton } from "../components/share";
 import { ProfileSkeleton } from "../components/skeleton";
-import { IconList, IconCheck, IconPlus, IconEye, IconLock, IconChevron } from "../components/icons";
+import { IconList, IconCheck, IconPlus, IconEye, IconEyeSlash, IconLock, IconChevron } from "../components/icons";
 import { StatsGrid, type WatchStats } from "./profile";
 import { fmtDateTime } from "../format";
 import { ACHIEVEMENTS, ACHIEVEMENTS_BY_ID } from "../../shared/achievements";
@@ -38,6 +38,22 @@ interface ProfileComment {
   };
 }
 
+// One row of the recent-activity feed (issue #202), already gated
+// server-side: hidden sections arrive as an empty array.
+interface ActivityItem {
+  kind: "show_added" | "show_saved" | "episode_watched" | "movie_watched" | "rated";
+  ts: string;
+  score: number | null; // set for 'rated' only
+  target: {
+    type: MediaType;
+    id: number;
+    title: string; // show/movie title; for episodes, the show's title
+    season: number | null;
+    episode: number | null;
+    episodeTitle: string | null;
+  };
+}
+
 interface FullProfile {
   username: string;
   // True when a private profile is served in full — to its owner, or to a
@@ -48,6 +64,11 @@ interface FullProfile {
   lists: { id: number; name: string; count: number; posters: string[] }[];
   achievements: string[];
   comments: ProfileComment[];
+  activity?: ActivityItem[]; // optional: tolerates cached pre-#202 payloads
+  // Present only when the viewer owns the profile — it drives the eye
+  // toggle, and everyone else must not learn whether activity is hidden by
+  // choice or just empty.
+  activityPublic?: boolean;
 }
 
 // What a private profile serves to everyone but its owner (issue #158): the
@@ -106,6 +127,95 @@ function ProfileComments({ comments }: { comments: ProfileComment[] }) {
           </li>
         ))}
       </ul>
+    </>
+  );
+}
+
+// Verb per activity kind. 'show_saved' carries a " for later" tail after the
+// title so the sentence reads "Saved <show> for later".
+const ACTIVITY_VERBS: Record<ActivityItem["kind"], string> = {
+  show_added: "Started following",
+  show_saved: "Saved",
+  episode_watched: "Watched",
+  movie_watched: "Watched",
+  rated: "Rated",
+};
+
+// Recent activity (issue #202): the 20 most recent library/rating actions,
+// each row linking to its show/movie/episode page. The server already gated
+// visibility — a hidden section arrives here as an empty array, and
+// `visible` (the owner's eye-toggle state) arrives ONLY for the owner, so
+// its presence doubles as the "render the toggle" signal. Non-owners with
+// nothing to show get no section at all; the owner always gets it, otherwise
+// the toggle would vanish along with the rows it controls.
+function ProfileActivity({
+  items,
+  visible,
+  busy,
+  onToggle,
+}: {
+  items: ActivityItem[];
+  visible?: boolean; // undefined = viewer isn't the owner
+  busy?: boolean;
+  onToggle?: (next: boolean) => void;
+}) {
+  const isOwner = visible !== undefined;
+  if (!isOwner && !items.length) return null;
+  return (
+    <>
+      <h2 className="section-title profile-activity-title">
+        Activity
+        {isOwner && (
+          <>
+            <button
+              className="btn btn-ghost profile-privacy-btn"
+              disabled={busy}
+              aria-pressed={visible}
+              aria-label={visible ? "Hide your activity from visitors" : "Show your activity to visitors"}
+              title={
+                visible
+                  ? "Visible to anyone who can see this profile. Click to hide"
+                  : "Hidden: visitors don't see your activity. Click to show"
+              }
+              onClick={() => onToggle?.(!visible)}
+            >
+              {visible ? <IconEye size={15} /> : <IconEyeSlash size={15} />}
+            </button>
+            {!visible && (
+              <span className="profile-activity-note" role="status">
+                Hidden — only you can see this
+              </span>
+            )}
+          </>
+        )}
+      </h2>
+      {!items.length ? (
+        <p className="profile-activity-empty">Nothing yet — it fills in as you follow and watch things.</p>
+      ) : (
+        <ul className="profile-comments profile-activity">
+          {items.map((a, i) => (
+            <li key={i}>
+              <p className="profile-comment-meta">
+                {ACTIVITY_VERBS[a.kind]}{" "}
+                <Link
+                  to={mediaPath(a.target.type, a.target.id, a.target.type === "episode" ? a.target.episodeTitle : a.target.title)}
+                >
+                  {a.target.title}
+                </Link>
+                {a.target.type === "episode" && a.target.season != null && a.target.episode != null && (
+                  <>
+                    {" "}
+                    <Slate season={a.target.season} number={a.target.episode} />
+                  </>
+                )}
+                {a.kind === "show_saved" && " for later"}
+                {a.kind === "rated" && a.score != null && <span className="mono"> {a.score}/10</span>}
+                <span className="mono"> · {fmtAgo(a.ts)}</span>
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
     </>
   );
 }
@@ -329,15 +439,35 @@ export function PublicProfilePage() {
   const { user } = useAuth();
   const path = `/public/profile/${encodeURIComponent(username!)}`;
   const { data, loading, error, reload } = useApi<PublicProfile>(path);
+  const [activityBusy, setActivityBusy] = useState(false);
+  const [activityError, setActivityError] = useState<string | null>(null);
 
   // A private profile served in full is no-store on the wire (issues
   // #158/#184) — the service worker honors that, and this mirrors it in the
   // in-memory page cache: drop the entry so navigating back after access is
   // revoked (unfollowed, or the owner unfollowed) cold-loads fresh instead
-  // of warm-painting the old private payload.
+  // of warm-painting the old private payload. The owner's view of their own
+  // hidden activity (issue #202) is no-store for the same reason, and gets
+  // the same in-memory treatment.
   useEffect(() => {
-    if (data?.private && data.stats) dropCached(path);
+    if (data?.stats && (data.private || data.activityPublic === false)) dropCached(path);
   }, [data, path]);
+
+  // Owner-only (issue #202): flip whether visitors see the Activity section.
+  // The server re-checks the session; this just persists and refetches so
+  // the page reflects the stored state, not an optimistic guess.
+  const toggleActivity = async (next: boolean) => {
+    setActivityBusy(true);
+    setActivityError(null);
+    try {
+      await put("/profile/activity-visibility", { public: next });
+      reload();
+    } catch (e: any) {
+      setActivityError(e.message);
+    } finally {
+      setActivityBusy(false);
+    }
+  };
 
   return (
     <>
@@ -404,6 +534,13 @@ export function PublicProfilePage() {
           {user?.isAdmin && <AdminTools username={data.username} tz={user.tz} />}
           <StatsGrid stats={data.stats} />
           <PublicAchievements username={data.username} ids={data.achievements} />
+          <ProfileActivity
+            items={data.activity ?? []}
+            visible={user?.username === data.username ? data.activityPublic : undefined}
+            busy={activityBusy}
+            onToggle={toggleActivity}
+          />
+          {activityError && <ErrorNote message={activityError} />}
           <ProfileComments comments={data.comments} />
           {data.lists.length > 0 && (
             <>

@@ -2202,6 +2202,14 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .profile-comment-body { margin: 0 0 4px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .profile-comment-meta { margin: 0; color: var(--muted); font-size: 13px; }
 
+/* Recent activity on public profiles (issue #202): rows reuse the comment
+   card styling above. The heading hosts the owner's eye toggle, so it must
+   not grow when the 34px button appears — pin its min-height instead. */
+.profile-activity-title { min-height: 34px; }
+.profile-activity-note { color: var(--muted); font-weight: 400; text-transform: none; letter-spacing: normal; font-size: 13px; }
+.profile-activity-empty { color: var(--muted); font-size: 13.5px; margin: 0 0 26px; }
+.profile-activity li { padding: 7px 14px; }
+
 /* ---------- Email verification (settings) ---------- */
 
 .email-status { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; color: var(--muted); margin: 6px 0 10px; }
