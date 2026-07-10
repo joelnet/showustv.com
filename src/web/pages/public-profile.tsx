@@ -159,6 +159,20 @@ function FollowActions({ username, onChange }: { username: string; onChange?: ()
     }
   };
 
+  const unfollow = async () => {
+    const yes = await confirm({
+      title: `Unfollow ${username}?`,
+      message: "Their activity will stop showing in your feed. They won't be notified.",
+      confirmLabel: "Unfollow",
+      danger: true,
+    });
+    if (yes) await act(() => del(`/social/follow/${encodeURIComponent(username)}`), "none")();
+  };
+
+  // You follow each other — one "Mutual" control replaces the "Following"
+  // button + "Follows you" note pair (issue #199).
+  const mutual = relation === "following" && followsYou;
+
   return (
     <>
       {relation === "none" && (
@@ -166,25 +180,35 @@ function FollowActions({ username, onChange }: { username: string; onChange?: ()
           <IconPlus size={15} /> {followsYou ? "Follow back" : "Follow"}
         </button>
       )}
-      {relation === "following" && (
+      {relation === "following" && !mutual && (
         <button
           className="btn btn-ghost"
           disabled={busy}
           title={`You follow ${username}. Click to unfollow`}
-          onClick={async () => {
-            const yes = await confirm({
-              title: `Unfollow ${username}?`,
-              message: "Their activity will stop showing in your feed. They won't be notified.",
-              confirmLabel: "Unfollow",
-              danger: true,
-            });
-            if (yes) await act(() => del(`/social/follow/${encodeURIComponent(username)}`), "none")();
-          }}
+          onClick={unfollow}
         >
           <IconCheck size={14} /> Following
         </button>
       )}
-      {followsYou && <span className="friend-note">Follows you</span>}
+      {mutual && (
+        // Same native-select dropdown pattern as AddToList. The value stays
+        // pinned to "" so a cancelled (or failed) unfollow snaps the label
+        // back to "Mutual".
+        <select
+          className="mutual-select"
+          aria-label={`Mutual: you and ${username} follow each other`}
+          title={`You and ${username} follow each other`}
+          disabled={busy}
+          value=""
+          onChange={async (e) => {
+            if (e.target.value === "unfollow") await unfollow();
+          }}
+        >
+          <option value="">Mutual</option>
+          <option value="unfollow">Unfollow</option>
+        </select>
+      )}
+      {followsYou && !mutual && <span className="friend-note">Follows you</span>}
       {error && <ErrorNote message={error} />}
     </>
   );
