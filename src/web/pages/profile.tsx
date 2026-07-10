@@ -185,7 +185,6 @@ export function ProfilePage() {
   const confirm = useConfirm();
   const { data, loading, error, reload } = useApi<ProfileData>("/profile");
   const [busy, setBusy] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   if (loading) return <ProfileSkeleton action />;
   if (error) return <ErrorNote message={error} />;
@@ -235,8 +234,6 @@ export function ProfilePage() {
     await act(() => put("/profile/lists/order", { ids }))();
   }
 
-  const shareUrl = `${window.location.origin}/u/${data.username}`;
-
   return (
     <div>
       {/* The username is the page title (issue #162) — a "Profile" heading told
@@ -266,6 +263,25 @@ export function ProfilePage() {
           </span>
         </div>
       </div>
+
+      {/* The shareable address, flat under the username like a handle (issue
+          #179) — no boxed panel, no separate copy button. The Share button
+          (issue #147) sits right beside it; where the browser lacks native
+          share it falls back to copying the link, which is why the dedicated
+          "Copy link" affordance could go. Hidden while private: the link
+          would only show visitors the teaser. */}
+      {data.isPublic && (
+        <p className="profile-url">
+          <Link to={`/u/${data.username}`}>{`${window.location.host}/u/${data.username}`}</Link>
+          <ShareButton
+            variant="link"
+            title={`${data.username} on Show Us TV`}
+            text={`See what ${data.username} has been watching on Show Us TV.`}
+            path={`/u/${data.username}`}
+          />
+        </p>
+      )}
+
       <UsernameEditor username={data.username} reload={reload} />
 
       {/* Following/Followers counts (issue #130). The header nav dropped its
@@ -280,31 +296,6 @@ export function ProfilePage() {
           <strong className="mono">{(data.followersCount ?? 0).toLocaleString("en-US")}</strong> Followers
         </Link>
       </p>
-
-      {data.isPublic && (
-        <p className="share-note">
-          Anyone with this link can view: <a href={`/u/${data.username}`}>{shareUrl}</a>{" "}
-          <button
-            className="link-btn"
-            onClick={async () => {
-              await navigator.clipboard.writeText(shareUrl);
-              setCopied(true);
-              setTimeout(() => setCopied(false), 2000);
-            }}
-          >
-            {copied ? "Copied ✓" : "Copy link"}
-          </button>
-          {/* Native share (issue #147) — hidden where unsupported; the copy
-              link above already covers those browsers. */}
-          <ShareButton
-            variant="link"
-            fallback="hide"
-            title={`${data.username} on Show Us TV`}
-            text={`See what ${data.username} has been watching on Show Us TV.`}
-            path={`/u/${data.username}`}
-          />
-        </p>
-      )}
 
       <StatsGrid stats={data.stats} />
 

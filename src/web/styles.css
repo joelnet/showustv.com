@@ -1254,6 +1254,12 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .profile-privacy { display: inline-flex; align-items: center; gap: 10px; }
 .profile-privacy-btn { width: 34px; height: 34px; padding: 0; justify-content: center; flex-shrink: 0; }
 .profile-privacy-note { color: var(--muted); font-size: 13.5px; }
+/* The shareable profile URL, flat under the username with Share right beside
+   it (issue #179). No box — it reads as the profile's address, not a panel.
+   The link can break anywhere so a long host + handle never pushes Share off
+   a narrow screen; the row itself wraps as a last resort. */
+.profile-url { display: flex; align-items: center; flex-wrap: wrap; gap: 0 4px; margin: 2px 0 0; font-size: 13.5px; }
+.profile-url > a { min-width: 0; overflow-wrap: anywhere; }
 /* Nudge the link-btn's padding away so "Edit username" aligns with the name. */
 .profile-username-edit { margin: 6px 0 0 -6px; }
 
