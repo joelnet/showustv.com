@@ -1622,6 +1622,14 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
      the poster wall some breathing space under the CTA */
   padding: 72px 0 40px;
 }
+/* Only the landing page's hero hosts the poster wall. Its bottom padding
+   absorbs the 30px the wall used to overhang (bottom: -30px) so the hero
+   always contains the wall and .landing-freebadge below never overlaps it
+   (issue #218). Scoped with a modifier so /import-help and /install heroes
+   keep the base 40px. */
+.landing-hero--wall {
+  padding-bottom: 70px;
+}
 /* Broadcast atmosphere: a tungsten pool of light behind the marquee (ambient,
    not an action fill) over faint CRT scanlines. The mask feathers both to
    nothing at the edges so there's no box. Pure gradients, no image, no blur. */
@@ -1739,7 +1747,11 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .poster-wall {
   position: absolute;
   top: -14px;
-  bottom: -30px;
+  /* bottom: 0 (not negative) keeps the wall inside the hero; the hero's 70px
+     bottom padding supplies the breathing room, so the wall never extends
+     under .landing-freebadge (issue #218). Its bottom edge sits at the same
+     pixel as the old bottom: -30px overhang did. */
+  bottom: 0;
   left: 50%;
   width: 100vw;
   transform: translateX(-50%);

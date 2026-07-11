@@ -76,7 +76,9 @@ export function Landing() {
       </header>
 
       <main className="landing-main">
-        <section className="landing-hero">
+        {/* --wall modifier: extra bottom padding keeps the poster wall inside
+            the hero so the free badge below never overlaps it (issue #218). */}
+        <section className="landing-hero landing-hero--wall">
           <Link to="/import-help" className="landing-eyebrow landing-eyebrow--warn landing-eyebrow--link">
             <IconWarning size={13} /> TV Time is shutting down July 15: import your data here
           </Link>
