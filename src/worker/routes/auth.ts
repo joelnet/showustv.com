@@ -157,11 +157,14 @@ auth.post("/register", async (c) => {
   // Sign-up stores the email straight away (unverified) — it's the login. The
   // random handle can collide, so retry a few times before giving up. Sign-in is
   // open to everyone: the account is created and a session issued right away.
+  // profile_public = 1: new profiles start public (issue #243). The column's
+  // schema default is still 0 (0003, and SQLite can't change it in place), so
+  // this INSERT is the default; owners can flip private from the Profile page.
   for (let attempt = 0; attempt < 6; attempt++) {
     const username = randomHandle();
     try {
       const row = await c.env.DB.prepare(
-        "INSERT INTO users (username, email, pw_hash, tz) VALUES (?1, ?2, ?3, ?4) RETURNING id"
+        "INSERT INTO users (username, email, pw_hash, tz, profile_public) VALUES (?1, ?2, ?3, ?4, 1) RETURNING id"
       )
         .bind(username, email, pwHash, tz)
         .first<{ id: number }>();
