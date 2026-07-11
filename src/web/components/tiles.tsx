@@ -221,8 +221,11 @@ function useDragScroll<T extends HTMLElement>() {
   return { ref, onMouseDown, onClickCapture };
 }
 
-// One section's horizontal row of tiles, drag-scrollable on desktop.
-export function Row({ items, markable, onWatched }: { items: TileItem[]; markable?: boolean; onWatched?: () => void }) {
+// The bare horizontal scroller: a .wn-row strip of whatever the caller puts
+// in it, drag-scrollable on desktop. Row feeds it Tiles; the profile's Stats
+// slider (issue #250) feeds it stat cards — one scroller, so the drag/click
+// behavior can never fork between them.
+export function ScrollRow({ children }: { children: React.ReactNode }) {
   const drag = useDragScroll<HTMLDivElement>();
   return (
     <div
@@ -232,28 +235,57 @@ export function Row({ items, markable, onWatched }: { items: TileItem[]; markabl
       onClickCapture={drag.onClickCapture}
       onDragStart={(e) => e.preventDefault()}
     >
-      {items.map((it, i) => (
-        <Tile key={`${it.kind}-${it.id}-${i}`} item={it} markable={markable} onWatched={onWatched} />
-      ))}
+      {children}
     </div>
   );
 }
 
-// A Row in the Watch Now section chrome (issue #105): the heading is itself
-// the link — h2 plus a chevron — opening the fuller page behind the row.
-// An empty section renders nothing, heading included, so pages composing
-// several of these never show a bar with no tiles under it (issue #245).
+// One section's horizontal row of tiles, drag-scrollable on desktop.
+export function Row({ items, markable, onWatched }: { items: TileItem[]; markable?: boolean; onWatched?: () => void }) {
+  return (
+    <ScrollRow>
+      {items.map((it, i) => (
+        <Tile key={`${it.kind}-${it.id}-${i}`} item={it} markable={markable} onWatched={onWatched} />
+      ))}
+    </ScrollRow>
+  );
+}
+
+// A ScrollRow of arbitrary children in the Watch Now section chrome (issue
+// #105): the heading bar over the strip. With `to` the heading is itself the
+// link — h2 plus a chevron — opening the fuller page behind the row; without
+// it the heading is plain text (the profile's Stats slider, issue #250, has
+// no page behind it).
+export function SliderSection({ title, to, className, children }: { title: string; to?: string; className?: string; children: React.ReactNode }) {
+  return (
+    <section className={className ? `wn-section ${className}` : "wn-section"}>
+      <div className="wn-section-bar">
+        {to ? (
+          <Link to={to} className="wn-section-head">
+            <h2>{title}</h2>
+            <span className="wn-section-more" aria-hidden="true">›</span>
+          </Link>
+        ) : (
+          <div className="wn-section-head is-static">
+            <h2>{title}</h2>
+          </div>
+        )}
+      </div>
+      <ScrollRow>{children}</ScrollRow>
+    </section>
+  );
+}
+
+// Tiles in the section chrome. An empty section renders nothing, heading
+// included, so pages composing several of these never show a bar with no
+// tiles under it (issue #245).
 export function TileSection({ title, to, items }: { title: string; to: string; items: TileItem[] }) {
   if (items.length === 0) return null;
   return (
-    <section className="wn-section">
-      <div className="wn-section-bar">
-        <Link to={to} className="wn-section-head">
-          <h2>{title}</h2>
-          <span className="wn-section-more" aria-hidden="true">›</span>
-        </Link>
-      </div>
-      <Row items={items} />
-    </section>
+    <SliderSection title={title} to={to}>
+      {items.map((it, i) => (
+        <Tile key={`${it.kind}-${it.id}-${i}`} item={it} />
+      ))}
+    </SliderSection>
   );
 }

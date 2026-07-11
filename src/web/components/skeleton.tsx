@@ -214,7 +214,8 @@ export function PubListSkeleton({ count = 4 }: { count?: number }) {
 
 // Profile (own and public): username title (plus the bare share/pencil icons,
 // privacy toggle, and its status text on your own, issues #162/#182/#241),
-// the three stat cards, then a section of rows.
+// the Stats slider — a section head over a wn-row of stat cards, matching
+// the real slider chrome (issue #250) — then a section of rows.
 export function ProfileSkeleton({ action = false }: { action?: boolean }) {
   return (
     <SkeletonShell>
@@ -231,11 +232,14 @@ export function ProfileSkeleton({ action = false }: { action?: boolean }) {
           </>
         )}
       </div>
-      <div className="profile-stats">
-        {range(3).map((i) => (
-          <Skeleton key={i} className="skel-stat" />
-        ))}
-      </div>
+      <section className="wn-section profile-stats">
+        <Skeleton className="skel-row-head" />
+        <div className="wn-row">
+          {range(3).map((i) => (
+            <Skeleton key={i} className="skel-stat" />
+          ))}
+        </div>
+      </section>
       <Skeleton className="skel-section-title" />
       <div className="skel-rows">
         {range(3).map((i) => (

@@ -828,6 +828,10 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   margin: 0;
 }
 .wn-section-more { font-size: 22px; line-height: 1; color: var(--muted); }
+/* A section heading with no page behind it (the profile's Stats slider,
+   issue #250): same type as the linked heads, but no hover amber — nothing
+   here is clickable. */
+.wn-section-head.is-static:hover h2 { color: var(--text); }
 /* The eye toggle: compact icon-only button, muted so it doesn't compete with
    the heading (issue #185). Sized like the profile privacy toggle. */
 .wn-section-toggle {
@@ -1410,16 +1414,16 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
    .profile-head flex row, no status text — the toast announces changes. */
 .profile-privacy { margin-left: auto; }
 
-.profile-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: 14px;
-  margin: 18px 0 26px;
-}
+/* The Stats slider (issue #250): the stat cards ride the same wn-section /
+   wn-row chrome as the watch-history rows (issue #245) — card width comes
+   from .wn-row's own column sizing at every breakpoint, so Stats scrolls and
+   sizes exactly like Shows / Movies / Anime. This class only keeps the block
+   margins the old stat grid had. */
+.profile-stats { margin: 18px 0 26px; }
 /* Watch-history rows on the profile (issue #245): .wn-home already supplies
    the 28px stack Watch Now uses between sections; this just settles the block
-   between the stats grid above (its bottom margin wins the collapse) and the
-   Achievements heading below (whose own top margin provides that gap). */
+   between the Stats slider above (its bottom margin wins the collapse) and
+   the Achievements heading below (whose own top margin provides that gap). */
 .profile-history { margin: 0 0 2px; }
 /* Flat stat cards (issue #170, replacing the glow treatment from #116): the
    standard card — surface fill, 1px hairline, 10px radius — with an
@@ -2172,12 +2176,8 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   .agenda-show { white-space: normal; }
   .agenda li { flex-wrap: wrap; gap: 6px 10px; }
 
-  /* Stack the stat cards on phones; the verbose "TV time" value gets a
-     full-width card instead of a cramped grid cell. */
-  .profile-stats {
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
+  /* Slightly tighter stat cards in the phone-width Stats slider (issue
+     #250) so the verbose "TV time" value keeps room to breathe. */
   .stat-card { padding: 16px; }
 
   /* List rows: tighter chrome so titles keep readable width next to the

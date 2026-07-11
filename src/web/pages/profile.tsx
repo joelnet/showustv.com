@@ -20,7 +20,7 @@ import { useAuth } from "../app";
 import { useConfirm } from "../components/dialog";
 import { useToast } from "../components/toast";
 import { Empty, ErrorNote, Slate } from "../components/ui";
-import { TileSection, type TileItem } from "../components/tiles";
+import { SliderSection, TileSection, type TileItem } from "../components/tiles";
 import { ShareButton } from "../components/share";
 import { ProfileSkeleton } from "../components/skeleton";
 import {
@@ -135,9 +135,14 @@ function UsernameEditor({
   );
 }
 
+// The three watch stats as a "Stats" slider (issue #250): the stat cards
+// ride the same horizontal section chrome as the Shows / Movies / Anime
+// history rows below (issue #245), so on phones they side-scroll like every
+// other row instead of stacking into a wall of cards. The heading is plain
+// text — unlike the history rows there's no fuller page behind it.
 export function StatsGrid({ stats }: { stats: WatchStats }) {
   return (
-    <div className="profile-stats">
+    <SliderSection title="Stats" className="profile-stats">
       <div className="stat-card">
         <span className="stat-icon" aria-hidden="true">
           <IconPlay size={16} />
@@ -159,7 +164,7 @@ export function StatsGrid({ stats }: { stats: WatchStats }) {
         <span className="stat-value mono">{stats.showsWatched.toLocaleString("en-US")}</span>
         <span className="stat-label">Shows watched</span>
       </div>
-    </div>
+    </SliderSection>
   );
 }
 
