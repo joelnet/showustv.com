@@ -121,12 +121,25 @@ function ShowsLibrary({ shows }: { shows: LibShow[] }) {
         </label>
       </div>
       <div className="poster-grid">
-        {activeShows.map((s) => (
-          <div key={s.id} className="lib-card">
-            <PosterCard to={mediaPath("show", s.id, s.title)} posterPath={s.poster} title={s.title} sub={`${s.watched}/${s.aired}`} />
-            <Progress watched={s.watched} total={s.aired} />
-          </div>
-        ))}
+        {activeShows.map((s) =>
+          // Finished shows (issue #223): every episode is watched, so the
+          // watched/aired meta line and the always-full progress bar say
+          // nothing — just the poster with an episode-count pill.
+          activeKey === "finished" ? (
+            <PosterCard
+              key={s.id}
+              to={mediaPath("show", s.id, s.title)}
+              posterPath={s.poster}
+              title={s.title}
+              pill={`${s.total} ${s.total === 1 ? "episode" : "episodes"}`}
+            />
+          ) : (
+            <div key={s.id} className="lib-card">
+              <PosterCard to={mediaPath("show", s.id, s.title)} posterPath={s.poster} title={s.title} sub={`${s.watched}/${s.aired}`} />
+              <Progress watched={s.watched} total={s.aired} />
+            </div>
+          )
+        )}
       </div>
     </>
   );

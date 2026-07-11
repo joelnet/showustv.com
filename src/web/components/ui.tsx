@@ -135,25 +135,35 @@ export function Progress({ watched, total }: { watched: number; total: number })
   );
 }
 
+// Poster tile. `sub` is a muted line under the title. `pill` (issue #223,
+// Finished library cards) swaps the whole text meta block for a count pill
+// overlaid on the art's corner — the same treatment as the Watch Next thumb
+// pills — so the title moves to the link's aria-label and hover tooltip.
 export function PosterCard({
   to,
   posterPath,
   title,
   sub,
+  pill,
 }: {
   to: string;
   posterPath: string | null;
   title: string;
   sub?: string | null;
+  pill?: string;
 }) {
   const src = poster(posterPath);
   return (
-    <Link to={to} className="poster-card">
+    <Link to={to} className="poster-card" aria-label={pill ? `${title}, ${pill}` : undefined} title={pill ? title : undefined}>
       {src ? <img src={src} alt="" loading="lazy" /> : <div className="poster-fallback">{title}</div>}
-      <div className="poster-card-meta">
-        <span className="poster-card-title">{title}</span>
-        {sub && <span className="poster-card-sub">{sub}</span>}
-      </div>
+      {pill ? (
+        <span className="pill poster-card-pill">{pill}</span>
+      ) : (
+        <div className="poster-card-meta">
+          <span className="poster-card-title">{title}</span>
+          {sub && <span className="poster-card-sub">{sub}</span>}
+        </div>
+      )}
     </Link>
   );
 }
