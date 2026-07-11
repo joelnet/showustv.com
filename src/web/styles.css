@@ -413,6 +413,27 @@ a:hover { text-decoration: underline; }
 .link-btn--danger { color: var(--muted); }
 .link-btn--danger:hover { color: var(--red); }
 
+/* Bare icon button (issue #241): just the glyph — no fill, no outline. Muted
+   at rest so it doesn't compete with the text it sits beside; brightens on
+   hover. 34px square keeps the hit area honest (40px on touch, with the other
+   thumb targets in the mobile block). Keyboard focus still rings via the
+   global :focus-visible rule. */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.icon-btn:hover { color: var(--text); }
+.icon-btn:disabled { opacity: 0.55; cursor: default; }
+
 input, select {
   background: var(--surface);
   border: 1px solid var(--line);
@@ -1354,23 +1375,15 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 
 /* ---------- Profile ---------- */
 
-/* Own-profile header (issue #162): your username is the page title, with the
-   rename pencil (issue #182) and the privacy toggle as compact icon-only
-   buttons right beside it, the privacy state spelled out in muted words
-   alongside — the name stays dominant, the state reads at a glance. Wraps as
-   one cluster under a long username. */
+/* Profile header (issues #162/#241): the username is the page title, with
+   bare .icon-btn glyphs right beside it — share on both views, plus the
+   rename pencil (issue #182) and the privacy toggle on your own, its state
+   spelled out in muted words alongside — the name stays dominant, no button
+   chrome competes with it. Wraps as one cluster under a long username. */
 .profile-head { display: flex; align-items: center; gap: 6px 14px; flex-wrap: wrap; margin: 4px 0 2px; }
 .profile-head .page-title { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .profile-privacy { display: inline-flex; align-items: center; gap: 10px; }
-.profile-edit-btn,
-.profile-privacy-btn { width: 34px; height: 34px; padding: 0; justify-content: center; flex-shrink: 0; }
 .profile-privacy-note { color: var(--muted); font-size: 13.5px; }
-/* The shareable profile URL, flat under the username with Share right beside
-   it (issue #179). No box — it reads as the profile's address, not a panel.
-   The link can break anywhere so a long host + handle never pushes Share off
-   a narrow screen; the row itself wraps as a last resort. */
-.profile-url { display: flex; align-items: center; flex-wrap: wrap; gap: 0 4px; margin: 2px 0 0; font-size: 13.5px; }
-.profile-url > a { min-width: 0; overflow-wrap: anywhere; }
 
 .profile-stats {
   display: grid;
@@ -1502,6 +1515,11 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 
 .public-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: -8px 0 20px; }
 .public-actions .friend-note { margin: 0; }
+/* On the public profile the row now follows the .profile-head cluster (the
+   byline that used to separate them is gone, issue #241) whose 2px bottom
+   margin would let the -8px above pull the buttons into the title — restore
+   the same 10px breath the row gets after a bare .page-title. */
+.profile-head + .public-actions { margin-top: 10px; }
 
 /* Owner-only reminder on their private profile's public page (issue #158). */
 .public-private-note { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 13.5px; margin: -8px 0 20px; }
@@ -2138,8 +2156,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   .list-pos { width: 16px; }
   .list-item-actions { gap: 4px; }
   .list-item-actions .btn-ghost { padding: 9px 10px; min-width: 40px; min-height: 40px; }
-  .profile-edit-btn,
-  .profile-privacy-btn,
+  .icon-btn,
   .wn-section-toggle { width: 40px; height: 40px; }
 
   .import-actions { flex-wrap: wrap; }

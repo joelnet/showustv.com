@@ -221,7 +221,6 @@ export function PublicProfilePage() {
         // the refetch swaps the teaser for the full profile (issue #184).
         <>
           <h1 className="page-title">{data.username}</h1>
-          <p className="public-byline">Watching TV on Show Us TV</p>
           {user && (
             <div className="public-actions">
               <FollowActions username={data.username} onChange={reload} />
@@ -236,25 +235,26 @@ export function PublicProfilePage() {
         </>
       ) : (
         <>
-          <h1 className="page-title">{data.username}</h1>
-          <p className="public-byline">Watching TV on Show Us TV</p>
-          {data.private ? (
-            // A private profile served in full to a mutual follow (issue
-            // #184). No share button — other visitors would only get the
-            // teaser — and no privacy note either: they already have
-            // access, so the message is noise (issue #198). Just the usual
-            // follow affordance.
-            <div className="public-actions">
-              <FollowActions username={data.username} onChange={reload} />
-            </div>
-          ) : (
-            <div className="public-actions">
+          {/* Share sits as a bare glyph right of the name (issue #241),
+              matching the owner's view of the same page. It's withheld on a
+              private profile served in full to a mutual follow (issue #184)
+              — other visitors would only get the teaser — with no privacy
+              note either: this viewer already has access, so the message is
+              noise (issue #198). Just the usual follow affordance below. */}
+          <div className="profile-head">
+            <h1 className="page-title">{data.username}</h1>
+            {!data.private && (
               <ShareButton
+                variant="icon"
                 title={`${data.username} on Show Us TV`}
                 text={`See what ${data.username} has been watching on Show Us TV.`}
                 path={`/u/${data.username}`}
               />
-              {user && <FollowActions username={data.username} onChange={reload} />}
+            )}
+          </div>
+          {user && (
+            <div className="public-actions">
+              <FollowActions username={data.username} onChange={reload} />
             </div>
           )}
           {user?.isAdmin && <AdminTools username={data.username} tz={user.tz} />}

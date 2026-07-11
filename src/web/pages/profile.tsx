@@ -259,7 +259,7 @@ export function ProfileActivity({
         {isOwner && (
           <>
             <button
-              className="btn btn-ghost profile-privacy-btn"
+              className="icon-btn"
               disabled={busy}
               aria-pressed={visible}
               aria-label={visible ? "Hide your activity from visitors" : "Show your activity to visitors"}
@@ -531,15 +531,26 @@ export function ProfilePage() {
   return (
     <div>
       {/* The username is the page title (issue #162) — a "Profile" heading told
-          you nothing. The pencil beside it (issue #182) toggles the inline
-          rename form below; then the privacy toggle, an icon-only button
-          (eye = public, lock = private, matching the public page's lock
-          teaser) with the state spelled out alongside, so the icon never has
-          to carry the meaning alone. */}
+          you nothing. Bare glyphs beside it (issue #241, no button chrome):
+          share first — it shares/copies this page's address, which is the
+          profile URL (issue #220), so the old visible-URL row could go —
+          then the rename pencil (issue #182) that toggles the inline form
+          below, then the privacy toggle (eye = public, lock = private,
+          matching the public page's lock teaser) with the state spelled out
+          alongside, so that icon never carries the meaning alone. Share is
+          hidden while private: the link would only show visitors the teaser. */}
       <div className="profile-head">
         <h1 className="page-title">{data.username}</h1>
+        {data.isPublic && (
+          <ShareButton
+            variant="icon"
+            title={`${data.username} on Show Us TV`}
+            text={`See what ${data.username} has been watching on Show Us TV.`}
+            path={`/u/${data.username}`}
+          />
+        )}
         <button
-          className="btn btn-ghost profile-edit-btn"
+          className="icon-btn"
           disabled={usernameBusy}
           aria-label="Edit username"
           title="Edit username"
@@ -550,7 +561,7 @@ export function ProfilePage() {
         </button>
         <div className="profile-privacy">
           <button
-            className="btn btn-ghost profile-privacy-btn"
+            className="icon-btn"
             disabled={busy}
             aria-pressed={data.isPublic}
             aria-label={data.isPublic ? "Make profile private" : "Make profile public"}
@@ -568,24 +579,6 @@ export function ProfilePage() {
           </span>
         </div>
       </div>
-
-      {/* The shareable address, flat under the username like a handle (issue
-          #179) — no boxed panel, no separate copy button. The Share button
-          (issue #147) sits right beside it; where the browser lacks native
-          share it falls back to copying the link, which is why the dedicated
-          "Copy link" affordance could go. Hidden while private: the link
-          would only show visitors the teaser. */}
-      {data.isPublic && (
-        <p className="profile-url">
-          <Link to={`/u/${data.username}`}>{`${window.location.host}/u/${data.username}`}</Link>
-          <ShareButton
-            variant="link"
-            title={`${data.username} on Show Us TV`}
-            text={`See what ${data.username} has been watching on Show Us TV.`}
-            path={`/u/${data.username}`}
-          />
-        </p>
-      )}
 
       {editingUsername && (
         <UsernameEditor

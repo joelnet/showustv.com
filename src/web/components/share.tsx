@@ -4,7 +4,7 @@
 // that already sit a "Copy link" button next to it pass fallback="hide" so
 // unsupported browsers keep the single copy affordance instead of two.
 import { useState } from "react";
-import { IconShare } from "./icons";
+import { IconShare, IconCheck } from "./icons";
 
 const canNativeShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
 
@@ -18,7 +18,7 @@ export function ShareButton({
   title: string;
   text?: string;
   path: string; // app-relative route; shared as an absolute URL
-  variant?: "button" | "link";
+  variant?: "button" | "link" | "icon";
   fallback?: "copy" | "hide";
 }) {
   const [copied, setCopied] = useState(false);
@@ -45,12 +45,31 @@ export function ShareButton({
     }
   };
 
+  const hint = canNativeShare ? "Share" : "Copy link to share";
+
+  // Bare glyph, no text (issue #241) — the profile header slots this right
+  // beside the username. Copy feedback swaps the glyph to a check since
+  // there's no label to flip to "Copied".
+  if (variant === "icon") {
+    return (
+      <button
+        type="button"
+        className="icon-btn"
+        onClick={share}
+        aria-label={copied ? "Link copied" : hint}
+        title={copied ? "Copied ✓" : hint}
+      >
+        {copied ? <IconCheck size={15} /> : <IconShare size={15} />}
+      </button>
+    );
+  }
+
   return (
     <button
       type="button"
       className={variant === "link" ? "link-btn" : "btn btn-ghost"}
       onClick={share}
-      title={canNativeShare ? "Share" : "Copy link to share"}
+      title={hint}
     >
       <IconShare size={variant === "link" ? 13 : 15} /> {copied ? "Copied ✓" : "Share"}
     </button>
