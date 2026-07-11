@@ -25,12 +25,14 @@ import { ProfileSkeleton } from "../components/skeleton";
 import { IconList, IconCheck, IconPlus, IconLock, IconChevron } from "../components/icons";
 import {
   StatsGrid,
+  ProfileHistory,
   ProfileActivity,
   ProfileComments,
   AdminTools,
   type WatchStats,
   type ActivityItem,
   type ProfileComment,
+  type ProfileHistoryData,
 } from "./profile";
 import { ACHIEVEMENTS, ACHIEVEMENTS_BY_ID } from "../../shared/achievements";
 
@@ -44,6 +46,7 @@ interface FullProfile {
   lists: { id: number; name: string; count: number; posters: string[] }[];
   achievements: string[];
   comments: ProfileComment[];
+  history?: ProfileHistoryData; // optional: tolerates cached pre-#245 payloads
   activity?: ActivityItem[]; // optional: tolerates cached pre-#202 payloads
 }
 
@@ -259,6 +262,11 @@ export function PublicProfilePage() {
           )}
           {user?.isAdmin && <AdminTools username={data.username} tz={user.tz} />}
           <StatsGrid stats={data.stats} />
+          {/* Watch history rows (issue #245), above Achievements — only ever
+              present on a full profile payload (the teaser branch above never
+              has it), so profile visibility is the one and only gate. The
+              headings open this user's public library. */}
+          {data.history && <ProfileHistory history={data.history} base={`/u/${data.username}/library`} />}
           <PublicAchievements username={data.username} ids={data.achievements} />
           <ProfileActivity items={data.activity ?? []} />
           <ProfileComments comments={data.comments} />

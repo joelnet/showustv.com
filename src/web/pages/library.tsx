@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactElement } from "react";
 import { NavLink } from "react-router-dom";
 import { useApi } from "../hooks";
 import { useAuth } from "../app";
@@ -40,7 +40,7 @@ function showComparator(sort: ShowSort) {
   };
 }
 
-interface LibShow {
+export interface LibShow {
   id: number;
   title: string;
   poster: string | null;
@@ -51,7 +51,7 @@ interface LibShow {
   total: number;
   last_watched_at: string | null;
 }
-interface LibMovie {
+export interface LibMovie {
   id: number;
   title: string;
   poster: string | null;
@@ -67,7 +67,10 @@ interface WatchlistItem {
 // The shows library: a status tab bar (Up to date / Finished / Abandoned — only
 // tabs that have shows appear), and the active tab's poster grid. Active,
 // not-started, and gone-quiet shows live on Watch Next instead (issue #115).
-function ShowsLibrary({ shows }: { shows: LibShow[] }) {
+// Exported for the public library page (issue #245), which is read-only —
+// this component already is: it only navigates and sorts. `empty` swaps the
+// owner-directed zero-tabs message for visitor copy there.
+export function ShowsLibrary({ shows, empty }: { shows: LibShow[]; empty?: ReactElement }) {
   const [sort, setSort] = useState<ShowSort>(() =>
     localStorage.getItem(SORT_KEY) === "alphabetical" ? "alphabetical" : "last_watched"
   );
@@ -90,10 +93,12 @@ function ShowsLibrary({ shows }: { shows: LibShow[] }) {
 
   if (tabs.length === 0) {
     return (
-      <Empty
-        title="Nothing to catch up on here"
-        hint="Your active shows now live on Watch Next — the Library keeps what you’re up to date on, finished, or abandoned."
-      />
+      empty ?? (
+        <Empty
+          title="Nothing to catch up on here"
+          hint="Your active shows now live on Watch Next — the Library keeps what you’re up to date on, finished, or abandoned."
+        />
+      )
     );
   }
 
@@ -145,6 +150,53 @@ function ShowsLibrary({ shows }: { shows: LibShow[] }) {
   );
 }
 
+// The movies tab's poster grid. `tz` shapes the watched-at sub line — the
+// viewer's saved timezone here, the visitor's own on the public library page
+// (issue #245), where this and AnimeLibrary below are reused as-is.
+export function MovieGrid({ movies, tz }: { movies: LibMovie[]; tz: string }) {
+  return (
+    <div className="poster-grid">
+      {movies.map((m) => (
+        <PosterCard
+          key={m.id}
+          to={mediaPath("movie", m.id, m.title)}
+          posterPath={m.poster}
+          title={m.title}
+          sub={fmtDateTime(m.watched_at, tz)}
+        />
+      ))}
+    </div>
+  );
+}
+
+// The anime tab: shows (with progress) and movies as two headed sections.
+// Callers guarantee at least one of the two is non-empty.
+export function AnimeLibrary({ shows, movies, tz }: { shows: LibShow[]; movies: LibMovie[]; tz: string }) {
+  return (
+    <>
+      {shows.length > 0 && (
+        <section>
+          <h2 className="section-title">Shows</h2>
+          <div className="poster-grid">
+            {shows.map((s) => (
+              <div key={s.id} className="lib-card">
+                <PosterCard to={mediaPath("show", s.id, s.title)} posterPath={s.poster} title={s.title} sub={`${s.watched}/${s.aired}`} />
+                <Progress watched={s.watched} total={s.aired} />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+      {movies.length > 0 && (
+        <section>
+          <h2 className="section-title">Movies</h2>
+          <MovieGrid movies={movies} tz={tz} />
+        </section>
+      )}
+    </>
+  );
+}
+
 export function LibraryPage({ tab }: { tab: "shows" | "movies" | "anime" | "watchlist" }) {
   const { user } = useAuth();
   const lib = useApi<{ shows: LibShow[]; movies: LibMovie[]; animeShows: LibShow[]; animeMovies: LibMovie[] }>(
@@ -181,17 +233,7 @@ export function LibraryPage({ tab }: { tab: "shows" | "movies" | "anime" | "watc
         ) : !lib.data?.movies.length ? (
           <Empty title="No movies watched yet" hint="Mark a movie watched and it lands here." />
         ) : (
-          <div className="poster-grid">
-            {lib.data.movies.map((m) => (
-              <PosterCard
-                key={m.id}
-                to={mediaPath("movie", m.id, m.title)}
-                posterPath={m.poster}
-                title={m.title}
-                sub={fmtDateTime(m.watched_at, user!.tz)}
-              />
-            ))}
-          </div>
+          <MovieGrid movies={lib.data.movies} tz={user!.tz} />
         ))}
 
       {tab === "anime" &&
@@ -202,42 +244,7 @@ export function LibraryPage({ tab }: { tab: "shows" | "movies" | "anime" | "watc
         ) : !lib.data?.animeShows.length && !lib.data?.animeMovies.length ? (
           <Empty title="No anime yet" hint="Follow an anime show or mark an anime movie watched and it lands here." />
         ) : (
-          <>
-            {lib.data!.animeShows.length > 0 && (
-              <section>
-                <h2 className="section-title">Shows</h2>
-                <div className="poster-grid">
-                  {lib.data!.animeShows.map((s) => (
-                    <div key={s.id} className="lib-card">
-                      <PosterCard
-                        to={mediaPath("show", s.id, s.title)}
-                        posterPath={s.poster}
-                        title={s.title}
-                        sub={`${s.watched}/${s.aired}`}
-                      />
-                      <Progress watched={s.watched} total={s.aired} />
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
-            {lib.data!.animeMovies.length > 0 && (
-              <section>
-                <h2 className="section-title">Movies</h2>
-                <div className="poster-grid">
-                  {lib.data!.animeMovies.map((m) => (
-                    <PosterCard
-                      key={m.id}
-                      to={mediaPath("movie", m.id, m.title)}
-                      posterPath={m.poster}
-                      title={m.title}
-                      sub={fmtDateTime(m.watched_at, user!.tz)}
-                    />
-                  ))}
-                </div>
-              </section>
-            )}
-          </>
+          <AnimeLibrary shows={lib.data!.animeShows} movies={lib.data!.animeMovies} tz={user!.tz} />
         ))}
 
       {tab === "watchlist" &&

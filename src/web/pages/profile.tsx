@@ -20,6 +20,7 @@ import { useAuth } from "../app";
 import { useConfirm } from "../components/dialog";
 import { useToast } from "../components/toast";
 import { Empty, ErrorNote, Slate } from "../components/ui";
+import { TileSection, type TileItem } from "../components/tiles";
 import { ShareButton } from "../components/share";
 import { ProfileSkeleton } from "../components/skeleton";
 import {
@@ -164,6 +165,32 @@ export function StatsGrid({ stats }: { stats: WatchStats }) {
 }
 
 // ---------- Sections shared with the public view (public-profile.tsx) ----------
+
+// The watch-history rows (issue #245): Shows, Movies, and Anime as Watch-Now-
+// style side-scrolling tile rows, each already deduped server-side to one
+// tile per show (the latest-watched episode) so a binge can't flood a row.
+// Rendered ABOVE Achievements on both profile views. Each heading opens the
+// matching library tab — `base` is the owner's own /library on their page,
+// /u/:username/library (the public library, issue #245) for visitors.
+// Visibility rides the profile gate alone — no per-section toggle: the
+// server only puts `history` in payloads it already deemed visible, and an
+// all-empty history renders nothing at all.
+export interface ProfileHistoryData {
+  shows: TileItem[];
+  movies: TileItem[];
+  anime: TileItem[];
+}
+
+export function ProfileHistory({ history, base }: { history: ProfileHistoryData; base: string }) {
+  if (!history.shows.length && !history.movies.length && !history.anime.length) return null;
+  return (
+    <div className="wn-home profile-history">
+      <TileSection title="Shows" to={base} items={history.shows} />
+      <TileSection title="Movies" to={`${base}/movies`} items={history.movies} />
+      <TileSection title="Anime" to={`${base}/anime`} items={history.anime} />
+    </div>
+  );
+}
 
 export interface ProfileComment {
   body: string | null; // null for anonymous visitors — metadata only
@@ -429,6 +456,7 @@ export function AdminTools({ username, tz }: { username: string; tz: string }) {
 // to discriminate here.
 interface OwnPublicData {
   private?: boolean;
+  history?: ProfileHistoryData; // optional: tolerates cached pre-#245 payloads
   activity?: ActivityItem[]; // optional: tolerates cached pre-#202 payloads
   activityPublic?: boolean;
   comments: ProfileComment[];
@@ -625,6 +653,12 @@ export function ProfilePage() {
       {user?.isAdmin && <AdminTools username={data.username} tz={user.tz} />}
 
       <StatsGrid stats={data.stats} />
+
+      {/* Watch history rows (issue #245), above Achievements. From the public
+          payload like the feed sections below — so this doubles as the
+          visitor preview — but the headings link to the owner's own /library
+          tabs: that page (with the watchlist) is the useful one here. */}
+      {pub?.history && <ProfileHistory history={pub.history} base="/library" />}
 
       {/* The grid moved to its own page (issue #201) — the heading itself is
           now the link, with the earned/total count, so the profile stays

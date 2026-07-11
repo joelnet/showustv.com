@@ -1416,6 +1416,11 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   gap: 14px;
   margin: 18px 0 26px;
 }
+/* Watch-history rows on the profile (issue #245): .wn-home already supplies
+   the 28px stack Watch Now uses between sections; this just settles the block
+   between the stats grid above (its bottom margin wins the collapse) and the
+   Achievements heading below (whose own top margin provides that gap). */
+.profile-history { margin: 0 0 2px; }
 /* Flat stat cards (issue #170, replacing the glow treatment from #116): the
    standard card — surface fill, 1px hairline, 10px radius — with an
    amber-wash icon tile (the documented feature-icon idiom), a big warm-white

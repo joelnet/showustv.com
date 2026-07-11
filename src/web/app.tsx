@@ -28,6 +28,7 @@ import { ListsPage, ListDetailPage } from "./pages/lists";
 import { PublicListPage } from "./pages/public-list";
 import { ProfilePage } from "./pages/profile";
 import { PublicProfilePage } from "./pages/public-profile";
+import { PublicLibraryPage } from "./pages/public-library";
 import { MyAchievementsPage, PublicAchievementsPage } from "./pages/achievements";
 import { FollowingPage } from "./pages/following";
 import { NotificationsPage } from "./pages/notifications";
@@ -479,6 +480,9 @@ export function App() {
               <Route path="/movie/:id" element={<MoviePage />} />
               <Route path="/u/:username" element={<PublicProfilePage />} />
               <Route path="/u/:username/achievements" element={<PublicAchievementsPage />} />
+              <Route path="/u/:username/library" element={<PublicLibraryPage tab="shows" />} />
+              <Route path="/u/:username/library/movies" element={<PublicLibraryPage tab="movies" />} />
+              <Route path="/u/:username/library/anime" element={<PublicLibraryPage tab="anime" />} />
             </Route>
           )}
           <Route element={<Shell />}>
@@ -511,6 +515,14 @@ export function App() {
               path="/u/:username/achievements"
               element={<OwnOrPublic own={<MyAchievementsPage />} other={<PublicAchievementsPage />} />}
             />
+            {/* The public library (issue #245) renders the same for every
+                signed-in viewer — the server gates by profile visibility and
+                serves the owner their own in full, so no OwnOrPublic split:
+                on your own username it doubles as the visitor preview (your
+                real library, watchlist included, stays at /library). */}
+            <Route path="/u/:username/library" element={<PublicLibraryPage tab="shows" />} />
+            <Route path="/u/:username/library/movies" element={<PublicLibraryPage tab="movies" />} />
+            <Route path="/u/:username/library/anime" element={<PublicLibraryPage tab="anime" />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/settings/import" element={<ImportPage />} />
             <Route path="/about" element={<AboutPage />} />

@@ -5,25 +5,16 @@ import { ensureShow, ensureMovie } from "../lib/tmdb";
 import { nowIso, todayInTz, daysAgoInTz } from "../lib/dates";
 import { airedCond } from "../lib/aired";
 import { notifyFollowersOfWatch } from "../lib/notifications";
-import { RECENT_WINDOW_DAYS, STORED_SHOW_STATES, type DerivedShowState } from "../../shared/constants";
-import { isAnime } from "../../shared/anime";
+// The library payload and its derivation helpers live in lib/library.ts now
+// (issue #245) — the public library endpoint shares them, stats.ts-style.
+import { libraryPayload, recentlyActive } from "../lib/library";
+import { RECENT_WINDOW_DAYS, STORED_SHOW_STATES } from "../../shared/constants";
 
 export const library = new Hono<AppEnv>();
 
 function intParam(v: string): number | null {
   const n = Number(v);
   return Number.isInteger(n) && n > 0 ? n : null;
-}
-
-// genres_json is a JSON array of TMDB genre names (e.g. ["Animation","Comedy"]);
-// always a valid array (NOT NULL DEFAULT '[]'), but parse defensively.
-function parseGenres(json: unknown): string[] {
-  try {
-    const g = JSON.parse(String(json ?? "[]"));
-    return Array.isArray(g) ? g : [];
-  } catch {
-    return [];
-  }
 }
 
 // Client may send an explicit watched_at (import, backdating); defaults to now.
@@ -33,24 +24,7 @@ function watchedAtFrom(body: any): string | null {
   return Number.isNaN(t) ? null : new Date(t).toISOString();
 }
 
-function deriveState(row: { state: string; watched: number; aired: number; total: number; status: string }): DerivedShowState {
-  if (row.state === "stopped" || row.state === "watch_later") return row.state as DerivedShowState;
-  if (row.watched === 0) return "not_started";
-  if (row.watched < row.aired) return "watching";
-  const ended = row.status === "Ended" || row.status === "Canceled";
-  return ended && row.total > 0 && row.watched >= row.total ? "finished" : "up_to_date";
-}
-
 // ---------- Home: Watch Next ----------
-
-// A show is "recently active" — and belongs in the main Watch Next queue
-// rather than the "Haven't watched for a while" bucket — when it was watched
-// or had an episode air on/after this cutoff date. `since` is 'YYYY-MM-DD';
-// last_watched is an ISO datetime and last_aired a date, both of which compare
-// correctly against it as strings.
-function recentlyActive(lastWatched: string | null, lastAired: string | null, since: string): boolean {
-  return (lastWatched != null && lastWatched >= since) || (lastAired != null && lastAired >= since);
-}
 
 // "From People You Follow" (issue #128) looks back this far for followees'
 // episode watches — the same 30-day window the activity feed uses, so the two
@@ -269,65 +243,7 @@ library.get("/home", async (c) => {
 // ---------- Library & watchlist ----------
 
 library.get("/library", async (c) => {
-  const uid = c.get("uid");
-  const today = todayInTz(c.get("tz"));
-  const [showsR, moviesR] = await c.env.DB.batch([
-    c.env.DB.prepare(
-      `SELECT us.show_id AS id, us.state, s.title, s.poster_url AS poster, s.status,
-         s.genres_json, s.original_language,
-         (SELECT COUNT(*) FROM episodes e WHERE e.show_id = us.show_id AND e.season_number > 0
-            AND ${airedCond("?2", "s")}) AS aired,
-         (SELECT COUNT(*) FROM episodes e WHERE e.show_id = us.show_id AND e.season_number > 0) AS total,
-         (SELECT COUNT(*) FROM user_episodes ue JOIN episodes e ON e.id = ue.episode_id
-            WHERE ue.user_id = us.user_id AND e.show_id = us.show_id AND e.season_number > 0) AS watched,
-         (SELECT MAX(CASE WHEN ue.last_rewatched_at > ue.watched_at
-                          THEN ue.last_rewatched_at ELSE ue.watched_at END)
-            FROM user_episodes ue JOIN episodes e ON e.id = ue.episode_id
-            WHERE ue.user_id = us.user_id AND e.show_id = us.show_id) AS last_watched_at,
-         (SELECT MAX(e.air_date) FROM episodes e WHERE e.show_id = us.show_id AND e.season_number > 0
-            AND e.air_date IS NOT NULL AND e.air_date <= ?2) AS last_aired
-       FROM user_shows us JOIN shows s ON s.tmdb_id = us.show_id
-       WHERE us.user_id = ?1 AND us.state != 'watch_later'
-       ORDER BY s.title`
-    ).bind(uid, today),
-    c.env.DB.prepare(
-      `SELECT um.movie_id AS id, m.title, m.poster_url AS poster, m.genres_json, m.original_language,
-         um.watched_at, um.play_count
-       FROM user_movies um JOIN movies m ON m.tmdb_id = um.movie_id
-       WHERE um.user_id = ?1 AND um.state = 'watched'
-       ORDER BY um.watched_at DESC`
-    ).bind(uid),
-  ]);
-
-  // A show still being watched but with no watch/air activity in the recent
-  // window is "stale" — the library surfaces it under "Haven't watched for a
-  // while". Only meaningful for the watching state; other states aren't behind.
-  const recentSince = daysAgoInTz(c.get("tz"), RECENT_WINDOW_DAYS);
-
-  // Anime (Animation genre + Japanese origin) gets its own tab, so it must not
-  // also appear under Shows or Movies. Partition each set with the shared
-  // isAnime helper, stripping the classification-only columns from the payload.
-  const shows: any[] = [];
-  const animeShows: any[] = [];
-  for (const r of showsR.results as any[]) {
-    const { genres_json, original_language, ...rest } = r;
-    const derivedState = deriveState(r);
-    const item = {
-      ...rest,
-      derivedState,
-      stale: derivedState === "watching" && !recentlyActive(r.last_watched_at, r.last_aired, recentSince),
-    };
-    (isAnime(parseGenres(genres_json), original_language) ? animeShows : shows).push(item);
-  }
-
-  const movies: any[] = [];
-  const animeMovies: any[] = [];
-  for (const r of moviesR.results as any[]) {
-    const { genres_json, original_language, ...rest } = r;
-    (isAnime(parseGenres(genres_json), original_language) ? animeMovies : movies).push(rest);
-  }
-
-  return c.json({ shows, movies, animeShows, animeMovies });
+  return c.json(await libraryPayload(c.env.DB, c.get("uid"), c.get("tz")));
 });
 
 library.get("/watchlist", async (c) => {
