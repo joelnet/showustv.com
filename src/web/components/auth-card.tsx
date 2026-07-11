@@ -86,8 +86,12 @@ export function AuthCard({
             minLength={8}
           />
         </label>
-        {registering && (
+        {registering ? (
           <p className="login-hint">You&rsquo;ll pick your username on the next step.</p>
+        ) : (
+          <Link to="/forgot-password" className="login-forgot">
+            Forgot password?
+          </Link>
         )}
         {error && <p className="error-note">{error}</p>}
         <button className="btn" type="submit" disabled={busy}>

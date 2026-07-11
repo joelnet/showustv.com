@@ -1,10 +1,10 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
-import type { AppEnv } from "../env";
+import type { AppEnv, Env } from "../env";
 import { hashPassword, verifyPassword, DUMMY_PW_HASH } from "../lib/password";
 import { issueSession, clearSession, readSession, requireAuth } from "../lib/session";
 import { isValidTz, nowIso } from "../lib/dates";
-import { sha256Hex } from "../lib/email";
+import { sendEmail, sha256Hex, brandedEmailHtml } from "../lib/email";
 import { USERNAME_RE, USERNAME_RULES } from "../lib/username";
 import { isRateLimited, recordAttempt, clearAttempts } from "../lib/rate-limit";
 import { readJson } from "../lib/body";
@@ -31,7 +31,16 @@ const LOGIN_IP = { limit: 10, windowMs: 10 * 60_000 };
 const LOGIN_ID = { limit: 5, windowMs: 15 * 60_000 };
 const REGISTER_IP = { limit: 10, windowMs: 60 * 60_000 };
 const REGISTER_EMAIL = { limit: 5, windowMs: 60 * 60_000 };
+// Forgot-password (issue #216): every request counts (sending mail is the
+// cost, like register), per IP and per target address so one IP can't spray
+// resets and one address can't be flooded from many IPs. Reset counts only
+// failures (token guessing is the threat), like login.
+const FORGOT_IP = { limit: 5, windowMs: 60 * 60_000 };
+const FORGOT_EMAIL = { limit: 3, windowMs: 60 * 60_000 };
+const RESET_IP = { limit: 10, windowMs: 15 * 60_000 };
 const RATE_LIMITED = { error: "Too many attempts. Please try again later" };
+
+const RESET_TTL_MS = 30 * 60_000;
 
 // Cloudflare's view of the client; local dev has no CF header, so everything
 // shares one bucket there. slice bounds what an attacker can make us store.
@@ -313,6 +322,126 @@ auth.post("/verify-email", async (c) => {
     throw e;
   }
   return status("verified");
+});
+
+// The account-dependent half of /forgot, run OFF the response path (issue
+// #216). Looks up the account and, only if it exists, stores a fresh reset
+// token digest (raw token exists only in the email — same bearer-credential
+// rule as email_verifications) and mails the link. One pending reset per
+// user: a new request replaces the old row, so stale links die early. If the
+// send fails the row is deleted — an undeliverable token has no business
+// sitting in the DB — and the failure stays server-side (sendEmail logs it);
+// surfacing it to the caller would confirm the account exists.
+async function dispatchPasswordReset(env: Env, origin: string, email: string): Promise<void> {
+  const user = await env.DB.prepare("SELECT id FROM users WHERE email = ?1 AND deleted_at IS NULL")
+    .bind(email)
+    .first<{ id: number }>();
+  if (!user) return; // the generic 200 already went out — nothing to reveal
+  const token = crypto.randomUUID().replace(/-/g, "");
+  await env.DB.prepare(
+    `INSERT INTO password_resets (user_id, token, sent_at, expires_at) VALUES (?1, ?2, ?3, ?4)
+     ON CONFLICT (user_id) DO UPDATE SET token = excluded.token, sent_at = excluded.sent_at, expires_at = excluded.expires_at`
+  )
+    .bind(user.id, await sha256Hex(token), nowIso(), new Date(Date.now() + RESET_TTL_MS).toISOString())
+    .run();
+
+  const link = `${origin}/reset-password?token=${token}`;
+  const sent = await sendEmail(
+    env,
+    email,
+    "Reset your password: Show Us TV",
+    `Someone asked to reset the password for your Show Us TV account. If that was you, open this link to choose a new password:\n\n${link}\n\nThe link expires in 30 minutes and can be used once. If you didn't request this, ignore it — your password is unchanged.`,
+    brandedEmailHtml({
+      preheader: "Choose a new password for your Show Us TV account.",
+      heading: "Reset your password",
+      intro: "Someone asked to reset the password for your Show Us TV account. If that was you, choose a new password below.",
+      buttonLabel: "Reset password",
+      buttonUrl: link,
+      footnote: "This link expires in 30 minutes and can be used once. If you didn't request this, you can safely ignore this email — your password is unchanged.",
+    })
+  );
+  if (!sent) await env.DB.prepare("DELETE FROM password_resets WHERE user_id = ?1").bind(user.id).run();
+}
+
+// Start a password reset (issue #216). Non-enumerating BY CONSTRUCTION: after
+// the format check and the rate-limit gate — both of which treat every email
+// identically — the response is the same generic 200 whether or not the
+// address has an account, and all account-dependent work (lookup, token
+// store, send) happens in waitUntil after the response is composed, so status,
+// body, AND timing are flat. Every well-formed request is counted (like
+// register): the cost being limited is outbound mail, not failed guesses.
+auth.post("/forgot", async (c) => {
+  const rj = await readJson(c); // byte cap before parsing (issue #217)
+  if (!rj) return c.json({ error: "payload too large" }, 413);
+  const email = String(rj.body.email ?? "").trim().toLowerCase();
+  if (!EMAIL_RE.test(email) || email.length > 254)
+    return c.json({ error: "That doesn't look like an email address" }, 400);
+
+  const ipKey = `forgot:ip:${clientIp(c)}`;
+  const emailKey = `forgot:email:${email}`;
+  if (await isRateLimited(c.env.DB, [{ key: ipKey, ...FORGOT_IP }, { key: emailKey, ...FORGOT_EMAIL }]))
+    return c.json(RATE_LIMITED, 429);
+  await recordAttempt(c.env.DB, [ipKey, emailKey]);
+
+  // Capture what the background half needs now — never the Context itself.
+  const origin = new URL(c.req.url).origin;
+  c.executionCtx.waitUntil(
+    dispatchPasswordReset(c.env, origin, email).catch((e) => console.error("forgot: reset dispatch failed", e))
+  );
+  return c.json({ ok: true });
+});
+
+// Consume a reset token and set the new password (issue #216). POST only,
+// same reasoning as /verify-email: the emailed link lands on the SPA page
+// /reset-password and nothing is consumed until the user submits the form
+// there, so a mail scanner prefetching the GET link burns nothing. The token
+// alone is the proof (the clicker is logged out by definition), so no
+// requireAuth. Single-use: the row is deleted on first presentation, valid
+// or expired. Distinguishing invalid/expired here reveals nothing about
+// accounts — only about a token the caller already holds (same as verify).
+auth.post("/reset", async (c) => {
+  const rj = await readJson(c); // byte cap before parsing (issue #217)
+  if (!rj) return c.json({ error: "payload too large" }, 413);
+  const token = String(rj.body.token ?? "");
+  const password = String(rj.body.password ?? "");
+  // Same password rules as register — checked before any hashing (issue #217).
+  if (password.length < 8 || password.length > MAX_PASSWORD_CHARS) return c.json(PASSWORD_RULES, 400);
+
+  const status = (s: string) => c.json({ status: s });
+  if (!/^[a-f0-9]{32}$/.test(token)) return status("invalid");
+
+  // Failures-only brake per IP, like login: a 128-bit token is unguessable,
+  // this just keeps anyone from trying at volume.
+  const ipKey = `reset:ip:${clientIp(c)}`;
+  if (await isRateLimited(c.env.DB, [{ key: ipKey, ...RESET_IP }])) return c.json(RATE_LIMITED, 429);
+
+  const row = await c.env.DB.prepare("SELECT user_id, expires_at FROM password_resets WHERE token = ?1")
+    .bind(await sha256Hex(token))
+    .first<{ user_id: number; expires_at: string }>();
+  if (!row) {
+    await recordAttempt(c.env.DB, [ipKey]);
+    return status("invalid");
+  }
+  c.set("uid", row.user_id); // attribute this request in the activity log
+  await c.env.DB.prepare("DELETE FROM password_resets WHERE user_id = ?1").bind(row.user_id).run();
+  if (row.expires_at < nowIso()) return status("expired");
+
+  const pwHash = await hashPassword(password);
+  const { meta } = await c.env.DB.prepare("UPDATE users SET pw_hash = ?2 WHERE id = ?1 AND deleted_at IS NULL")
+    .bind(row.user_id, pwHash)
+    .run();
+  if (!(meta.changes ?? 0)) return status("invalid"); // account deleted since the email went out
+
+  // The caller just proved control of the account's email — end the
+  // identifier's login-failure window (an attacker's guesses may have
+  // tripped it) so the fresh password works immediately, mirroring what a
+  // successful login does. NOT the sign-in itself: the reset page sends the
+  // user to /login to enter the new password once.
+  const u = await c.env.DB.prepare("SELECT email FROM users WHERE id = ?1")
+    .bind(row.user_id)
+    .first<{ email: string | null }>();
+  if (u?.email) await clearAttempts(c.env.DB, [`login:id:${u.email.toLowerCase().slice(0, 254)}`]);
+  return status("ok");
 });
 
 auth.put("/settings", requireAuth, async (c) => {

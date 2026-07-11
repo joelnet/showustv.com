@@ -16,6 +16,7 @@ import { Landing } from "./pages/landing";
 import { Login } from "./pages/login";
 import { WelcomePage } from "./pages/welcome";
 import { VerifyEmailPage } from "./pages/verify-email";
+import { ForgotPasswordPage, ResetPasswordPage } from "./pages/forgot-password";
 import { WatchNext, WatchSectionPage } from "./pages/watchnext";
 import { SearchPage } from "./pages/search";
 import { ShowPage } from "./pages/show";
@@ -453,6 +454,10 @@ export function App() {
               visitors go to /login, onboarded users into the app. */}
           <Route path="/welcome" element={<WelcomePage />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
+          {/* Forgot-password flow (issue #216) — public like /verify-email:
+              the reset-link clicker is logged out by definition. */}
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           {/* Public TV Time export/import how-to (linked from the landing banner). */}
           <Route path="/import-help" element={<ImportHelpPage />} />
           {/* Public iOS install walkthrough (linked from the Install App button). */}

@@ -643,6 +643,11 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .login-card label { display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; color: var(--muted); }
 .login-card .btn { justify-content: center; margin-top: 4px; }
 .login-card .link-btn { margin-top: 14px; }
+/* Forgot-password flow (issue #216): the escape hatch under the login form's
+   password field, and the heading the forgot/reset pages share. */
+.login-forgot { align-self: flex-start; font-size: 12.5px; color: var(--muted); margin: -6px 0 0; }
+.login-forgot:hover { color: var(--text); }
+.login-form-title { font-family: var(--font-display); font-size: 20px; margin: 14px 0 4px; }
 
 /* Secondary signup step (issue #160): the two-stage progress strip above the
    preferences form — stage 1 (Sign up) done, stage 2 (Preferences) current,
