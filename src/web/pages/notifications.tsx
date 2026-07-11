@@ -32,13 +32,14 @@ interface NotificationItem {
 }
 
 // The verb-and-target phrase after the actor's name, branched per type:
-// 'follow_watch' (issue #129) and 'follow_comment' (issue #141). The target
-// links to its show/movie page (with its title as the anchor), and an
-// episode row names the episode inline: "watched S02·E05 · Waiting of
-// Dexter". An episode comment links the episode itself — that page is where
-// the thread lives. Missing episode info (movies, pre-migration rows, or a
-// since-deleted episode) degrades to "watched an episode of Dexter" /
-// "commented on Dexter" / "watched Inception".
+// 'follow_watch' (issue #129), 'follow_comment' (issue #141) and
+// 'tracked_comment' (issue #236 — same phrase; only the reason you got it
+// differs). The target links to its show/movie page (with its title as the
+// anchor), and an episode row names the episode inline: "watched S02·E05 ·
+// Waiting of Dexter". An episode comment links the episode itself — that
+// page is where the thread lives. Missing episode info (movies,
+// pre-migration rows, or a since-deleted episode) degrades to "watched an
+// episode of Dexter" / "commented on Dexter" / "watched Inception".
 function NotificationBody({ n }: { n: NotificationItem }) {
   const targetLink =
     n.targetType && n.targetId != null ? (
@@ -47,7 +48,7 @@ function NotificationBody({ n }: { n: NotificationItem }) {
       <span>{n.title ?? "something"}</span>
     );
 
-  if (n.type === "follow_comment") {
+  if (n.type === "follow_comment" || n.type === "tracked_comment") {
     if (n.targetType === "show" && n.episodeId != null && n.season != null && n.number != null) {
       return (
         <>
@@ -133,7 +134,7 @@ export function NotificationsPage() {
       {!items.length ? (
         <Empty
           title="No notifications yet"
-          hint="When someone you follow watches or comments on a show or movie, you'll hear about it here."
+          hint="When someone comments on a show or movie you track, or someone you follow watches or comments, you'll hear about it here."
         />
       ) : (
         <>

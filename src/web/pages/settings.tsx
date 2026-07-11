@@ -141,6 +141,7 @@ function EmailVerification({ data, reload }: { data: EmailData; reload: () => vo
 interface NotificationPrefs {
   followWatch: boolean;
   followComment: boolean;
+  trackedComment: boolean;
   pushPublicKey: string | null;
 }
 
@@ -165,7 +166,7 @@ function NotificationSettings({ prefs, reload }: { prefs: NotificationPrefs; rel
   }, [supported]);
 
   // One toggle per notification type; the PUT takes just the flipped key.
-  const togglePref = async (patch: { followWatch?: boolean; followComment?: boolean }) => {
+  const togglePref = async (patch: { followWatch?: boolean; followComment?: boolean; trackedComment?: boolean }) => {
     setBusy(true);
     setErr(null);
     try {
@@ -226,6 +227,21 @@ function NotificationSettings({ prefs, reload }: { prefs: NotificationPrefs; rel
           Someone you follow commented on a show you track
           <span className="settings-hint">
             Get a notification when people you follow comment on shows and movies in your library.
+          </span>
+        </span>
+      </label>
+
+      <label className="settings-toggle">
+        <input
+          type="checkbox"
+          checked={prefs.trackedComment}
+          disabled={busy}
+          onChange={() => togglePref({ trackedComment: !prefs.trackedComment })}
+        />
+        <span>
+          Anyone commented on a show you track
+          <span className="settings-hint">
+            Get a notification when any user comments on shows and movies in your library.
           </span>
         </span>
       </label>

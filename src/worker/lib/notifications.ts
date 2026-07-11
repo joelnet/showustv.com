@@ -288,3 +288,105 @@ export async function notifyFollowersOfComment(
     tag: `fc-${actorId}-${targetType.charAt(0)}-${targetId}`,
   });
 }
+
+// A popular title can have far more trackers than anyone has followers, so
+// unlike the follow fan-outs the tracker fan-out bounds its INSERT too (the
+// lowest user ids win, deterministically) — one runaway thread on a hit show
+// must not write tens of thousands of rows per comment. The push cap above
+// still applies on top.
+const MAX_TRACKER_FANOUT = 500;
+
+// Tracker fan-out (issue #236). When ANY user comments on a show, movie, or
+// episode, notify every OTHER user who tracks that title — same "tracks"
+// membership as the follow_comment fan-out above (show in the library in any
+// non-hidden state, or any user_movies row) but without the follows edge:
+// you don't need to follow the commenter to hear about your own shows. An
+// episode comment notifies about its SHOW, carrying the episode in
+// episode_id, exactly like follow_comment. Gated per recipient on the
+// tracked_comment pref (0027, default on when no prefs row).
+//
+// Runs AFTER notifyFollowersOfComment (the comment route chains them) and
+// dedupes against BOTH comment types, so a follower-who-tracks gets the
+// richer follow_comment row and never a duplicate tracked_comment for the
+// same actor/title within the window.
+export async function notifyTrackersOfComment(
+  env: Env,
+  actorId: number,
+  commentTargetType: "episode" | "show" | "movie",
+  commentTargetId: number
+): Promise<void> {
+  let targetType: "show" | "movie" = "movie";
+  let targetId = commentTargetId;
+  let episodeId: number | null = null;
+  if (commentTargetType === "episode") {
+    const ep = await env.DB.prepare("SELECT show_id FROM episodes WHERE id = ?1")
+      .bind(commentTargetId)
+      .first<{ show_id: number }>();
+    if (!ep) return; // episode vanished mid-flight — nothing to attribute
+    targetType = "show";
+    targetId = ep.show_id;
+    episodeId = commentTargetId;
+  } else if (commentTargetType === "show") {
+    targetType = "show";
+  }
+
+  const since = new Date(Date.now() - DEDUPE_WINDOW_MS).toISOString();
+
+  // Recipients come straight from the tracking table (the media-first
+  // indexes from 0027 make this a title probe, not a table scan), not from
+  // follows. Same guards as the fan-outs
+  // above: the actor's own comment never notifies them, deleted recipients
+  // are skipped, and a shadow-banned or deleted actor drops the whole
+  // fan-out — their comments render as [deleted] to everyone else, so a
+  // notification would advertise a comment nobody can see (and leak the ban).
+  const trackers =
+    targetType === "show"
+      ? `SELECT us.user_id AS uid FROM user_shows us WHERE us.show_id = ?3 AND us.state != 'hidden'`
+      : `SELECT um.user_id AS uid FROM user_movies um WHERE um.movie_id = ?3`;
+
+  const { results: created } = await env.DB.prepare(
+    `INSERT INTO notifications (user_id, type, actor_id, target_type, target_id, episode_id)
+     SELECT t.uid, 'tracked_comment', ?1, ?2, ?3, ?5
+     FROM (${trackers}) t
+     JOIN users au ON au.id = ?1 AND au.deleted_at IS NULL AND au.shadow_banned = 0
+     JOIN users ru ON ru.id = t.uid AND ru.deleted_at IS NULL
+     WHERE t.uid != ?1
+       AND COALESCE((SELECT np.tracked_comment FROM notification_prefs np
+                     WHERE np.user_id = t.uid AND np.show_id = 0), 1) = 1
+       AND NOT EXISTS (SELECT 1 FROM notifications n
+                       WHERE n.user_id = t.uid AND n.type IN ('tracked_comment', 'follow_comment')
+                         AND n.actor_id = ?1 AND n.target_type = ?2 AND n.target_id = ?3
+                         AND n.created_at >= ?4)
+     ORDER BY t.uid
+     LIMIT ?6
+     RETURNING user_id`
+  )
+    .bind(actorId, targetType, targetId, since, episodeId, MAX_TRACKER_FANOUT)
+    .all<{ user_id: number }>();
+  if (!created.length || !vapidConfigured(env)) return;
+
+  // Push copy: the recipient may not know the commenter, so the title leads
+  // with the event ("New comment") and the actor rides in the body with the
+  // tracked title. Same deep-link rule as follow_comment — the episode page
+  // when the thread lives there, the title page otherwise.
+  const [actorR, titleR, epR] = await env.DB.batch([
+    env.DB.prepare("SELECT username FROM users WHERE id = ?1 AND deleted_at IS NULL").bind(actorId),
+    targetType === "show"
+      ? env.DB.prepare("SELECT title FROM shows WHERE tmdb_id = ?1").bind(targetId)
+      : env.DB.prepare("SELECT title FROM movies WHERE tmdb_id = ?1").bind(targetId),
+    episodeId != null
+      ? env.DB.prepare("SELECT season_number, number, title FROM episodes WHERE id = ?1").bind(episodeId)
+      : env.DB.prepare("SELECT NULL AS season_number, NULL AS number, NULL AS title WHERE 0"),
+  ]);
+  const actor = (actorR.results[0] as { username: string } | undefined)?.username;
+  const title = (titleR.results[0] as { title: string } | undefined)?.title;
+  if (!actor || !title) return;
+  const ep = epR.results[0] as { season_number: number; number: number; title: string | null } | undefined;
+
+  await pushToRecipients(env, created.map((r) => r.user_id), {
+    title: "New comment",
+    body: `${actor} on ${pushBody(targetType, title, ep)}`,
+    url: episodeId != null ? `/episode/${episodeId}` : `/${targetType}/${targetId}`,
+    tag: `tc-${actorId}-${targetType.charAt(0)}-${targetId}`,
+  });
+}

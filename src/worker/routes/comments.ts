@@ -31,7 +31,7 @@ import type { AppEnv } from "../env";
 import { optionalAuth } from "../lib/session";
 import { nowIso } from "../lib/dates";
 import { checkAchievements } from "../lib/achievements";
-import { notifyFollowersOfComment } from "../lib/notifications";
+import { notifyFollowersOfComment, notifyTrackersOfComment } from "../lib/notifications";
 import { COMMENT_MAX_LEN, COMMENT_URL_RE } from "../../shared/constants";
 
 // Write endpoints (post/edit/vote/delete). Mounted behind requireAuth.
@@ -446,14 +446,24 @@ comments.post("/", async (c) => {
     );
   }
   // Tell the commenter's followers who also track this title (issue #141),
-  // off the response path like the watch routes. Replies count — they're
-  // comments too, and the 24h dedupe keeps a thread from spamming. List
-  // comments don't fan out: there's no tracked show/movie to key on.
+  // then everyone else tracking it (issue #236) — off the response path like
+  // the watch routes. Sequential on purpose: the tracker fan-out dedupes
+  // against follow_comment rows, so the follow fan-out must land first for a
+  // follower-who-tracks to get exactly one notification (the follow-flavored
+  // one). Replies count — they're comments too, and the 24h dedupe keeps a
+  // thread from spamming. List comments don't fan out: there's no tracked
+  // show/movie to key on.
   if (targetType !== "list") {
+    const mediaType = targetType as "episode" | "show" | "movie";
     c.executionCtx.waitUntil(
-      notifyFollowersOfComment(c.env, uid, targetType as "episode" | "show" | "movie", targetId).catch((e) =>
-        console.error("notify failed", e)
-      )
+      (async () => {
+        await notifyFollowersOfComment(c.env, uid, mediaType, targetId).catch((e) =>
+          console.error("notify failed", e)
+        );
+        await notifyTrackersOfComment(c.env, uid, mediaType, targetId).catch((e) =>
+          console.error("notify failed", e)
+        );
+      })()
     );
   }
   // Reddit auto-upvotes your own comment; best-effort — a miss just means a
