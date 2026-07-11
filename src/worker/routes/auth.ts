@@ -1,15 +1,36 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
 import type { AppEnv } from "../env";
-import { hashPassword, verifyPassword } from "../lib/password";
+import { hashPassword, verifyPassword, DUMMY_PW_HASH } from "../lib/password";
 import { issueSession, clearSession, readSession, requireAuth } from "../lib/session";
 import { isValidTz, nowIso } from "../lib/dates";
 import { sha256Hex } from "../lib/email";
 import { USERNAME_RE, USERNAME_RULES } from "../lib/username";
+import { isRateLimited, recordAttempt, clearAttempts } from "../lib/rate-limit";
 
 export const auth = new Hono<AppEnv>();
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Sliding windows (issues #214/#207). Login counts only FAILED attempts —
+// per IP and per normalized identifier — so ordinary sign-ins never brush
+// the limit; register counts every attempt, since mass signups are the
+// threat there, not guessing. Refused (429) requests are never recorded
+// (see lib/rate-limit.ts), which keeps any lockout time-bounded, and one
+// generic message covers every trip so a 429 can't confirm an account.
+const LOGIN_IP = { limit: 10, windowMs: 10 * 60_000 };
+const LOGIN_ID = { limit: 5, windowMs: 15 * 60_000 };
+const REGISTER_IP = { limit: 10, windowMs: 60 * 60_000 };
+const REGISTER_EMAIL = { limit: 5, windowMs: 60 * 60_000 };
+const RATE_LIMITED = { error: "Too many attempts. Please try again later" };
+
+// Cloudflare's view of the client; local dev has no CF header, so everything
+// shares one bucket there. slice bounds what an attacker can make us store.
+const clientIp = (c: Context<AppEnv>) => c.req.header("cf-connecting-ip") ?? "unknown";
+const loginKeys = (c: Context<AppEnv>, identifier: string) => ({
+  ipKey: `login:ip:${clientIp(c)}`,
+  idKey: `login:id:${identifier.toLowerCase().slice(0, 254)}`,
+});
 
 // Sign-up asks only for an email (issue #23); the account gets a random,
 // human-friendly handle it can rename later on the profile page. Kept short
@@ -35,7 +56,15 @@ function randomHandle(): string {
 // ambiguously match a different user's username. Returns null on a wrong
 // password (or deleted account) — the caller keeps today's 409, so this path
 // is indistinguishable from the old behavior when the sign-in doesn't happen.
+//
+// Because this is a login in disguise, it shares /login's brakes (issue
+// #214) — same keys, same windows, same dummy verify — or /register would be
+// the unthrottled way to guess an existing account's password. When limited
+// it returns the generic 429 Response, which the caller passes through.
 async function signInExistingUser(c: Context<AppEnv>, email: string, password: string) {
+  const { ipKey, idKey } = loginKeys(c, email);
+  if (await isRateLimited(c.env.DB, [{ key: ipKey, ...LOGIN_IP }, { key: idKey, ...LOGIN_ID }]))
+    return c.json(RATE_LIMITED, 429);
   const user = await c.env.DB.prepare(
     "SELECT id, username, pw_hash, tz, email_verified_at, is_admin, installed_at, onboarded_at FROM users WHERE email = ?1 AND deleted_at IS NULL"
   )
@@ -50,7 +79,14 @@ async function signInExistingUser(c: Context<AppEnv>, email: string, password: s
       installed_at: string | null;
       onboarded_at: string | null;
     }>();
-  if (!user || !(await verifyPassword(password, user.pw_hash))) return null;
+  // The dummy verify covers the deleted-account case (the caller's `taken`
+  // pre-check has no deleted_at filter), keeping timing flat here too.
+  const ok = await verifyPassword(password, user?.pw_hash ?? DUMMY_PW_HASH);
+  if (!user || !ok) {
+    await recordAttempt(c.env.DB, [ipKey, idKey]);
+    return null;
+  }
+  await clearAttempts(c.env.DB, [idKey]); // correct password ends the account's failure window
 
   await issueSession(c, user.id, user.tz);
   c.set("uid", user.id); // attribute this request in the activity log
@@ -78,10 +114,24 @@ auth.post("/register", async (c) => {
     return c.json({ error: "That doesn't look like an email address" }, 400);
   if (password.length < 8) return c.json({ error: "Password must be at least 8 characters" }, 400);
 
+  // Mass-signup brake (issues #214/#207): a well-formed attempt counts when
+  // it lands as a create or a 409 — a bot probing emails burns its budget
+  // either way. Recording waits until the outcome is known so that neither a
+  // 429 (from here or the sign-in handoff below) nor a successful sign-in
+  // spends register quota — the same failures-only spirit as /login.
+  const regIpKey = `register:ip:${clientIp(c)}`;
+  const regEmailKey = `register:email:${email}`;
+  if (await isRateLimited(c.env.DB, [{ key: regIpKey, ...REGISTER_IP }, { key: regEmailKey, ...REGISTER_EMAIL }]))
+    return c.json(RATE_LIMITED, 429);
+
   const taken = await c.env.DB.prepare("SELECT 1 FROM users WHERE email = ?1").bind(email).first();
   if (taken) {
-    return (await signInExistingUser(c, email, password)) ?? c.json({ error: "That email is already in use" }, 409);
+    const signedIn = await signInExistingUser(c, email, password); // a 200 or its own 429
+    if (signedIn) return signedIn;
+    await recordAttempt(c.env.DB, [regIpKey, regEmailKey]); // wrong password: count the probe
+    return c.json({ error: "That email is already in use" }, 409);
   }
+  await recordAttempt(c.env.DB, [regIpKey, regEmailKey]);
 
   const pwHash = await hashPassword(password);
   // Sign-up stores the email straight away (unverified) — it's the login. The
@@ -121,6 +171,12 @@ auth.post("/login", async (c) => {
   const login = String(body.login ?? body.email ?? body.username ?? "").trim();
   const password = String(body.password ?? "");
 
+  // Brute-force brake (issues #214/#207): only failures are recorded (below),
+  // so this trips on guessing, never on routine sign-ins.
+  const { ipKey, idKey } = loginKeys(c, login);
+  if (await isRateLimited(c.env.DB, [{ key: ipKey, ...LOGIN_IP }, { key: idKey, ...LOGIN_ID }]))
+    return c.json(RATE_LIMITED, 429);
+
   const user = await c.env.DB.prepare(
     "SELECT id, username, pw_hash, tz, email_verified_at, is_admin, installed_at, onboarded_at FROM users WHERE (email = ?1 OR username = ?1) AND deleted_at IS NULL"
   )
@@ -136,9 +192,15 @@ auth.post("/login", async (c) => {
       onboarded_at: string | null;
     }>();
 
-  if (!user || !(await verifyPassword(password, user.pw_hash))) {
+  // Always run the full PBKDF2 — against a dummy record when the account
+  // doesn't exist — so the not-found branch is no longer measurably faster
+  // than a wrong password (the timing oracle in issue #214).
+  const ok = await verifyPassword(password, user?.pw_hash ?? DUMMY_PW_HASH);
+  if (!user || !ok) {
+    await recordAttempt(c.env.DB, [ipKey, idKey]);
     return c.json({ error: "Wrong email or password" }, 401);
   }
+  await clearAttempts(c.env.DB, [idKey]); // correct password ends the account's failure window
 
   await issueSession(c, user.id, user.tz);
   c.set("uid", user.id); // attribute this request in the activity log

@@ -25,6 +25,13 @@ export async function hashPassword(password: string): Promise<string> {
   return `pbkdf2:${ITERATIONS}:${b64(salt)}:${b64(hash)}`;
 }
 
+// A real PBKDF2 record for a random password nobody knows (32 random bytes,
+// discarded after hashing — this verify can only return false). Login checks
+// against this when the account does NOT exist, so the not-found branch costs
+// the same 100k iterations as a real check and response timing stops leaking
+// which emails/usernames are registered (issue #214).
+export const DUMMY_PW_HASH = "pbkdf2:100000:j3uqMtCLmhd+uFd9LCzSVQ==:WVCOb93ShlXX5kuiCzYAQYDtS5wYPG79DP5OHt9i6ko=";
+
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
   const [scheme, iters, saltB64, hashB64] = stored.split(":");
   if (scheme !== "pbkdf2") return false;
