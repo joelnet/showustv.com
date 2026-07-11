@@ -286,6 +286,13 @@ commentReads.get("/:id/thread", optionalAuth, async (c) => {
     .bind(id)
     .first<{ target_type: string; target_id: number }>();
   if (!target) return c.json({ error: "not found" }, 404);
+  // Same list gate as the /:type/:id listing (issue #205): a private or
+  // comments-off list must not serve its threads through a remembered
+  // comment id either. 404, not an empty page — a hidden thread shouldn't
+  // even confirm the comment exists, which is also why this outranks the
+  // anonymous 401 below: a signed-out probe must not tell hidden list
+  // comments (401) apart from ids that never existed (404).
+  if (await listCommentsClosed(c, target.target_type, target.target_id)) return c.json({ error: "not found" }, 404);
   if (listReadBlocked(c, target.target_type)) return c.json({ error: "unauthorized" }, 401);
   const { byId } = await loadTree(c, target.target_type, target.target_id);
   const node = byId.get(id);
@@ -302,11 +309,16 @@ commentReads.get("/:id/history", optionalAuth, async (c) => {
   const id = Number(c.req.param("id"));
   if (!Number.isInteger(id) || id <= 0) return c.json({ error: "bad id" }, 400);
   const cm = await c.env.DB.prepare(
-    "SELECT c.target_type, c.deleted_at, c.user_id, u.shadow_banned FROM comments c JOIN users u ON u.id = c.user_id WHERE c.id = ?1"
+    "SELECT c.target_type, c.target_id, c.deleted_at, c.user_id, u.shadow_banned FROM comments c JOIN users u ON u.id = c.user_id WHERE c.id = ?1"
   )
     .bind(id)
-    .first<{ target_type: string; deleted_at: string | null; user_id: number; shadow_banned: number }>();
+    .first<{ target_type: string; target_id: number; deleted_at: string | null; user_id: number; shadow_banned: number }>();
   if (!cm || cm.deleted_at) return c.json({ error: "not found" }, 404);
+  // Same list gate as the listing route (issue #205): history on a hidden or
+  // comments-off list thread 404s without confirming the comment exists —
+  // checked before the anonymous 401 so a signed-out probe can't tell hidden
+  // list comments (401) apart from ids that never existed (404).
+  if (await listCommentsClosed(c, cm.target_type, cm.target_id)) return c.json({ error: "not found" }, 404);
   // List comment history keeps its pre-#159 sign-in requirement.
   if (listReadBlocked(c, cm.target_type)) return c.json({ error: "unauthorized" }, 401);
   // A ghost's comment reads as [deleted] to others — its history must too.
@@ -508,11 +520,16 @@ comments.put("/:id/vote", async (c) => {
   if (![-1, 0, 1].includes(value)) return c.json({ error: "vote must be -1, 0, or 1" }, 400);
 
   const cm = await c.env.DB.prepare(
-    "SELECT c.deleted_at, c.user_id, u.shadow_banned FROM comments c JOIN users u ON u.id = c.user_id WHERE c.id = ?1"
+    "SELECT c.target_type, c.target_id, c.deleted_at, c.user_id, u.shadow_banned FROM comments c JOIN users u ON u.id = c.user_id WHERE c.id = ?1"
   )
     .bind(id)
-    .first<{ deleted_at: string | null; user_id: number; shadow_banned: number }>();
+    .first<{ target_type: string; target_id: number; deleted_at: string | null; user_id: number; shadow_banned: number }>();
   if (!cm) return c.json({ error: "not found" }, 404);
+  // A thread the viewer can't read is a thread they can't vote in (issue
+  // #205): the same list gate as the listing route, checked before the
+  // deleted/ghost branch so a hidden thread's comment 404s without even
+  // confirming it exists.
+  if (await listCommentsClosed(c, cm.target_type, cm.target_id)) return c.json({ error: "not found" }, 404);
   // Ghosts refuse votes exactly like deleted comments (same message), so
   // voting can't be used to probe for a shadow ban.
   if (cm.deleted_at || (cm.shadow_banned && cm.user_id !== uid))

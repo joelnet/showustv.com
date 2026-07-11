@@ -189,7 +189,16 @@ library.get("/home", async (c) => {
     ).bind(uid),
     c.env.DB.prepare(
       `WITH following(fid) AS (
-         SELECT followee_id FROM follows WHERE follower_id = ?1 AND state = 'active'
+         -- Only followees whose activity this viewer may see (issue #205),
+         -- mirroring social.ts's FOLLOWING_CTE: activity shared AND profile
+         -- public or mutual — a self-granted follow alone unlocks nothing.
+         SELECT f.followee_id FROM follows f
+         JOIN users fu ON fu.id = f.followee_id
+         WHERE f.follower_id = ?1 AND f.state = 'active'
+           AND fu.activity_public = 1
+           AND (fu.profile_public = 1 OR EXISTS (
+             SELECT 1 FROM follows r
+             WHERE r.follower_id = f.followee_id AND r.followee_id = ?1 AND r.state = 'active'))
        ),
        fw AS (
          SELECT e.show_id, u.username,

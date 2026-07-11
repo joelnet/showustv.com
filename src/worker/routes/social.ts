@@ -31,9 +31,21 @@ async function findUser(c: Context<AppEnv>, username: string): Promise<{ id: num
     .first<{ id: number; username: string }>();
 }
 
-// The people the signed-in user follows, as a CTE prefix. ?1 = uid.
+// The people the signed-in user follows WHOSE ACTIVITY THIS VIEWER MAY SEE,
+// as a CTE prefix. ?1 = uid. Follows are instant and self-granted, so the
+// follow edge alone must not unlock anything (issue #205); a followee's
+// watch/rating activity is served only under the profile-activity rule from
+// issues #202/#184: they share activity (users.activity_public) AND their
+// profile is visible to this viewer — public, or private-but-mutual (the
+// owner following the viewer back is the deliberate unlock signal).
 const FOLLOWING_CTE = `WITH following(fid) AS (
-  SELECT followee_id FROM follows WHERE follower_id = ?1 AND state = 'active'
+  SELECT f.followee_id FROM follows f
+  JOIN users fu ON fu.id = f.followee_id
+  WHERE f.follower_id = ?1 AND f.state = 'active'
+    AND fu.activity_public = 1
+    AND (fu.profile_public = 1 OR EXISTS (
+      SELECT 1 FROM follows r
+      WHERE r.follower_id = f.followee_id AND r.followee_id = ?1 AND r.state = 'active'))
 )`;
 
 // ---------- Follow graph ----------

@@ -143,7 +143,15 @@ export async function notifyFollowersOfWatch(
      SELECT f.follower_id, 'follow_watch', ?1, ?2, ?3, ?5
      FROM follows f
      JOIN users ru ON ru.id = f.follower_id AND ru.deleted_at IS NULL
+     JOIN users au ON au.id = f.followee_id
      WHERE f.followee_id = ?1 AND f.state = 'active'
+       -- "X watched Y" IS the actor's watch activity, so it obeys the same
+       -- visibility rule as the activity feed (issue #205): the actor shares
+       -- activity AND their profile is public or mutual with the recipient.
+       AND au.activity_public = 1
+       AND (au.profile_public = 1 OR EXISTS (
+             SELECT 1 FROM follows r
+             WHERE r.follower_id = f.followee_id AND r.followee_id = f.follower_id AND r.state = 'active'))
        AND COALESCE((SELECT np.follow_watch FROM notification_prefs np
                      WHERE np.user_id = f.follower_id AND np.show_id = 0), 1) = 1
        AND NOT EXISTS (SELECT 1 FROM notifications n
