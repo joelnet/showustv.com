@@ -97,14 +97,14 @@ export function PublicLibraryPage({ tab }: { tab: "shows" | "movies" | "anime" }
 
       {tab === "shows" &&
         (!data.shows.length ? (
-          <Empty title="No shows here yet" hint={`Shows ${data.username} is up to date on, finished, or abandoned will show up here.`} />
+          <Empty title="No shows here yet" hint={`Shows ${data.username} is watching, up to date on, finished, or abandoned will show up here.`} />
         ) : (
           <ShowsLibrary
             shows={data.shows}
             empty={
               <Empty
                 title="No shows here yet"
-                hint={`Shows ${data.username} is up to date on, finished, or abandoned will show up here.`}
+                hint={`Shows ${data.username} is watching, up to date on, finished, or abandoned will show up here.`}
               />
             }
           />

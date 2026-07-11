@@ -7,20 +7,27 @@ import { PosterCard, Progress, Empty, ErrorNote } from "../components/ui";
 import { PosterGridSkeleton } from "../components/skeleton";
 import { mediaPath } from "../paths";
 
-// "Watching", "Not started yet", and "Haven't watched for a while" all moved to
-// Watch Next (issue #115) — the Library keeps only the reference buckets: shows
-// you're caught up on, done with, or abandoned. ("Abandoned" is the display
-// label for the stored 'stopped' state — issue #222.)
+// The Library's tabs partition every tracked show. "Watching" (issue #253) is
+// tracked shows that are not up to date, not finished, and not abandoned —
+// i.e. with unwatched aired episodes remaining, whether started or not,
+// active or gone quiet. (Watch Next still queues those episodes; the Library
+// lists the shows. "Abandoned" is the display label for the stored 'stopped'
+// state — issue #222.)
 const STATE_SECTIONS: [string, string][] = [
+  ["watching", "Watching"],
   ["up_to_date", "Up to date"],
   ["finished", "Finished"],
   ["stopped", "Abandoned"],
 ];
 
-// A watching show with no recent activity (the server's `stale` flag) splits
-// out of "Watching" into its own bucket; every other state maps 1:1.
+// Derived watching (stale or not) and not-started shows with aired episodes
+// fall under the Watching tab — tracked with something left to watch (issue
+// #253). A followed show with nothing aired yet has nothing to be behind on,
+// so it counts as up to date. The reference states map 1:1; every show lands
+// in exactly one bucket.
 function showBucket(s: LibShow): string {
-  if (s.derivedState === "watching") return s.stale ? "stale" : "watching";
+  if (s.derivedState === "watching") return "watching";
+  if (s.derivedState === "not_started") return s.aired > 0 ? "watching" : "up_to_date";
   return s.derivedState;
 }
 
@@ -64,9 +71,10 @@ interface WatchlistItem {
   poster: string | null;
 }
 
-// The shows library: a status tab bar (Up to date / Finished / Abandoned — only
-// tabs that have shows appear), and the active tab's poster grid. Active,
-// not-started, and gone-quiet shows live on Watch Next instead (issue #115).
+// The shows library: a status tab bar (Watching / Up to date / Finished /
+// Abandoned — only tabs that have shows appear), and the active tab's poster
+// grid. Since the buckets partition the payload, the zero-tabs empty state
+// only shows when there are no tracked shows at all.
 // Exported for the public library page (issue #245), which is read-only —
 // this component already is: it only navigates and sorts. `empty` swaps the
 // owner-directed zero-tabs message for visitor copy there.
@@ -94,10 +102,7 @@ export function ShowsLibrary({ shows, empty }: { shows: LibShow[]; empty?: React
   if (tabs.length === 0) {
     return (
       empty ?? (
-        <Empty
-          title="Nothing to catch up on here"
-          hint="Your active shows now live on Watch Next — the Library keeps what you’re up to date on, finished, or abandoned."
-        />
+        <Empty title="No shows yet" hint="Follow a show from search and it shows up here." />
       )
     );
   }

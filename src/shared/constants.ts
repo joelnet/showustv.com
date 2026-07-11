@@ -13,9 +13,10 @@ export const COMMENT_URL_RE =
   /https?:\/\/|www\.|\b[a-z0-9-]+\.(?:com|net|org|io|co|tv|me|gg|ly|app|dev|xyz|info|site|online|to)(?=\/|\b)/i;
 
 // A followed show counts as "recently active" while it was watched — or had an
-// episode air — within this many days. Recently-active shows fill Watch Next
-// and the library's "Watching" tab; the rest drop to "Haven't watched for a
-// while". Tune this one number to widen or tighten both lists at once.
+// episode air — within this many days. Recently-active shows fill Watch Next's
+// main queue; the rest drop to its "Haven't watched for a while" section. (The
+// Library's Watching tab ignores recency — issue #253.) Tune this one number
+// to widen or tighten the split.
 export const RECENT_WINDOW_DAYS = 90;
 
 // States stored in user_shows.state. up_to_date/finished/not_started are

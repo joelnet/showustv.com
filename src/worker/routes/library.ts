@@ -36,7 +36,7 @@ library.get("/home", async (c) => {
   const today = todayInTz(c.get("tz"));
   // Recent window: a show qualifies for the queue if it was watched, had an
   // episode air, or was followed within RECENT_WINDOW_DAYS. Otherwise it's
-  // dormant and lives in the library's "Haven't watched for a while" bucket.
+  // dormant and drops to the "Haven't watched for a while" bucket below.
   const recentSince = daysAgoInTz(c.get("tz"), RECENT_WINDOW_DAYS);
   const { results } = await c.env.DB.prepare(
     `WITH cand AS (

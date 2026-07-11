@@ -90,8 +90,10 @@ export async function libraryPayload(db: D1Database, uid: number, tz: string) {
   ]);
 
   // A show still being watched but with no watch/air activity in the recent
-  // window is "stale" — the library surfaces it under "Haven't watched for a
-  // while". Only meaningful for the watching state; other states aren't behind.
+  // window is "stale" — the same recency split Watch Next uses for its
+  // "Haven't watched for a while" bucket. The Library's Watching tab (issue
+  // #253) includes stale shows; the flag rides along for any surface that
+  // wants the distinction. Only meaningful for the watching state.
   const recentSince = daysAgoInTz(tz, RECENT_WINDOW_DAYS);
 
   // Anime (Animation genre + Japanese origin) gets its own tab, so it must not
