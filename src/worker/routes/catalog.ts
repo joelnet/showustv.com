@@ -14,9 +14,12 @@ export const catalog = new Hono<AppEnv>();
 // progress, rating, favorite, watchlist) is queried and attached only when a
 // valid session cookie is present. Anonymous responses carry `user: null`
 // (and `progress: null` on shows) with no per-episode watch fields, so no
-// user-scoped data is ever reachable without auth. GET-only by construction;
-// the watch/favorite/follow mutations on neighboring paths live in
-// library.ts behind requireAuth.
+// user-scoped data is ever reachable without auth. Anonymous requests are
+// also served exclusively from rows already cached in D1 — a cache miss 404s
+// without calling ensureShow/ensureMovie, so unauthenticated traffic can
+// never trigger TMDB ingestion or D1 writes (issue #213). GET-only by
+// construction; the watch/favorite/follow mutations on neighboring paths
+// live in library.ts behind requireAuth.
 export const titles = new Hono<AppEnv>();
 
 // Accepts undefined because interposing per-route middleware (optionalAuth)
@@ -48,13 +51,19 @@ catalog.get("/search", async (c) => {
 titles.get("/shows/:id", optionalAuth, async (c) => {
   const id = intParam(c.req.param("id"));
   if (!id) return c.json({ error: "bad id" }, 400);
-  await ensureShow(c.env, id);
 
   // Anonymous viewers (shared links, issue #159) have no session: no uid to
   // query user state with, and no profile timezone — UTC is the neutral
   // stand-in for the aired cutoff.
   const uid = c.get("uid") ?? null;
   const today = todayInTz(c.get("tz") ?? "UTC");
+
+  // TMDB ingestion is signed-in only (issue #213). A shared link points at a
+  // title the sharer's own page view already synced into D1, so anonymous
+  // requests read the cached row and 404 on a miss — they must never reach
+  // ensureShow, or an anonymous loop over ids could force-feed TMDB's entire
+  // catalog into D1 (unbounded writes, TMDB quota, Worker CPU).
+  if (uid != null) await ensureShow(c.env, id);
 
   const stmts = [
     c.env.DB.prepare("SELECT * FROM shows WHERE tmdb_id = ?1").bind(id),
@@ -169,9 +178,11 @@ titles.get("/shows/:id", optionalAuth, async (c) => {
 titles.get("/movies/:id", optionalAuth, async (c) => {
   const id = intParam(c.req.param("id"));
   if (!id) return c.json({ error: "bad id" }, 400);
-  await ensureMovie(c.env, id);
 
   const uid = c.get("uid") ?? null;
+  // Signed-in only, mirroring /shows/:id (issue #213): anonymous requests
+  // serve the already-cached row and 404 on a miss — never TMDB.
+  if (uid != null) await ensureMovie(c.env, id);
   const stmts = [c.env.DB.prepare("SELECT * FROM movies WHERE tmdb_id = ?1").bind(id)];
   // The viewer's own state — queried only for a signed-in session.
   if (uid != null) {
