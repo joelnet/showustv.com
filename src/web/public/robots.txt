@@ -1,0 +1,16 @@
+# Only the landing page is meant for crawlers (issue #208). Everything else
+# is a signed-in app surface or a per-user page. "Allow: /$" wins over
+# "Disallow: /" for the exact root URL because allow/disallow precedence goes
+# to the most specific (longest) matching rule (RFC 9309), and /assets, /icons,
+# /og.png and the manifest stay fetchable so renderers can actually draw the
+# landing page and social cards. "Allow: /?" (a literal ?) keeps landing-page
+# links with query strings (/?utm_source=...) crawlable too — matching runs
+# against path + query, so "/$" alone wouldn't cover them.
+User-agent: *
+Allow: /$
+Allow: /?
+Allow: /assets/
+Allow: /icons/
+Allow: /og.png
+Allow: /manifest.webmanifest
+Disallow: /
