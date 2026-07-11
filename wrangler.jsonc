@@ -7,15 +7,16 @@
   "observability": { "enabled": true },
 
   // SPA + API from one Worker: static assets answer everything except /api/*
-  // and the shareable title pages. Title pages (issue #211) run the Worker
-  // first so it can rewrite the SPA shell's OG/Twitter meta per title; the
-  // ASSETS binding is how it fetches that shell (and falls back to plain
-  // asset serving when a title is unknown).
+  // and the shareable title/profile pages. Title pages (issue #211) and user
+  // profiles (issue #219) run the Worker first so it can rewrite the SPA
+  // shell's OG/Twitter meta per title or per public profile; the ASSETS
+  // binding is how it fetches that shell (and falls back to plain asset
+  // serving when a title is unknown or a profile is private/unknown).
   "assets": {
     "directory": "./dist/client",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/show/*", "/movie/*", "/episode/*"]
+    "run_worker_first": ["/api/*", "/show/*", "/movie/*", "/episode/*", "/u/*"]
   },
 
   // Nightly air-date refresh for followed returning shows. Crons are UTC;

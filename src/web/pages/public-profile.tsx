@@ -11,7 +11,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, post, put, del } from "../api";
-import { useApi, dropCached } from "../hooks";
+import { useApi, useDocumentTitle, dropCached } from "../hooks";
 import { useAuth } from "../app";
 import { useConfirm } from "../components/dialog";
 import { poster } from "../img";
@@ -441,6 +441,11 @@ export function PublicProfilePage() {
   const { data, loading, error, reload } = useApi<PublicProfile>(path);
   const [activityBusy, setActivityBusy] = useState(false);
   const [activityError, setActivityError] = useState<string | null>(null);
+
+  // Keep the tab title the Worker baked in for public profiles (issue #219)
+  // once the SPA takes over — DocumentTitleSync only spares this route from
+  // the default reset; the canonical DB casing arrives with the data.
+  useDocumentTitle(data && `@${data.username}`);
 
   // A private profile served in full is no-store on the wire (issues
   // #158/#184) — the service worker honors that, and this mirrors it in the

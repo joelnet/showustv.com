@@ -94,15 +94,18 @@ const AuthCtx = createContext<{ user: User | null; setUser: (u: User | null) => 
   setUser: () => {},
 });
 
-// Tab-title reset (issue #211): a hard load of a title page arrives with that
-// title baked into <title> by the Worker (per-title social previews), and the
-// title pages maintain it client-side (useDocumentTitle). Without this,
-// navigating from a title page to any other route would leave the last
-// show/movie stuck in the tab.
+// Tab-title reset (issue #211): a hard load of a title page — or a public
+// profile (issue #219) — arrives with that name baked into <title> by the
+// Worker (social previews), and those pages maintain it client-side
+// (useDocumentTitle). Without this, navigating from one of them to any other
+// route would leave the last show/movie/username stuck in the tab. Only the
+// exact /u/:username page keeps its title — sub-paths (achievements, lists)
+// don't set one, so they reset like everything else.
 function DocumentTitleSync() {
   const { pathname } = useLocation();
   useEffect(() => {
-    if (!/^\/(show|movie|episode)\//.test(pathname)) document.title = DEFAULT_DOCUMENT_TITLE;
+    if (!/^\/(show|movie|episode)\//.test(pathname) && !/^\/u\/[^/]+\/?$/.test(pathname))
+      document.title = DEFAULT_DOCUMENT_TITLE;
   }, [pathname]);
   return null;
 }

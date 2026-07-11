@@ -1,14 +1,18 @@
-// Per-title social previews (issue #211). `run_worker_first` sends /show/*,
-// /movie/*, and /episode/* to the Worker, which serves the SPA shell with the
-// <head> rewritten for that specific title so link unfurlers (Discord, Slack,
-// iMessage, Twitter/X, Facebook) render the title's name, overview, and
-// artwork instead of the generic landing-page card. Real visitors get the
-// same shell — the SPA hydrates regardless of what's in <head> — so there is
-// no crawler user-agent sniffing to keep in sync.
+// Per-page social previews. `run_worker_first` sends /show/*, /movie/*, and
+// /episode/* (issue #211) plus /u/* (issue #219) to the Worker, which serves
+// the SPA shell with the <head> rewritten for that specific page so link
+// unfurlers (Discord, Slack, iMessage, Twitter/X, Facebook) render the
+// title's name, overview, and artwork — or a public profile's username —
+// instead of the generic landing-page card. Real visitors get the same shell
+// — the SPA hydrates regardless of what's in <head> — so there is no crawler
+// user-agent sniffing to keep in sync.
 //
-// Security: TMDB-sourced text (titles, overviews) is injected exclusively
-// through HTMLRewriter's setAttribute()/setInnerContent(), which HTML-escape
-// their input. Nothing is string-concatenated into markup.
+// Security: TMDB-sourced text (titles, overviews) and usernames are injected
+// exclusively through HTMLRewriter's setAttribute()/setInnerContent(), which
+// HTML-escape their input. Nothing is string-concatenated into markup.
+// Private profiles get the untouched landing shell — identical to an unknown
+// username — so a preview can neither leak a private profile's data nor
+// confirm that it exists.
 
 import { mediaPath, type MediaType } from "../../web/paths";
 import type { Env } from "../env";
@@ -18,8 +22,14 @@ import type { Env } from "../env";
 // pages (the SPA route is exactly /show/:id) and must not get a title card.
 const TITLE_PATH_RE = /^\/(show|movie|episode)\/(\d+)(?:-[^/]*)?\/?$/;
 
-export function isTitlePagePath(pathname: string): boolean {
-  return /^\/(show|movie|episode)\//.test(pathname);
+// Profile pages: exactly /u/:username (issue #219). The charset mirrors
+// USERNAME_RE (src/worker/lib/username.ts) — anything else can't be a real
+// username, and sub-paths like /u/:username/achievements or
+// /u/:username/lists/:id keep the landing card.
+const USER_PATH_RE = /^\/u\/([A-Za-z0-9_]{3,20})\/?$/;
+
+export function isSocialPreviewPath(pathname: string): boolean {
+  return /^\/(show|movie|episode|u)\//.test(pathname);
 }
 
 interface Artwork {
@@ -42,23 +52,30 @@ interface PreviewMeta {
   image: Artwork | null; // null → leave the landing og.png tags in place
 }
 
-// Every title-page request lands here (all methods — run_worker_first is not
-// method-aware). Anything that isn't a GET for a known title falls through to
-// the static-asset server, which behaves exactly as it did before this route
-// existed (SPA fallback shell with the landing-page meta).
-export async function serveTitlePreview(req: Request, env: Env): Promise<Response> {
+// Every title- and profile-page request lands here (all methods —
+// run_worker_first is not method-aware). Anything that isn't a GET for a
+// known title or a PUBLIC profile falls through to the static-asset server,
+// which behaves exactly as it did before this route existed (SPA fallback
+// shell with the landing-page meta).
+export async function serveSocialPreview(req: Request, env: Env): Promise<Response> {
   const fallback = () => env.ASSETS.fetch(req);
   if (req.method !== "GET") return fallback();
   try {
     const url = new URL(req.url);
-    const m = TITLE_PATH_RE.exec(url.pathname);
-    if (!m) return fallback();
     // og:url is the canonical URL scrapers dedupe on — always https in the
     // real world (plain-http fetches would otherwise emit an http canonical).
     // localhost keeps its scheme/port so `wrangler dev` links stay clickable.
     const origin = /^(localhost|127\.\d+\.\d+\.\d+)$/.test(url.hostname) ? url.origin : `https://${url.host}`;
-    const meta = await lookupMeta(env, m[1] as MediaType, Number(m[2]), origin);
-    if (!meta) return fallback(); // not in D1 (yet) → generic landing card
+    const title = TITLE_PATH_RE.exec(url.pathname);
+    const user = title ? null : USER_PATH_RE.exec(url.pathname);
+    const meta = title
+      ? await lookupMeta(env, title[1] as MediaType, Number(title[2]), origin)
+      : user
+        ? await lookupUserMeta(env, user[1], origin)
+        : null;
+    // Unknown title (not in D1 yet), unknown username, private profile, or a
+    // sub-path → generic landing card, byte-identical in every case.
+    if (!meta) return fallback();
 
     // Fetch the shell with a bare request: forwarding the client's
     // conditional headers could return a bodiless 304 keyed to the generic
@@ -196,6 +213,34 @@ async function lookupMeta(env: Env, type: MediaType, id: number, origin: string)
     // The show's art represents an episode better at card sizes than a tiny
     // episode still, and its dimensions are known.
     image: artwork(env, row.show_backdrop, row.show_poster, row.show_title),
+  };
+}
+
+// Public profile preview (issue #219). The ONE gate that matters is baked
+// into the query: profile_public = 1. This is the same server-side rule
+// /api/public/profile/:username enforces (src/worker/routes/public.ts),
+// minus its session-based unlocks (owner, mutual follow) — unfurlers are
+// anonymous and their caches are shared, so a session must never influence
+// the card. A private profile returns null here, exactly like a username
+// that doesn't exist: unlike the API's "this profile is private" teaser,
+// a preview card is pushed unsolicited into chats, so it must not even
+// confirm existence. Only the username leaves this function — no stats,
+// no lists, no activity.
+async function lookupUserMeta(env: Env, username: string, origin: string): Promise<PreviewMeta | null> {
+  const row = await env.DB.prepare(
+    "SELECT username FROM users WHERE username = ?1 AND profile_public = 1 AND deleted_at IS NULL"
+  )
+    .bind(username)
+    .first<{ username: string }>();
+  if (!row) return null;
+  const name = `@${row.username}`; // DB casing — the URL's may differ (COLLATE NOCASE)
+  return {
+    name,
+    tab: name,
+    description: `See what @${row.username} is watching on Show Us TV — shows, movies, ratings, and watch history.`,
+    ogType: "profile",
+    url: `${origin}/u/${row.username}`,
+    image: null, // users have no avatars — the landing og.png stays in place
   };
 }
 
