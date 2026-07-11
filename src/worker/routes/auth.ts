@@ -7,10 +7,19 @@ import { isValidTz, nowIso } from "../lib/dates";
 import { sha256Hex } from "../lib/email";
 import { USERNAME_RE, USERNAME_RULES } from "../lib/username";
 import { isRateLimited, recordAttempt, clearAttempts } from "../lib/rate-limit";
+import { readJson } from "../lib/body";
 
 export const auth = new Hono<AppEnv>();
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Issue #217: PBKDF2 hashes whatever it's given, so an unbounded password is
+// a CPU-DoS amplifier. Both register and login refuse anything longer BEFORE
+// any hashing (signInExistingUser is only reachable from register, after this
+// check). Generous enough for any passphrase; register enforces it, so no
+// legitimate account can hold a longer password that login would then refuse.
+const MAX_PASSWORD_CHARS = 256;
+const PASSWORD_RULES = { error: "Password must be between 8 and 256 characters" };
 
 // Sliding windows (issues #214/#207). Login counts only FAILED attempts —
 // per IP and per normalized identifier — so ordinary sign-ins never brush
@@ -105,14 +114,16 @@ async function signInExistingUser(c: Context<AppEnv>, email: string, password: s
 }
 
 auth.post("/register", async (c) => {
-  const body = await c.req.json().catch(() => ({}));
+  const rj = await readJson(c); // byte cap before parsing (issue #217)
+  if (!rj) return c.json({ error: "payload too large" }, 413);
+  const { body } = rj;
   const email = String(body.email ?? "").trim().toLowerCase();
   const password = String(body.password ?? "");
   const tz = isValidTz(String(body.tz ?? "")) ? String(body.tz) : "UTC";
 
   if (!EMAIL_RE.test(email) || email.length > 254)
     return c.json({ error: "That doesn't look like an email address" }, 400);
-  if (password.length < 8) return c.json({ error: "Password must be at least 8 characters" }, 400);
+  if (password.length < 8 || password.length > MAX_PASSWORD_CHARS) return c.json(PASSWORD_RULES, 400);
 
   // Mass-signup brake (issues #214/#207): a well-formed attempt counts when
   // it lands as a create or a 409 — a bot probing emails burns its budget
@@ -166,10 +177,15 @@ auth.post("/register", async (c) => {
 });
 
 auth.post("/login", async (c) => {
-  const body = await c.req.json().catch(() => ({}));
+  const rj = await readJson(c); // byte cap before parsing (issue #217)
+  if (!rj) return c.json({ error: "payload too large" }, 413);
+  const { body } = rj;
   // Accept the email (the new login) or the username (existing accounts).
   const login = String(body.login ?? body.email ?? body.username ?? "").trim();
   const password = String(body.password ?? "");
+  // No account can hold a password this long (register refuses them), so
+  // reject before the rate-limit reads and the PBKDF2 verify (issue #217).
+  if (password.length > MAX_PASSWORD_CHARS) return c.json(PASSWORD_RULES, 400);
 
   // Brute-force brake (issues #214/#207): only failures are recorded (below),
   // so this trips on guessing, never on routine sign-ins.

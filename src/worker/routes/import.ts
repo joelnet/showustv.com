@@ -13,6 +13,7 @@ import type { Context } from "hono";
 import type { AppEnv } from "../env";
 import { tmdb, ensureShow, ensureMovie } from "../lib/tmdb";
 import { nowIso } from "../lib/dates";
+import { readJson } from "../lib/body";
 
 export const importer = new Hono<AppEnv>();
 
@@ -22,23 +23,7 @@ const MAX_RESOLVE_EPISODES = 50;
 const MAX_EPISODES_PER_CALL = 500;
 const MAX_MOVIES_PER_CALL = 25;
 const MAX_FAVORITES_PER_CALL = 100;
-const MAX_BODY_BYTES = 256 * 1024;
 const MAX_NAME_CHARS = 250;
-
-// Reads the JSON body with a byte cap enforced BEFORE parsing so an oversized
-// payload is never materialized. Returns null when too large (caller responds
-// 413); malformed JSON degrades to {} like the other routes.
-async function readJson(c: Context<AppEnv>): Promise<{ body: any } | null> {
-  const len = Number(c.req.header("content-length"));
-  if (Number.isFinite(len) && len > MAX_BODY_BYTES) return null;
-  const text = await c.req.text();
-  if (text.length > MAX_BODY_BYTES) return null;
-  try {
-    return { body: JSON.parse(text) };
-  } catch {
-    return { body: {} };
-  }
-}
 
 // Missing/non-array fields → empty; arrays over the cap are REJECTED (null →
 // caller responds 400) instead of silently truncated, so the client can never
