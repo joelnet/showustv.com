@@ -34,7 +34,7 @@ async function findUser(c: Context<AppEnv>, username: string): Promise<{ id: num
 // The people the signed-in user follows WHOSE ACTIVITY THIS VIEWER MAY SEE,
 // as a CTE prefix. ?1 = uid. Follows are instant and self-granted, so the
 // follow edge alone must not unlock anything (issue #205); a followee's
-// watch/rating activity is served only under the profile-activity rule from
+// watch/rating activity is served only under the visibility rule from
 // issues #202/#184: they share activity (users.activity_public) AND their
 // profile is visible to this viewer — public, or private-but-mutual (the
 // owner following the viewer back is the deliberate unlock signal).

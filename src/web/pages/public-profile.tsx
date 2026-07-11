@@ -26,11 +26,9 @@ import { IconList, IconCheck, IconPlus, IconLock, IconChevron } from "../compone
 import {
   StatsGrid,
   ProfileHistory,
-  ProfileActivity,
   ProfileComments,
   AdminTools,
   type WatchStats,
-  type ActivityItem,
   type ProfileComment,
   type ProfileHistoryData,
 } from "./profile";
@@ -47,7 +45,6 @@ interface FullProfile {
   achievements: string[];
   comments: ProfileComment[];
   history?: ProfileHistoryData; // optional: tolerates cached pre-#245 payloads
-  activity?: ActivityItem[]; // optional: tolerates cached pre-#202 payloads
 }
 
 // What a private profile serves to everyone but its owner (issue #158): the
@@ -268,7 +265,6 @@ export function PublicProfilePage() {
               headings open this user's public library. */}
           {data.history && <ProfileHistory history={data.history} base={`/u/${data.username}/library`} />}
           <PublicAchievements username={data.username} ids={data.achievements} />
-          <ProfileActivity items={data.activity ?? []} />
           <ProfileComments comments={data.comments} />
           {data.lists.length > 0 && (
             <>

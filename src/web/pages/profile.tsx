@@ -2,9 +2,9 @@
 // /u/<username>, the same address visitors use (issue #220) — so the address
 // bar always shows the link worth copying; the old /profile path just
 // redirects here (app.tsx). On top of everything visitors see (stats,
-// achievements, activity, conversations), the owner gets the management
-// affordances: the username editor, the public/private toggle, the activity
-// eye toggle, and the lists pinned to the profile (add / remove / reorder).
+// achievements, conversations), the owner gets the management
+// affordances: the username editor, the public/private toggle,
+// and the lists pinned to the profile (add / remove / reorder).
 // Email verification lives on the Settings page (settings.tsx). Visitors'
 // view: public-profile.tsx, which reuses the section components defined here.
 // The achievements grid lives on its own page (achievements.tsx, issue #201)
@@ -26,7 +26,6 @@ import { ProfileSkeleton } from "../components/skeleton";
 import {
   IconHeart,
   IconEye,
-  IconEyeSlash,
   IconLock,
   IconTrash,
   IconArrowUp,
@@ -205,22 +204,6 @@ export interface ProfileComment {
   };
 }
 
-// One row of the recent-activity feed (issue #202), already gated
-// server-side: hidden sections arrive as an empty array.
-export interface ActivityItem {
-  kind: "show_added" | "show_saved" | "episode_watched" | "movie_watched" | "rated";
-  ts: string;
-  score: number | null; // set for 'rated' only
-  target: {
-    type: MediaType;
-    id: number;
-    title: string; // show/movie title; for episodes, the show's title
-    season: number | null;
-    episode: number | null;
-    episodeTitle: string | null;
-  };
-}
-
 // Recent comment activity (issue #16): what shows this user is talking
 // about, each row linking into the thread's page. Anonymous visitors see
 // metadata only (no bodies — the server withholds them).
@@ -246,95 +229,6 @@ export function ProfileComments({ comments }: { comments: ProfileComment[] }) {
           </li>
         ))}
       </ul>
-    </>
-  );
-}
-
-// Verb per activity kind. 'show_saved' carries a " for later" tail after the
-// title so the sentence reads "Saved <show> for later".
-const ACTIVITY_VERBS: Record<ActivityItem["kind"], string> = {
-  show_added: "Started following",
-  show_saved: "Saved",
-  episode_watched: "Watched",
-  movie_watched: "Watched",
-  rated: "Rated",
-};
-
-// Recent activity (issue #202): the 20 most recent library/rating actions,
-// each row linking to its show/movie/episode page. The server already gated
-// visibility — a hidden section arrives here as an empty array, and
-// `visible` (the owner's eye-toggle state) arrives ONLY for the owner, so
-// its presence doubles as the "render the toggle" signal. Non-owners with
-// nothing to show get no section at all; the owner always gets it, otherwise
-// the toggle would vanish along with the rows it controls.
-export function ProfileActivity({
-  items,
-  visible,
-  busy,
-  onToggle,
-}: {
-  items: ActivityItem[];
-  visible?: boolean; // undefined = viewer isn't the owner
-  busy?: boolean;
-  onToggle?: (next: boolean) => void;
-}) {
-  const isOwner = visible !== undefined;
-  if (!isOwner && !items.length) return null;
-  return (
-    <>
-      <h2 className="section-title profile-activity-title">
-        Activity
-        {isOwner && (
-          <>
-            <button
-              className="icon-btn"
-              disabled={busy}
-              aria-pressed={visible}
-              aria-label={visible ? "Hide your activity from visitors" : "Show your activity to visitors"}
-              title={
-                visible
-                  ? "Visible to anyone who can see this profile. Click to hide"
-                  : "Hidden: visitors don't see your activity. Click to show"
-              }
-              onClick={() => onToggle?.(!visible)}
-            >
-              {visible ? <IconEye size={15} /> : <IconEyeSlash size={15} />}
-            </button>
-            {!visible && (
-              <span className="profile-activity-note" role="status">
-                Hidden — only you can see this
-              </span>
-            )}
-          </>
-        )}
-      </h2>
-      {!items.length ? (
-        <p className="profile-activity-empty">Nothing yet — it fills in as you follow and watch things.</p>
-      ) : (
-        <ul className="profile-comments profile-activity">
-          {items.map((a, i) => (
-            <li key={i}>
-              <p className="profile-comment-meta">
-                {ACTIVITY_VERBS[a.kind]}{" "}
-                <Link
-                  to={mediaPath(a.target.type, a.target.id, a.target.type === "episode" ? a.target.episodeTitle : a.target.title)}
-                >
-                  {a.target.title}
-                </Link>
-                {a.target.type === "episode" && a.target.season != null && a.target.episode != null && (
-                  <>
-                    {" "}
-                    <Slate season={a.target.season} number={a.target.episode} />
-                  </>
-                )}
-                {a.kind === "show_saved" && " for later"}
-                {a.kind === "rated" && a.score != null && <span className="mono"> {a.score}/10</span>}
-                <span className="mono"> · {fmtAgo(a.ts)}</span>
-              </p>
-            </li>
-          ))}
-        </ul>
-      )}
     </>
   );
 }
@@ -457,8 +351,6 @@ export function AdminTools({ username, tz }: { username: string; tz: string }) {
 interface OwnPublicData {
   private?: boolean;
   history?: ProfileHistoryData; // optional: tolerates cached pre-#245 payloads
-  activity?: ActivityItem[]; // optional: tolerates cached pre-#202 payloads
-  activityPublic?: boolean;
   comments: ProfileComment[];
 }
 
@@ -467,19 +359,16 @@ export function ProfilePage() {
   const toast = useToast();
   const { user } = useAuth();
   const { data, loading, error, reload } = useApi<ProfileData>("/profile");
-  // The visitor-facing feed sections (activity, issue #202; conversations,
-  // issue #16) come from the same public payload /u/<name> serves everyone —
-  // fetched alongside /profile so this page shows exactly what visitors get,
-  // plus the eye toggle the server includes only for the owner. Canonical
+  // The visitor-facing feed sections (conversations, issue #16) come from
+  // the same public payload /u/<name> serves everyone — fetched alongside
+  // /profile so this page shows exactly what visitors get. Canonical
   // casing from the auth context, not the URL param, keys the cache entry
   // consistently however the address was typed.
   const pubPath = user ? `/public/profile/${encodeURIComponent(user.username)}` : null;
-  const { data: pub, reload: reloadPub } = useApi<OwnPublicData>(pubPath);
+  const { data: pub } = useApi<OwnPublicData>(pubPath);
   const [busy, setBusy] = useState(false);
   const [editingUsername, setEditingUsername] = useState(false);
   const [usernameBusy, setUsernameBusy] = useState(false);
-  const [activityBusy, setActivityBusy] = useState(false);
-  const [activityError, setActivityError] = useState<string | null>(null);
 
   // Keep the tab title the Worker baked in for /u/ hard loads (issue #219)
   // once the SPA takes over, matching the public view of the same URL —
@@ -487,28 +376,11 @@ export function ProfilePage() {
   useDocumentTitle(data && `@${data.username}`);
 
   // Cache hygiene mirrored from public-profile.tsx: the owner's payload is
-  // no-store on the wire when the profile is private or the activity hidden
-  // (issues #158/#184/#202) — drop the in-memory copy too so nothing
-  // warm-paints it later.
+  // no-store on the wire when the profile is private (issues #158/#184) —
+  // drop the in-memory copy too so nothing warm-paints it later.
   useEffect(() => {
-    if (pubPath && pub && (pub.private || pub.activityPublic === false)) dropCached(pubPath);
+    if (pubPath && pub && pub.private) dropCached(pubPath);
   }, [pub, pubPath]);
-
-  // Owner-only (issue #202): flip whether visitors see the Activity section.
-  // The server re-checks the session; this just persists and refetches so
-  // the section reflects the stored state, not an optimistic guess.
-  const toggleActivity = async (next: boolean) => {
-    setActivityBusy(true);
-    setActivityError(null);
-    try {
-      await put("/profile/activity-visibility", { public: next });
-      reloadPub();
-    } catch (e: any) {
-      setActivityError(e.message);
-    } finally {
-      setActivityBusy(false);
-    }
-  };
 
   if (loading) return <ProfileSkeleton action />;
   if (error) return <ErrorNote message={error} />;
@@ -675,22 +547,10 @@ export function ProfilePage() {
       </h2>
 
       {/* What visitors see below the fold, straight from the public payload,
-          so this page doubles as the preview — with the owner-only eye
-          toggle on Activity. Waits on that second fetch (it pops in rather
-          than blocking the page); offline with nothing cached it simply
-          stays absent. */}
-      {pub && (
-        <>
-          <ProfileActivity
-            items={pub.activity ?? []}
-            visible={pub.activityPublic}
-            busy={activityBusy}
-            onToggle={toggleActivity}
-          />
-          {activityError && <ErrorNote message={activityError} />}
-          <ProfileComments comments={pub.comments ?? []} />
-        </>
-      )}
+          so this page doubles as the preview. Waits on that second fetch (it
+          pops in rather than blocking the page); offline with nothing cached
+          it simply stays absent. */}
+      {pub && <ProfileComments comments={pub.comments ?? []} />}
 
       <h2 className="section-title">Lists on your profile</h2>
       {!data.lists.length ? (

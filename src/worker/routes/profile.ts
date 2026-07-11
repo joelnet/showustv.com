@@ -164,19 +164,6 @@ profile.put("/visibility", async (c) => {
   return c.json({ ok: true });
 });
 
-// Show or hide the recent-activity section on the public profile (issue
-// #202). Same shape as /visibility above; the toggle itself sits beside the
-// Activity heading on the owner's own public profile page, where they can
-// see exactly what they're revealing.
-profile.put("/activity-visibility", async (c) => {
-  const body = await c.req.json().catch(() => ({}));
-  if (typeof body.public !== "boolean") return c.json({ error: "bad request" }, 400);
-  await c.env.DB.prepare("UPDATE users SET activity_public = ?2 WHERE id = ?1")
-    .bind(c.get("uid"), body.public ? 1 : 0)
-    .run();
-  return c.json({ ok: true });
-});
-
 // Pin one of your lists to the profile (appended at the end).
 profile.post("/lists", async (c) => {
   const body = await c.req.json().catch(() => ({}));
