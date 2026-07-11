@@ -1495,6 +1495,11 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .notif-ep { color: var(--text); font-weight: 600; }
 .notif-when { flex-shrink: 0; }
 
+/* Push opt-in surfaced on the notifications page (issue #237): the settings
+   toggle in a feed-row-styled card, shown only while push is off. */
+.notif-push { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 2px 12px; margin: 0 0 14px; }
+.notif-push .settings-toggle { margin: 10px 0; }
+
 .public-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: -8px 0 20px; }
 .public-actions .friend-note { margin: 0; }
 

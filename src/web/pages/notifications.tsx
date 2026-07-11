@@ -6,11 +6,13 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, post } from "../api";
 import { useAuth } from "../app";
-import { refreshUnread } from "../notifications";
+import { useApi } from "../hooks";
+import { pushSupported, refreshUnread } from "../notifications";
 import { poster } from "../img";
 import { fmtAgo, fmtDateTime, epCode } from "../format";
-import { mediaPath } from "../paths";
 import { Empty, ErrorNote } from "../components/ui";
+import { PushToggle } from "../components/push-toggle";
+import { mediaPath } from "../paths";
 import { RowListSkeleton } from "../components/skeleton";
 
 interface NotificationItem {
@@ -82,6 +84,19 @@ function NotificationBody({ n }: { n: NotificationItem }) {
   return <>watched {targetLink}</>;
 }
 
+// Extra path to turn on push (issue #237): people live on this page (it's
+// where the bell lands) long before they ever open settings, so surface the
+// same per-device opt-in here when this browser could receive pushes but
+// isn't subscribed. PushToggle's `discover` mode keeps it invisible unless
+// push is actually off, so subscribed devices see nothing at all.
+function PushPrompt() {
+  // The prefs fetch only carries the VAPID key here — skip it entirely when
+  // this browser can't do push (then nothing could ever render anyway).
+  const { data } = useApi<{ pushPublicKey: string | null }>(pushSupported() ? "/notifications/prefs" : null);
+  if (!data?.pushPublicKey) return null;
+  return <PushToggle publicKey={data.pushPublicKey} discover className="notif-push" />;
+}
+
 export function NotificationsPage() {
   const { user } = useAuth();
   const [items, setItems] = useState<NotificationItem[] | null>(null);
@@ -131,6 +146,7 @@ export function NotificationsPage() {
   return (
     <div>
       <h1 className="page-title">Notifications</h1>
+      <PushPrompt />
       {!items.length ? (
         <Empty
           title="No notifications yet"

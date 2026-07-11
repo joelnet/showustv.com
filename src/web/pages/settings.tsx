@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useState } from "react";
+import { startTransition, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { post, put } from "../api";
 import { useApi } from "../hooks";
@@ -6,8 +6,9 @@ import { clearQueue } from "../offline";
 import { useAuth } from "../app";
 import { ErrorNote } from "../components/ui";
 import { IconCheck } from "../components/icons";
+import { PushToggle } from "../components/push-toggle";
 import { isIos, isStandalone } from "../pwa";
-import { pushSupported, getPushSubscription, enablePush, disablePush } from "../notifications";
+import { pushSupported, disablePush } from "../notifications";
 
 interface EmailData {
   email: string | null;
@@ -146,24 +147,15 @@ interface NotificationPrefs {
 }
 
 // Notification settings (issues #129/#141): the per-type toggles plus the
-// Web Push opt-in for this device. Push is layered on top — the in-app type
+// Web Push opt-in for this device (shared with the notifications page —
+// components/push-toggle.tsx). Push is layered on top — the in-app type
 // toggles gate whether the notification exists at all, push only changes
 // whether this device buzzes about it.
 function NotificationSettings({ prefs, reload }: { prefs: NotificationPrefs; reload: () => void }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  // null = still asking the service worker whether this device is subscribed.
-  const [pushOn, setPushOn] = useState<boolean | null>(null);
 
   const supported = pushSupported();
-  useEffect(() => {
-    if (!supported) return;
-    let live = true;
-    getPushSubscription().then((sub) => live && setPushOn(!!sub));
-    return () => {
-      live = false;
-    };
-  }, [supported]);
 
   // One toggle per notification type; the PUT takes just the flipped key.
   const togglePref = async (patch: { followWatch?: boolean; followComment?: boolean; trackedComment?: boolean }) => {
@@ -172,25 +164,6 @@ function NotificationSettings({ prefs, reload }: { prefs: NotificationPrefs; rel
     try {
       await put("/notifications/prefs", patch);
       reload();
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Something went wrong");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const togglePush = async () => {
-    if (pushOn == null || !prefs.pushPublicKey) return;
-    setBusy(true);
-    setErr(null);
-    try {
-      if (pushOn) {
-        await disablePush();
-        setPushOn(false);
-      } else {
-        await enablePush(prefs.pushPublicKey);
-        setPushOn(true);
-      }
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Something went wrong");
     } finally {
@@ -255,13 +228,7 @@ function NotificationSettings({ prefs, reload }: { prefs: NotificationPrefs; rel
             : "This browser doesn't support push notifications."}
         </p>
       ) : (
-        <label className="settings-toggle">
-          <input type="checkbox" checked={pushOn ?? false} disabled={busy || pushOn == null} onChange={togglePush} />
-          <span>
-            Push notifications on this device
-            <span className="settings-hint">Get a heads-up even when the app is closed.</span>
-          </span>
-        </label>
+        <PushToggle publicKey={prefs.pushPublicKey} />
       )}
       {err && <ErrorNote message={err} />}
     </>
