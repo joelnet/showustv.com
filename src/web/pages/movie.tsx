@@ -1,6 +1,6 @@
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { useApi } from "../hooks";
+import { useApi, useDocumentTitle } from "../hooks";
 import { mediaPath, idFromParam } from "../paths";
 import { post, put, del } from "../api";
 import { useAuth } from "../app";
@@ -61,6 +61,10 @@ export function MoviePage() {
     const canonical = mediaPath("movie", data.movie.id, data.movie.title);
     if (location.pathname !== canonical) navigate(canonical + location.search, { replace: true });
   }, [data, location, navigate]);
+
+  // Tab title (issue #211) — matches the <title> the Worker bakes into a
+  // hard load of this page.
+  useDocumentTitle(data?.movie.title);
 
   if (loading) return <MediaDetailSkeleton kind="movie" />;
   if (error) return <ErrorNote message={error} />;

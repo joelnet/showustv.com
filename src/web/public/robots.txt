@@ -14,3 +14,28 @@ Allow: /icons/
 Allow: /og.png
 Allow: /manifest.webmanifest
 Disallow: /
+
+# Social link unfurlers (issue #211): several of these honor robots.txt when
+# fetching a shared URL for its card (Twitterbot, facebookexternalhit,
+# Slackbot notably), so without their own group the per-title previews on
+# /show, /movie, and /episode links would never render there. Same rules as
+# the "*" group above plus the shareable title pages — everything else
+# (API, profiles, app surfaces) stays off-limits to them too (issue #208).
+User-agent: Twitterbot
+User-agent: facebookexternalhit
+User-agent: Facebot
+User-agent: Slackbot
+User-agent: LinkedInBot
+User-agent: Discordbot
+User-agent: TelegramBot
+User-agent: WhatsApp
+Allow: /$
+Allow: /?
+Allow: /show/
+Allow: /movie/
+Allow: /episode/
+Allow: /assets/
+Allow: /icons/
+Allow: /og.png
+Allow: /manifest.webmanifest
+Disallow: /

@@ -196,3 +196,19 @@ export function useApi<T = any>(path: string | null) {
 
   return { ...state, reload };
 }
+
+// ---------- Tab title (issue #211) ----------
+//
+// A hard load of a /show, /movie, or /episode URL arrives with that title
+// baked into <title> by the Worker (per-title social previews). These keep
+// the tab coherent once the SPA starts navigating: title pages call
+// useDocumentTitle when their data lands, and DocumentTitleSync in app.tsx
+// resets every other route to the default.
+
+export const DEFAULT_DOCUMENT_TITLE = "Show Us TV: track what you watch";
+
+export function useDocumentTitle(name: string | null | undefined): void {
+  useEffect(() => {
+    if (name) document.title = `${name} — Show Us TV`;
+  }, [name]);
+}

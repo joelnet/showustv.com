@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api, post, put, del, ApiError } from "../api";
 import { mediaPath, idFromParam } from "../paths";
-import { useApi, getCached, setCached, dropCached, readApiCache } from "../hooks";
+import { useApi, useDocumentTitle, getCached, setCached, dropCached, readApiCache } from "../hooks";
 import { useAuth } from "../app";
 import { poster, backdrop } from "../img";
 import { fmtAirDate, fmtEpisodeDate } from "../format";
@@ -350,6 +350,10 @@ export function ShowPage() {
     const canonical = mediaPath("show", data.show.id, data.show.title);
     if (location.pathname !== canonical) navigate(canonical + location.search, { replace: true });
   }, [data, location, navigate]);
+
+  // Tab title (issue #211) — matches the <title> the Worker bakes into a
+  // hard load of this page.
+  useDocumentTitle(data?.show.title);
 
   useEffect(() => {
     let live = true;

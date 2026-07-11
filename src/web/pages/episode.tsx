@@ -1,6 +1,6 @@
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { useApi } from "../hooks";
+import { useApi, useDocumentTitle } from "../hooks";
 import { mediaPath, idFromParam } from "../paths";
 import { post, put, del } from "../api";
 import { useAuth } from "../app";
@@ -57,6 +57,16 @@ export function EpisodePage() {
     const canonical = mediaPath("episode", data.episode.id, data.episode.title);
     if (location.pathname !== canonical) navigate(canonical + location.search, { replace: true });
   }, [data, location, navigate]);
+
+  // Tab title (issue #211) — same "Show S01E05: Name" the Worker bakes into
+  // a hard load of this page.
+  const epMeta = data?.episode;
+  useDocumentTitle(
+    epMeta &&
+      `${epMeta.showTitle} S${String(epMeta.season).padStart(2, "0")}E${String(epMeta.number).padStart(2, "0")}${
+        epMeta.title ? `: ${epMeta.title}` : ""
+      }`
+  );
 
   if (loading) return <MediaDetailSkeleton kind="episode" />;
   if (error) return <ErrorNote message={error} />;

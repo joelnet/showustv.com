@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { BrowserRouter, Routes, Route, NavLink, Link, Outlet, Navigate, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, NavLink, Link, Outlet, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { DEFAULT_DOCUMENT_TITLE } from "./hooks";
 import { api, post, ApiError } from "./api";
 import { setOfflineUser, useOffline } from "./offline";
 import { useBackgroundActivity } from "./activity";
@@ -92,6 +93,19 @@ const AuthCtx = createContext<{ user: User | null; setUser: (u: User | null) => 
   user: null,
   setUser: () => {},
 });
+
+// Tab-title reset (issue #211): a hard load of a title page arrives with that
+// title baked into <title> by the Worker (per-title social previews), and the
+// title pages maintain it client-side (useDocumentTitle). Without this,
+// navigating from a title page to any other route would leave the last
+// show/movie stuck in the tab.
+function DocumentTitleSync() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    if (!/^\/(show|movie|episode)\//.test(pathname)) document.title = DEFAULT_DOCUMENT_TITLE;
+  }, [pathname]);
+  return null;
+}
 
 export const useAuth = () => useContext(AuthCtx);
 
@@ -390,6 +404,7 @@ export function App() {
   return (
     <AuthCtx.Provider value={{ user, setUser }}>
       <BrowserRouter>
+        <DocumentTitleSync />
         <ConfirmProvider>
         <CelebrationProvider>
         <Routes>

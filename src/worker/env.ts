@@ -1,5 +1,9 @@
 export interface Env {
   DB: D1Database;
+  // Static-assets binding (wrangler.jsonc `assets.binding`). Used by the
+  // social-preview path (issue #211) to fetch the SPA shell for meta
+  // rewriting and as the passthrough for title-page requests it won't handle.
+  ASSETS: Fetcher;
   TMDB_API_BASE: string;
   TMDB_IMG_BASE: string;
   TMDB_TOKEN: string;

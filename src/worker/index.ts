@@ -4,6 +4,7 @@ import type { AppEnv, Env } from "./env";
 import { requireAuth } from "./lib/session";
 import { checkAchievements } from "./lib/achievements";
 import { TmdbError, ensureShow, ensureMovie } from "./lib/tmdb";
+import { isTitlePagePath, serveTitlePreview } from "./lib/social-preview";
 import { auth } from "./routes/auth";
 import { pub } from "./routes/public";
 import { catalog, titles } from "./routes/catalog";
@@ -171,4 +172,15 @@ async function scheduled(_event: ScheduledEvent, env: Env, _ctx: ExecutionContex
   }
 }
 
-export default { fetch: app.fetch, scheduled };
+export default {
+  fetch(req: Request, env: Env, ctx: ExecutionContext): Response | Promise<Response> {
+    // Shareable title pages (issue #211): run_worker_first routes /show/*,
+    // /movie/*, and /episode/* here so the SPA shell can be served with
+    // per-title OG/Twitter meta. Everything it declines (non-GET, unknown
+    // ids) falls through to the static-asset server; all other paths are
+    // API traffic for the Hono app.
+    if (isTitlePagePath(new URL(req.url).pathname)) return serveTitlePreview(req, env);
+    return app.fetch(req, env, ctx);
+  },
+  scheduled,
+};
