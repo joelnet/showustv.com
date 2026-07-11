@@ -145,6 +145,46 @@ async function scheduled(_event: ScheduledEvent, env: Env, _ctx: ExecutionContex
     }
   }
 
+  // Origin-language backfill (issue #85): migration 0016 added original_language
+  // but left pre-existing rows NULL, and the still-airing query above skips
+  // Ended/Canceled shows — so ended anime (e.g. Neon Genesis Evangelion) never
+  // gets an origin language and stays out of the Anime tab until the ~5-month
+  // ToS sweep happens to touch it. Re-sync a bounded batch of NULL rows nightly,
+  // regardless of status. ensureShow/ensureMovie write "" (never NULL) when TMDB
+  // has no language, so a successful sync always clears NULL — this drains the
+  // one-time pre-0016 backlog over a few nights, then no-ops.
+  //
+  // A row only leaves the NULL set on a *successful* sync, so a title deleted
+  // from TMDB (permanent 404) would otherwise be re-selected every night — and
+  // if 20+ dead rows pile up they'd starve fixable rows out of the LIMIT. Stamp
+  // "" on a 404 so it drops out. Transient failures (5xx/network) keep NULL and
+  // correctly retry next run.
+  const markGone = (table: "shows" | "movies", id: number) =>
+    env.DB.prepare(`UPDATE ${table} SET original_language = '' WHERE tmdb_id = ?1 AND original_language IS NULL`)
+      .bind(id)
+      .run()
+      .catch((e) => console.error(`cron: 404 backfill mark failed for ${table} ${id}`, e));
+  const [nullLangShows, nullLangMovies] = await env.DB.batch([
+    env.DB.prepare("SELECT tmdb_id FROM shows WHERE original_language IS NULL LIMIT 20"),
+    env.DB.prepare("SELECT tmdb_id FROM movies WHERE original_language IS NULL LIMIT 20"),
+  ]);
+  for (const row of nullLangShows.results as { tmdb_id: number }[]) {
+    try {
+      await ensureShow(env, row.tmdb_id, true);
+    } catch (e) {
+      if (e instanceof TmdbError && e.status === 404) await markGone("shows", row.tmdb_id);
+      console.error(`cron: origin-language backfill failed for show ${row.tmdb_id}`, e);
+    }
+  }
+  for (const row of nullLangMovies.results as { tmdb_id: number }[]) {
+    try {
+      await ensureMovie(env, row.tmdb_id, true);
+    } catch (e) {
+      if (e instanceof TmdbError && e.status === 404) await markGone("movies", row.tmdb_id);
+      console.error(`cron: origin-language backfill failed for movie ${row.tmdb_id}`, e);
+    }
+  }
+
   // TMDB ToS compliance sweep (api-terms-of-use §1.C): data obtained from the
   // TMDB API may not be cached longer than 6 months, commercial or not. The
   // nightly query above only touches followed, still-airing shows — ended

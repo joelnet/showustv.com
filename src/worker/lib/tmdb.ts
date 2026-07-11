@@ -86,7 +86,10 @@ export async function ensureShow(env: Env, tmdbId: number, force = false): Promi
       base.backdrop_path ?? null,
       base.overview ?? null,
       JSON.stringify((base.genres ?? []).map((g: any) => g.name)),
-      base.original_language ?? null,
+      // "" (not null) when TMDB has no language: null means "never synced since
+      // migration 0016" and drives the cron's one-time origin-language backfill,
+      // so a title TMDB genuinely can't classify must not stay null forever.
+      base.original_language ?? "",
       nowIso()
     )
   );
@@ -188,7 +191,7 @@ export async function ensureMovie(env: Env, tmdbId: number, force = false): Prom
       m.poster_path ?? null,
       m.overview ?? null,
       JSON.stringify((m.genres ?? []).map((g: any) => g.name)),
-      m.original_language ?? null,
+      m.original_language ?? "", // see ensureShow: "" not null, so the backfill fires once
       nowIso()
     )
     .run();
