@@ -174,7 +174,13 @@ function AlsoWatching({ showId }: { showId: string }) {
   const { data } = useApi<{ following: { username: string; state: string }[] }>(`/social/also-watching/${showId}`);
   if (!data?.following.length) return null;
   const label = (state: string) =>
-    state === "watch_later" ? "wants to watch" : state === "finished" || state === "up_to_date" ? "watched" : "watching";
+    state === "watch_later"
+      ? "wants to watch"
+      : state === "finished" || state === "up_to_date"
+        ? "watched"
+        : state === "stopped"
+          ? "abandoned"
+          : "watching";
   return (
     <div className="also-watching">
       <span className="also-watching-label">People you follow also watching</span>
@@ -563,7 +569,7 @@ export function ShowPage() {
                         onClick={run(() => put(`/shows/${show.id}/state`, { state: "stopped" }), (d) => withUser(d, { state: "stopped" }))}
                         disabled={busy}
                       >
-                        Stop watching
+                        Abandon show
                       </button>
                     )}
                   </>

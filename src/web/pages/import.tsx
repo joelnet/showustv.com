@@ -408,7 +408,7 @@ export async function importAll(
   // episode import set for any archived show that also had watch history.
   const archivedTotals = { updated: 0, failed: 0 };
   for (const batch of chunk(archivedIds, IMPORT_ARCHIVED_BATCH)) {
-    onProgress({ done, total, label: "Stopped shows" });
+    onProgress({ done, total, label: "Abandoned shows" });
     try {
       const r = await post("/import/shows/archived", { shows: batch });
       archivedTotals.updated += r.updated;
@@ -416,7 +416,7 @@ export async function importAll(
     } catch {
       archivedTotals.failed += batch.length;
     }
-    onProgress({ done: ++done, total, label: "Stopped shows" });
+    onProgress({ done: ++done, total, label: "Abandoned shows" });
   }
 
   return { groups: outcomes, movies: movieTotals, favorites: favoriteTotals, archived: archivedTotals };
@@ -483,7 +483,7 @@ function Preview({
           <ul>
             {followCount > 0 && <li>{plural(followCount, "show")} will be followed</li>}
             {favoriteCount > 0 && <li>{plural(favoriteCount, "show")} added to your favorites</li>}
-            {archivedCount > 0 && <li>{plural(archivedCount, "archived show")} marked as stopped watching</li>}
+            {archivedCount > 0 && <li>{plural(archivedCount, "archived show")} marked as abandoned</li>}
             {episodeCount > 0 && (
               <li>
                 {plural(episodeCount, "watched episode")} across {plural(matched.filter((g) => g.episodes.length > 0).length, "show")}, with their original watch dates
@@ -654,7 +654,7 @@ function Summary({ outcome }: { outcome: ImportOutcome }) {
             </li>
           )}
           {outcome.archived.updated > 0 && (
-            <li>{plural(outcome.archived.updated, "archived show")} marked as stopped watching</li>
+            <li>{plural(outcome.archived.updated, "archived show")} marked as abandoned</li>
           )}
         </ul>
       </section>

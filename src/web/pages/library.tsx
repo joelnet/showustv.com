@@ -9,11 +9,12 @@ import { mediaPath } from "../paths";
 
 // "Watching", "Not started yet", and "Haven't watched for a while" all moved to
 // Watch Next (issue #115) — the Library keeps only the reference buckets: shows
-// you're caught up on, done with, or stopped.
+// you're caught up on, done with, or abandoned. ("Abandoned" is the display
+// label for the stored 'stopped' state — issue #222.)
 const STATE_SECTIONS: [string, string][] = [
   ["up_to_date", "Up to date"],
   ["finished", "Finished"],
-  ["stopped", "Stopped"],
+  ["stopped", "Abandoned"],
 ];
 
 // A watching show with no recent activity (the server's `stale` flag) splits
@@ -63,7 +64,7 @@ interface WatchlistItem {
   poster: string | null;
 }
 
-// The shows library: a status tab bar (Up to date / Finished / Stopped — only
+// The shows library: a status tab bar (Up to date / Finished / Abandoned — only
 // tabs that have shows appear), and the active tab's poster grid. Active,
 // not-started, and gone-quiet shows live on Watch Next instead (issue #115).
 function ShowsLibrary({ shows }: { shows: LibShow[] }) {
@@ -91,14 +92,14 @@ function ShowsLibrary({ shows }: { shows: LibShow[] }) {
     return (
       <Empty
         title="Nothing to catch up on here"
-        hint="Your active shows now live on Watch Next — the Library keeps what you’re up to date on, finished, or stopped."
+        hint="Your active shows now live on Watch Next — the Library keeps what you’re up to date on, finished, or abandoned."
       />
     );
   }
 
   return (
     <>
-      <nav className="subtabs" aria-label="Show status">
+      <nav className="subtabs" aria-label="Library category">
         {tabs.map(([key, label]) => (
           <button
             key={key}
