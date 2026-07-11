@@ -9,6 +9,7 @@ import { precacheLibrary } from "./precache";
 import { Spinner, Wordmark, SiteFooter } from "./components/ui";
 import { ConfirmProvider } from "./components/dialog";
 import { CelebrationProvider } from "./components/celebration";
+import { ToastProvider } from "./components/toast";
 import { IconPlay, IconSearch, IconLibrary, IconList, IconGear, IconUser, IconDownload, IconBell } from "./components/icons";
 import { useInstallPrompt, isStandalone, useUpdateReady, applyUpdate } from "./pwa";
 import { useUnreadNotifications, setUnread } from "./notifications";
@@ -443,6 +444,7 @@ export function App() {
         <DocumentTitleSync />
         <ConfirmProvider>
         <CelebrationProvider>
+        <ToastProvider>
         <Routes>
           {/* Logged-out visitors get the marketing page at "/" (or Login when
               installed); signed-in users fall through to the Shell route below
@@ -516,6 +518,7 @@ export function App() {
           </Route>
         </Routes>
         <UpdateToast />
+        </ToastProvider>
         </CelebrationProvider>
         </ConfirmProvider>
       </BrowserRouter>

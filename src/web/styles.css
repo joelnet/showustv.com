@@ -495,9 +495,33 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   100% { opacity: 1; transform: translate(-50%, 0); }
 }
 
+/* ---------- Transient toast (issue #244) ----------
+   Same bottom-center placement and surface as the update toast, but plain
+   text that auto-dismisses (components/toast.tsx) — no actions, so clicks
+   pass straight through (like the celebration overlay): it can never block
+   the update toast's buttons or the tabbar if they share the spot. */
+.toast {
+  pointer-events: none;
+  position: fixed;
+  left: 50%;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 80;
+  max-width: min(92vw, 440px);
+  padding: 10px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
+  font: 12.5px var(--font-mono);
+  color: var(--text);
+  animation: update-toast-in 0.3s ease-out both;
+}
+.toast.is-error { color: var(--red); border-color: rgba(255, 77, 61, 0.4); }
+
 @media (max-width: 719px) {
   /* Clear the fixed tabbar (its own safe-area padding included). */
-  .update-toast { bottom: calc(64px + env(safe-area-inset-bottom)); }
+  .update-toast, .toast { bottom: calc(64px + env(safe-area-inset-bottom)); }
 }
 
 /* ---------- Dialog ---------- */
@@ -1382,8 +1406,9 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
    chrome competes with it. Wraps as one cluster under a long username. */
 .profile-head { display: flex; align-items: center; gap: 6px 14px; flex-wrap: wrap; margin: 4px 0 2px; }
 .profile-head .page-title { margin: 0; min-width: 0; overflow-wrap: anywhere; }
-.profile-privacy { display: inline-flex; align-items: center; gap: 10px; }
-.profile-privacy-note { color: var(--muted); font-size: 13.5px; }
+/* Icon-only privacy eye (issue #244): pushed to the far right of the
+   .profile-head flex row, no status text — the toast announces changes. */
+.profile-privacy { margin-left: auto; }
 
 .profile-stats {
   display: grid;

@@ -18,6 +18,7 @@ import { mediaPath, type MediaType } from "../paths";
 import { ACHIEVEMENTS } from "../../shared/achievements";
 import { useAuth } from "../app";
 import { useConfirm } from "../components/dialog";
+import { useToast } from "../components/toast";
 import { Empty, ErrorNote, Slate } from "../components/ui";
 import { ShareButton } from "../components/share";
 import { ProfileSkeleton } from "../components/skeleton";
@@ -435,6 +436,7 @@ interface OwnPublicData {
 
 export function ProfilePage() {
   const confirm = useConfirm();
+  const toast = useToast();
   const { user } = useAuth();
   const { data, loading, error, reload } = useApi<ProfileData>("/profile");
   // The visitor-facing feed sections (activity, issue #202; conversations,
@@ -494,6 +496,24 @@ export function ProfilePage() {
     }
   };
 
+  // The privacy eye is icon-only (issue #244) — no status text beside it —
+  // so the toast is what tells the user which state they just landed in.
+  // It fires only after the PUT succeeds; a failure toasts the error instead
+  // of claiming a state change that didn't persist.
+  const togglePrivacy = async () => {
+    const next = !data!.isPublic;
+    setBusy(true);
+    try {
+      await put("/profile/visibility", { public: next });
+      reload();
+      toast(next ? "Your profile is now public" : "Your profile is now private");
+    } catch (e) {
+      toast(e instanceof Error && e.message ? e.message : "Couldn't update your profile", "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   // Pinning a private list to the profile offers to publish it — a private
   // list stays hidden on the public profile otherwise (issue #33). Declining
   // still pins it (shown with a "private — hidden" note); dismissing aborts.
@@ -535,10 +555,11 @@ export function ProfilePage() {
           share first — it shares/copies this page's address, which is the
           profile URL (issue #220), so the old visible-URL row could go —
           then the rename pencil (issue #182) that toggles the inline form
-          below, then the privacy toggle (eye = public, lock = private,
-          matching the public page's lock teaser) with the state spelled out
-          alongside, so that icon never carries the meaning alone. Share is
-          hidden while private: the link would only show visitors the teaser. */}
+          below. The privacy toggle (eye = public, lock = private, matching
+          the public page's lock teaser) sits alone at the far right of the
+          row (issue #244) — no status text; aria-label/title still spell the
+          state out, and toggling toasts the new state. Share is hidden while
+          private: the link would only show visitors the teaser. */}
       <div className="profile-head">
         <h1 className="page-title">{data.username}</h1>
         {data.isPublic && (
@@ -559,25 +580,20 @@ export function ProfilePage() {
         >
           <IconPencil size={15} />
         </button>
-        <div className="profile-privacy">
-          <button
-            className="icon-btn"
-            disabled={busy}
-            aria-pressed={data.isPublic}
-            aria-label={data.isPublic ? "Make profile private" : "Make profile public"}
-            title={
-              data.isPublic
-                ? "Make profile private: only you can see it"
-                : "Make profile public: anyone with the link can see it"
-            }
-            onClick={act(() => put("/profile/visibility", { public: !data.isPublic }))}
-          >
-            {data.isPublic ? <IconEye size={15} /> : <IconLock size={15} />}
-          </button>
-          <span className="profile-privacy-note" role="status">
-            Your profile is {data.isPublic ? "public" : "private"}
-          </span>
-        </div>
+        <button
+          className="icon-btn profile-privacy"
+          disabled={busy}
+          aria-pressed={data.isPublic}
+          aria-label={data.isPublic ? "Your profile is public. Make it private" : "Your profile is private. Make it public"}
+          title={
+            data.isPublic
+              ? "Your profile is public: anyone with the link can see it. Click to make it private"
+              : "Your profile is private: only you can see it. Click to make it public"
+          }
+          onClick={togglePrivacy}
+        >
+          {data.isPublic ? <IconEye size={15} /> : <IconLock size={15} />}
+        </button>
       </div>
 
       {editingUsername && (
