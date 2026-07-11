@@ -1,22 +1,30 @@
-// The signed-in user's profile: watch stats, public/private toggle, and the
-// lists pinned to it (add / remove / reorder). Email verification lives on the
-// Settings page (settings.tsx). Public view: public-profile.tsx. The
-// achievements grid lives on its own page (achievements.tsx, issue #201) —
-// here it's just a linked count.
-import { useState } from "react";
-import { Link } from "react-router-dom";
-import { useApi } from "../hooks";
-import { post, put, del } from "../api";
-import { watchTimeStr } from "../format";
+// The signed-in user's own profile. It lives at the shareable custom URL —
+// /u/<username>, the same address visitors use (issue #220) — so the address
+// bar always shows the link worth copying; the old /profile path just
+// redirects here (app.tsx). On top of everything visitors see (stats,
+// achievements, activity, conversations), the owner gets the management
+// affordances: the username editor, the public/private toggle, the activity
+// eye toggle, and the lists pinned to the profile (add / remove / reorder).
+// Email verification lives on the Settings page (settings.tsx). Visitors'
+// view: public-profile.tsx, which reuses the section components defined here.
+// The achievements grid lives on its own page (achievements.tsx, issue #201)
+// — here it's just a linked count.
+import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useApi, useDocumentTitle, dropCached } from "../hooks";
+import { api, post, put, del } from "../api";
+import { watchTimeStr, fmtAgo, fmtDateTime } from "../format";
+import { mediaPath, type MediaType } from "../paths";
 import { ACHIEVEMENTS } from "../../shared/achievements";
 import { useAuth } from "../app";
 import { useConfirm } from "../components/dialog";
-import { Empty, ErrorNote } from "../components/ui";
+import { Empty, ErrorNote, Slate } from "../components/ui";
 import { ShareButton } from "../components/share";
 import { ProfileSkeleton } from "../components/skeleton";
 import {
   IconHeart,
   IconEye,
+  IconEyeSlash,
   IconLock,
   IconTrash,
   IconArrowUp,
@@ -73,6 +81,7 @@ function UsernameEditor({
   setBusy: (b: boolean) => void;
 }) {
   const { user, setUser } = useAuth();
+  const navigate = useNavigate();
   const [value, setValue] = useState(username);
   const [err, setErr] = useState<string | null>(null);
 
@@ -90,6 +99,11 @@ function UsernameEditor({
       if (user) setUser({ ...user, username: r.username });
       close();
       reload();
+      // The page's address contains the name (issue #220), so a successful
+      // rename moves to the new URL — otherwise the router would treat the
+      // old address as someone else's (now nonexistent) profile. Replace,
+      // not push: Back shouldn't step onto a dead URL this action created.
+      navigate(`/u/${r.username}`, { replace: true });
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Something went wrong");
     } finally {
@@ -148,12 +162,323 @@ export function StatsGrid({ stats }: { stats: WatchStats }) {
   );
 }
 
+// ---------- Sections shared with the public view (public-profile.tsx) ----------
+
+export interface ProfileComment {
+  body: string | null; // null for anonymous visitors — metadata only
+  createdAt: string;
+  target: {
+    type: MediaType;
+    id: number;
+    title: string | null;
+    season: number | null;
+    episode: number | null;
+    episodeTitle: string | null;
+  };
+}
+
+// One row of the recent-activity feed (issue #202), already gated
+// server-side: hidden sections arrive as an empty array.
+export interface ActivityItem {
+  kind: "show_added" | "show_saved" | "episode_watched" | "movie_watched" | "rated";
+  ts: string;
+  score: number | null; // set for 'rated' only
+  target: {
+    type: MediaType;
+    id: number;
+    title: string; // show/movie title; for episodes, the show's title
+    season: number | null;
+    episode: number | null;
+    episodeTitle: string | null;
+  };
+}
+
+// Recent comment activity (issue #16): what shows this user is talking
+// about, each row linking into the thread's page. Anonymous visitors see
+// metadata only (no bodies — the server withholds them).
+export function ProfileComments({ comments }: { comments: ProfileComment[] }) {
+  if (!comments.length) return null;
+  return (
+    <>
+      <h2 className="section-title">Conversations</h2>
+      <ul className="profile-comments">
+        {comments.map((c, i) => (
+          <li key={i}>
+            {c.body != null && <p className="profile-comment-body">{c.body}</p>}
+            <p className="profile-comment-meta">
+              {c.body != null ? "on" : "commented on"}{" "}
+              <Link to={mediaPath(c.target.type, c.target.id, c.target.type === "episode" ? c.target.episodeTitle : c.target.title)}>
+                {c.target.title}
+              </Link>{" "}
+              {c.target.type === "episode" && c.target.season != null && c.target.episode != null && (
+                <Slate season={c.target.season} number={c.target.episode} />
+              )}
+              <span className="mono"> · {fmtAgo(c.createdAt)}</span>
+            </p>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
+// Verb per activity kind. 'show_saved' carries a " for later" tail after the
+// title so the sentence reads "Saved <show> for later".
+const ACTIVITY_VERBS: Record<ActivityItem["kind"], string> = {
+  show_added: "Started following",
+  show_saved: "Saved",
+  episode_watched: "Watched",
+  movie_watched: "Watched",
+  rated: "Rated",
+};
+
+// Recent activity (issue #202): the 20 most recent library/rating actions,
+// each row linking to its show/movie/episode page. The server already gated
+// visibility — a hidden section arrives here as an empty array, and
+// `visible` (the owner's eye-toggle state) arrives ONLY for the owner, so
+// its presence doubles as the "render the toggle" signal. Non-owners with
+// nothing to show get no section at all; the owner always gets it, otherwise
+// the toggle would vanish along with the rows it controls.
+export function ProfileActivity({
+  items,
+  visible,
+  busy,
+  onToggle,
+}: {
+  items: ActivityItem[];
+  visible?: boolean; // undefined = viewer isn't the owner
+  busy?: boolean;
+  onToggle?: (next: boolean) => void;
+}) {
+  const isOwner = visible !== undefined;
+  if (!isOwner && !items.length) return null;
+  return (
+    <>
+      <h2 className="section-title profile-activity-title">
+        Activity
+        {isOwner && (
+          <>
+            <button
+              className="btn btn-ghost profile-privacy-btn"
+              disabled={busy}
+              aria-pressed={visible}
+              aria-label={visible ? "Hide your activity from visitors" : "Show your activity to visitors"}
+              title={
+                visible
+                  ? "Visible to anyone who can see this profile. Click to hide"
+                  : "Hidden: visitors don't see your activity. Click to show"
+              }
+              onClick={() => onToggle?.(!visible)}
+            >
+              {visible ? <IconEye size={15} /> : <IconEyeSlash size={15} />}
+            </button>
+            {!visible && (
+              <span className="profile-activity-note" role="status">
+                Hidden — only you can see this
+              </span>
+            )}
+          </>
+        )}
+      </h2>
+      {!items.length ? (
+        <p className="profile-activity-empty">Nothing yet — it fills in as you follow and watch things.</p>
+      ) : (
+        <ul className="profile-comments profile-activity">
+          {items.map((a, i) => (
+            <li key={i}>
+              <p className="profile-comment-meta">
+                {ACTIVITY_VERBS[a.kind]}{" "}
+                <Link
+                  to={mediaPath(a.target.type, a.target.id, a.target.type === "episode" ? a.target.episodeTitle : a.target.title)}
+                >
+                  {a.target.title}
+                </Link>
+                {a.target.type === "episode" && a.target.season != null && a.target.episode != null && (
+                  <>
+                    {" "}
+                    <Slate season={a.target.season} number={a.target.episode} />
+                  </>
+                )}
+                {a.kind === "show_saved" && " for later"}
+                {a.kind === "rated" && a.score != null && <span className="mono"> {a.score}/10</span>}
+                <span className="mono"> · {fmtAgo(a.ts)}</span>
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}
+
+interface ActivityRow {
+  ts: string;
+  method: string;
+  route: string;
+  path: string;
+  status: number;
+}
+
+// Admin-only (issues #17/#18): the user's recent audit trail from
+// activity_log, plus the shadow-ban toggle. The server re-checks is_admin
+// on every call; this render gate is UX only.
+export function AdminTools({ username, tz }: { username: string; tz: string }) {
+  const confirm = useConfirm();
+  const [rows, setRows] = useState<ActivityRow[] | null>(null);
+  const [banned, setBanned] = useState<boolean | null>(null); // null until flags load
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    setBanned(null);
+    api<{ user: { shadowBanned: boolean } }>(`/admin/users/${encodeURIComponent(username)}`)
+      .then((d) => live && setBanned(d.user.shadowBanned))
+      .catch(() => {}); // no toggle is fine (e.g. offline)
+    return () => {
+      live = false;
+    };
+  }, [username]);
+
+  const load = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await api<{ activity: ActivityRow[] }>(`/admin/users/${encodeURIComponent(username)}/activity`);
+      setRows(r.activity);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggleBan = async () => {
+    const next = !banned;
+    const yes = await confirm({
+      title: next ? `Shadow ban ${username}?` : `Lift ${username}'s shadow ban?`,
+      message: next
+        ? "Their comments become invisible to everyone else, but they'll keep seeing their own posts as if nothing happened. They are not notified."
+        : "Their comments become visible to everyone again.",
+      confirmLabel: next ? "Shadow ban" : "Lift ban",
+      danger: next,
+    });
+    if (!yes) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await put(`/admin/users/${encodeURIComponent(username)}/shadow-ban`, { banned: next });
+      setBanned(r.shadowBanned);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="admin-tools">
+      {banned != null && (
+        <button
+          className={`btn btn-ghost${banned ? " btn-danger" : ""}`}
+          disabled={busy}
+          title={banned ? "Shadow banned: comments hidden from everyone else" : "Comments visible normally"}
+          onClick={toggleBan}
+        >
+          {banned ? "Shadow banned (lift?)" : "Shadow ban"}
+        </button>
+      )}
+      {rows === null ? (
+        <button className="btn btn-ghost" disabled={busy} onClick={load}>
+          <IconEye size={15} /> View activity log
+        </button>
+      ) : (
+        <>
+          <h2 className="section-title">Activity log (admin view)</h2>
+          {rows.length === 0 ? (
+            <p className="admin-empty">No recorded activity.</p>
+          ) : (
+            <ul className="admin-activity mono">
+              {rows.map((r, i) => (
+                <li key={i}>
+                  <span className="admin-activity-ts">{fmtDateTime(r.ts, tz)}</span>
+                  <span className={`admin-activity-status${r.status >= 400 ? " is-err" : ""}`}>{r.status}</span>
+                  <span>
+                    {r.method} {r.path}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <button className="btn btn-ghost" onClick={() => setRows(null)}>
+            Hide activity log
+          </button>
+        </>
+      )}
+      {error && <ErrorNote message={error} />}
+    </div>
+  );
+}
+
+// ---------- The owner's page ----------
+
+// The slice of the /public/profile payload this page renders alongside the
+// /profile data. The server always serves the owner their own full profile
+// (issues #158/#184), so unlike public-profile.tsx there is no teaser shape
+// to discriminate here.
+interface OwnPublicData {
+  private?: boolean;
+  activity?: ActivityItem[]; // optional: tolerates cached pre-#202 payloads
+  activityPublic?: boolean;
+  comments: ProfileComment[];
+}
+
 export function ProfilePage() {
   const confirm = useConfirm();
+  const { user } = useAuth();
   const { data, loading, error, reload } = useApi<ProfileData>("/profile");
+  // The visitor-facing feed sections (activity, issue #202; conversations,
+  // issue #16) come from the same public payload /u/<name> serves everyone —
+  // fetched alongside /profile so this page shows exactly what visitors get,
+  // plus the eye toggle the server includes only for the owner. Canonical
+  // casing from the auth context, not the URL param, keys the cache entry
+  // consistently however the address was typed.
+  const pubPath = user ? `/public/profile/${encodeURIComponent(user.username)}` : null;
+  const { data: pub, reload: reloadPub } = useApi<OwnPublicData>(pubPath);
   const [busy, setBusy] = useState(false);
   const [editingUsername, setEditingUsername] = useState(false);
   const [usernameBusy, setUsernameBusy] = useState(false);
+  const [activityBusy, setActivityBusy] = useState(false);
+  const [activityError, setActivityError] = useState<string | null>(null);
+
+  // Keep the tab title the Worker baked in for /u/ hard loads (issue #219)
+  // once the SPA takes over, matching the public view of the same URL —
+  // DocumentTitleSync only spares this route from the default reset.
+  useDocumentTitle(data && `@${data.username}`);
+
+  // Cache hygiene mirrored from public-profile.tsx: the owner's payload is
+  // no-store on the wire when the profile is private or the activity hidden
+  // (issues #158/#184/#202) — drop the in-memory copy too so nothing
+  // warm-paints it later.
+  useEffect(() => {
+    if (pubPath && pub && (pub.private || pub.activityPublic === false)) dropCached(pubPath);
+  }, [pub, pubPath]);
+
+  // Owner-only (issue #202): flip whether visitors see the Activity section.
+  // The server re-checks the session; this just persists and refetches so
+  // the section reflects the stored state, not an optimistic guess.
+  const toggleActivity = async (next: boolean) => {
+    setActivityBusy(true);
+    setActivityError(null);
+    try {
+      await put("/profile/activity-visibility", { public: next });
+      reloadPub();
+    } catch (e: any) {
+      setActivityError(e.message);
+    } finally {
+      setActivityBusy(false);
+    }
+  };
 
   if (loading) return <ProfileSkeleton action />;
   if (error) return <ErrorNote message={error} />;
@@ -285,6 +610,11 @@ export function ProfilePage() {
         </Link>
       </p>
 
+      {/* Admins keep the same tools on their own page that they get on
+          anyone's — parity with the public view this page replaced at
+          /u/<name> (issue #220). */}
+      {user?.isAdmin && <AdminTools username={data.username} tz={user.tz} />}
+
       <StatsGrid stats={data.stats} />
 
       {/* The grid moved to its own page (issue #201) — the heading itself is
@@ -292,7 +622,7 @@ export function ProfilePage() {
           tidy. Zero earned still links out: the page doubles as the goal
           catalog, so it answers "how do I get one?" better than a hint. */}
       <h2 className="section-title">
-        <Link to="/profile/achievements" className="ach-page-link">
+        <Link to={`/u/${data.username}/achievements`} className="ach-page-link">
           Achievements{" "}
           <span className="mono ach-count">
             ({data.achievements.length}/{ACHIEVEMENTS.length})
@@ -300,6 +630,24 @@ export function ProfilePage() {
           <IconChevron size={11} />
         </Link>
       </h2>
+
+      {/* What visitors see below the fold, straight from the public payload,
+          so this page doubles as the preview — with the owner-only eye
+          toggle on Activity. Waits on that second fetch (it pops in rather
+          than blocking the page); offline with nothing cached it simply
+          stays absent. */}
+      {pub && (
+        <>
+          <ProfileActivity
+            items={pub.activity ?? []}
+            visible={pub.activityPublic}
+            busy={activityBusy}
+            onToggle={toggleActivity}
+          />
+          {activityError && <ErrorNote message={activityError} />}
+          <ProfileComments comments={pub.comments ?? []} />
+        </>
+      )}
 
       <h2 className="section-title">Lists on your profile</h2>
       {!data.lists.length ? (

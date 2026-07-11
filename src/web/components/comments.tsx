@@ -177,7 +177,10 @@ export function Comments({ targetType, targetId }: { targetType: "episode" | "mo
         <Composer placeholder="What did you think?" submitLabel="Comment" onSubmit={postTopLevel} />
       ) : (
         <p className="comments-gate">
-          Verify your email to join the conversation: <Link to="/profile">go to your profile</Link>.
+          {/* The verify/resend flow lives on Settings (issue #55) — the
+              profile hasn't had it since, and now redirects away anyway
+              (issue #220). */}
+          Verify your email to join the conversation: <Link to="/settings">go to Settings</Link>.
         </p>
       )}
       {error ? (

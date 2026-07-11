@@ -2,14 +2,16 @@
 // render the whole grid inline, which crowded everything below it — they now
 // show a compact "Achievements (18/31)" link and the grid lives here.
 //
-// Two flavors share this layout:
-//   /profile/achievements     — your own page. Shows the full catalog as a
+// Two flavors share this layout, both living at /u/:username/achievements
+// (the old /profile/achievements redirects there, issue #220 — app.tsx picks
+// which one renders):
+//   Your own page — when the name is yours. Shows the full catalog as a
 //     checklist: earned entries lit (hover for the unlock date), locked ones
 //     dimmed with the goal as their hint — so the (18/31) count answers its
 //     own "which am I missing?" question.
-//   /u/:username/achievements — anyone's page, signed in or out. Unlocked
-//     only, matching the public profile: a brag wall, not a checklist of
-//     what the person hasn't done.
+//   Anyone else's page — signed in or out. Unlocked only, matching the
+//     public profile: a brag wall, not a checklist of what the person
+//     hasn't done.
 import { useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useApi, dropCached } from "../hooks";
@@ -72,7 +74,7 @@ export function MyAchievementsPage() {
   const unlocked = new Map(data.achievements.map((a) => [a.id, a.unlockedAt]));
   return (
     <>
-      <Link to="/profile" className="crumb">
+      <Link to={user ? `/u/${user.username}` : "/profile"} className="crumb">
         ‹ Profile
       </Link>
       <PageTitle earned={data.achievements.length} />

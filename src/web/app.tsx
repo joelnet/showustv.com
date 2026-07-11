@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { BrowserRouter, Routes, Route, NavLink, Link, Outlet, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, NavLink, Link, Outlet, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import { DEFAULT_DOCUMENT_TITLE } from "./hooks";
 import { api, post, ApiError } from "./api";
 import { setOfflineUser, useOffline } from "./offline";
@@ -112,6 +112,36 @@ function DocumentTitleSync() {
 
 export const useAuth = () => useContext(AuthCtx);
 
+// Where "your profile" lives (issue #220): the shareable /u/<name> address
+// everyone else sees, so clicking Profile puts the copyable URL straight in
+// the address bar. The /profile fallback never renders for a signed-out
+// visitor (the nav only exists inside Shell), but if it ever did, that path
+// redirects to the same place anyway.
+function useProfilePath(): string {
+  const { user } = useAuth();
+  return user ? `/u/${user.username}` : "/profile";
+}
+
+// /u/:username is everyone's profile address (issue #220). When the name is
+// the signed-in user's own (case-insensitive, matching the server's COLLATE
+// NOCASE username lookups), the route renders the owner view with the
+// management affordances; any other name gets the read-only public view.
+// Two distinct components — rather than one page branching inside — so each
+// page's hooks stay unconditional.
+function OwnOrPublic({ own, other }: { own: React.ReactElement; other: React.ReactElement }) {
+  const { user } = useAuth();
+  const { username } = useParams();
+  return user && username && username.toLowerCase() === user.username.toLowerCase() ? own : other;
+}
+
+// The retired own-profile address (issue #220): old bookmarks and deep links
+// to /profile land on the custom URL instead. Shell already bounced the
+// signed-out to /login before this renders; the guard just keeps it total.
+function ProfileRedirect({ sub = "" }: { sub?: string }) {
+  const { user } = useAuth();
+  return <Navigate to={user ? `/u/${user.username}${sub}` : "/login"} replace />;
+}
+
 function Shell() {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
@@ -159,6 +189,7 @@ function PublicShell() {
 
 function Header() {
   const navigate = useNavigate();
+  const profilePath = useProfilePath();
   const { available, ios, install } = useInstallPrompt();
   // Show the install affordance unless the app is already running installed.
   // `available` is false in standalone mode (isStandalone()), so this naturally
@@ -176,7 +207,7 @@ function Header() {
         <NavLink to="/" end>Watch now</NavLink>
         <NavLink to="/library">Library</NavLink>
         <NavLink to="/lists">Lists</NavLink>
-        <NavLink to="/profile">Profile</NavLink>
+        <NavLink to={profilePath}>Profile</NavLink>
       </nav>
       <form
         className="header-search"
@@ -302,13 +333,14 @@ function UpdateToast() {
 }
 
 function TabBar() {
+  const profilePath = useProfilePath();
   return (
     <nav className="tabbar" aria-label="Primary">
       <NavLink to="/" end><IconPlay /><span>Watch now</span></NavLink>
       <NavLink to="/search"><IconSearch /><span>Search</span></NavLink>
       <NavLink to="/library"><IconLibrary /><span>Library</span></NavLink>
       <NavLink to="/lists"><IconList /><span>Lists</span></NavLink>
-      <NavLink to="/profile"><IconUser /><span>Profile</span></NavLink>
+      <NavLink to={profilePath}><IconUser /><span>Profile</span></NavLink>
     </nav>
   );
 }
@@ -457,14 +489,21 @@ export function App() {
             <Route path="/lists/:id" element={<ListDetailPage />} />
             <Route path="/following" element={<FollowingPage />} />
             <Route path="/notifications" element={<NotificationsPage />} />
-            <Route path="/profile" element={<ProfilePage />} />
-            {/* Your achievements moved off the profile to their own page
-                (issue #201). */}
-            <Route path="/profile/achievements" element={<MyAchievementsPage />} />
-            {/* Someone else's profile gets the same app chrome as every
-                other signed-in page (issue #200). */}
-            <Route path="/u/:username" element={<PublicProfilePage />} />
-            <Route path="/u/:username/achievements" element={<PublicAchievementsPage />} />
+            {/* Your profile lives at its shareable custom URL (issue #220);
+                the old /profile addresses redirect so bookmarks and older
+                links keep working. */}
+            <Route path="/profile" element={<ProfileRedirect />} />
+            <Route path="/profile/achievements" element={<ProfileRedirect sub="/achievements" />} />
+            {/* Every profile gets the same app chrome as any other
+                signed-in page (issue #200); your own name renders the owner
+                view, anyone else's the public one (issue #220). The
+                achievements pages (issue #201) split the same way: the full
+                goal catalog for you, unlocked-only for everyone else. */}
+            <Route path="/u/:username" element={<OwnOrPublic own={<ProfilePage />} other={<PublicProfilePage />} />} />
+            <Route
+              path="/u/:username/achievements"
+              element={<OwnOrPublic own={<MyAchievementsPage />} other={<PublicAchievementsPage />} />}
+            />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/settings/import" element={<ImportPage />} />
             <Route path="/about" element={<AboutPage />} />
