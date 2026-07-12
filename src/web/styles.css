@@ -1481,15 +1481,37 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .friend-add input { flex: 1; max-width: 320px; min-width: 0; }
 .friend-note { color: var(--muted); font-size: 13.5px; margin: 8px 0 0; }
 
-/* "Mutual" dropdown on a mutual's profile (issue #199): one native select
-   replacing the "Following" button + "Follows you" note. Ghost-button look
-   so it sits flush beside the .btn siblings in .public-actions. */
-.mutual-select {
-  background: transparent;
-  font: 600 14px var(--font-body);
+/* Click-to-open action menu (issue #255) — first used by the "Mutuals"
+   handshake button on a mutual's profile, where it replaced the issue #199
+   native select. Trigger is a regular .btn; the pop panel drops below it. */
+.menu-wrap { position: relative; }
+.menu-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 30;
+  min-width: 140px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 4px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+.menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-radius: 7px;
   padding: 8px 12px;
+  font: 500 14px var(--font-body);
+  color: var(--text);
   cursor: pointer;
 }
+.menu-item:hover,
+.menu-item:focus-visible { background: var(--surface-2); }
+.menu-item--danger { color: var(--red); }
 
 .friend-chip {
   display: inline-flex;
@@ -2154,7 +2176,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 
   /* iOS Safari zooms into focused controls with fonts under 16px. */
   input, select { font-size: 16px; }
-  .sort-bar select, .add-to-list, .mutual-select { font-size: 16px; }
+  .sort-bar select, .add-to-list { font-size: 16px; }
 
   .wn-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px 10px; }
   /* The 38px thumb-sized check needs more reserved body width, and nearly

@@ -11,7 +11,7 @@
 // Renders inside the standard site chrome like every other page (issue
 // #200): the app Shell when signed in, PublicShell when signed out — no
 // bespoke header here.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, post, del } from "../api";
 import { useApi, useDocumentTitle, dropCached } from "../hooks";
@@ -22,7 +22,7 @@ import { publicListPath } from "../paths";
 import { SmpteBars, ErrorNote } from "../components/ui";
 import { ShareButton } from "../components/share";
 import { ProfileSkeleton } from "../components/skeleton";
-import { IconList, IconCheck, IconPlus, IconLock, IconChevron } from "../components/icons";
+import { IconList, IconCheck, IconPlus, IconLock, IconChevron, IconHandshake } from "../components/icons";
 import {
   StatsGrid,
   ProfileHistory,
@@ -79,6 +79,93 @@ function PublicAchievements({ username, ids }: { username: string; ids: string[]
 }
 
 type Relation = "none" | "following" | "self";
+
+// Mutual control on a mutual's profile (issue #255): a handshake "Mutuals"
+// button that only shows its menu when clicked — one Unfollow item, behind
+// the same confirm dialog as the plain "Following" button. Replaces the
+// always-a-dropdown native select from issue #199. The menu closes on
+// outside click, Escape (refocusing the trigger), or focus leaving it.
+function MutualMenu({
+  username,
+  busy,
+  onUnfollow,
+}: {
+  username: string;
+  busy: boolean;
+  onUnfollow: () => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const itemRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  // Land keyboard users on the one action when the menu opens.
+  useEffect(() => {
+    if (open) itemRef.current?.focus();
+  }, [open]);
+
+  return (
+    <div
+      className="menu-wrap"
+      ref={wrapRef}
+      onBlur={(e) => {
+        // Tabbing (or clicking) out of the control closes the menu.
+        if (!wrapRef.current?.contains(e.relatedTarget as Node)) setOpen(false);
+      }}
+    >
+      <button
+        ref={triggerRef}
+        type="button"
+        className="btn btn-ghost"
+        disabled={busy}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title={`You and ${username} follow each other`}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <IconHandshake size={15} /> Mutuals
+      </button>
+      {open && (
+        <div className="menu-pop" role="menu" aria-label={`Mutual with ${username}`}>
+          <button
+            ref={itemRef}
+            type="button"
+            role="menuitem"
+            className="menu-item menu-item--danger"
+            onClick={async () => {
+              setOpen(false);
+              await onUnfollow();
+              // A cancelled confirm leaves the control mounted — put focus
+              // back on the trigger (no-op after a real unfollow unmounts it).
+              triggerRef.current?.focus();
+            }}
+          >
+            Unfollow
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Follow/unfollow affordance, shown only to signed-in visitors on someone
 // else's profile. Social actions never queue offline — failures show inline.
@@ -138,8 +225,8 @@ function FollowActions({ username, onChange }: { username: string; onChange?: ()
     if (yes) await act(() => del(`/social/follow/${encodeURIComponent(username)}`), "none")();
   };
 
-  // You follow each other — one "Mutual" control replaces the "Following"
-  // button + "Follows you" note pair (issue #199).
+  // You follow each other — one "Mutuals" control replaces the "Following"
+  // button + "Follows you" note pair (issue #199, redesigned in #255).
   const mutual = relation === "following" && followsYou;
 
   return (
@@ -159,24 +246,7 @@ function FollowActions({ username, onChange }: { username: string; onChange?: ()
           <IconCheck size={14} /> Following
         </button>
       )}
-      {mutual && (
-        // Same native-select dropdown pattern as AddToList. The value stays
-        // pinned to "" so a cancelled (or failed) unfollow snaps the label
-        // back to "Mutual".
-        <select
-          className="mutual-select"
-          aria-label={`Mutual: you and ${username} follow each other`}
-          title={`You and ${username} follow each other`}
-          disabled={busy}
-          value=""
-          onChange={async (e) => {
-            if (e.target.value === "unfollow") await unfollow();
-          }}
-        >
-          <option value="">Mutual</option>
-          <option value="unfollow">Unfollow</option>
-        </select>
-      )}
+      {mutual && <MutualMenu username={username} busy={busy} onUnfollow={unfollow} />}
       {followsYou && !mutual && <span className="friend-note">Follows you</span>}
       {error && <ErrorNote message={error} />}
     </>
