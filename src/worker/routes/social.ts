@@ -169,7 +169,7 @@ social.get("/also-watching/:id", async (c) => {
      FROM user_shows us
      JOIN following fo ON fo.fid = us.user_id
      JOIN users u ON u.id = us.user_id AND u.deleted_at IS NULL
-     WHERE us.show_id = ?2 AND us.state != 'hidden'
+     WHERE us.show_id = ?2 AND us.state != 'hidden' AND us.hidden = 0
      ORDER BY u.username COLLATE NOCASE`
   )
     .bind(c.get("uid"), id)
@@ -231,6 +231,10 @@ social.get("/activity", async (c) => {
        JOIN episodes e ON e.id = ue.episode_id
        JOIN shows s ON s.tmdb_id = e.show_id
        WHERE ue.watched_at >= ?2
+         -- The watcher hid this show (issue #260): their episode watches on
+         -- it are private activity, off the feed entirely.
+         AND NOT EXISTS (SELECT 1 FROM user_shows h
+                         WHERE h.user_id = ue.user_id AND h.show_id = e.show_id AND h.hidden = 1)
        GROUP BY ue.user_id, e.show_id, date(ue.watched_at)
        HAVING MAX(ue.watched_at) <= ?3
 
@@ -250,7 +254,7 @@ social.get("/activity", async (c) => {
        JOIN following fo ON fo.fid = us.user_id
        JOIN users u ON u.id = us.user_id AND u.deleted_at IS NULL
        JOIN shows s ON s.tmdb_id = us.show_id
-       WHERE us.state != 'hidden' AND us.added_at >= ?2 AND us.added_at <= ?3
+       WHERE us.state != 'hidden' AND us.hidden = 0 AND us.added_at >= ?2 AND us.added_at <= ?3
 
        UNION ALL
        SELECT 'rated', u.username, r.target_type, r.target_id,
@@ -263,6 +267,11 @@ social.get("/activity", async (c) => {
        LEFT JOIN movies m ON r.target_type = 'movie' AND m.tmdb_id = r.target_id
        WHERE r.target_type IN ('show', 'movie') AND r.score IS NOT NULL
          AND r.created_at >= ?2 AND r.created_at <= ?3
+         -- A rating on a hidden show (issue #260) would out it just like a
+         -- watch; movie ratings pass through (hiding is per-show).
+         AND NOT EXISTS (SELECT 1 FROM user_shows h
+                         WHERE r.target_type = 'show'
+                           AND h.user_id = r.user_id AND h.show_id = r.target_id AND h.hidden = 1)
      )
      WHERE ts < ?3 OR (ts = ?3 AND k < ?5)
      ORDER BY ts DESC, k DESC

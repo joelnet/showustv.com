@@ -1,0 +1,16 @@
+-- issue #260: per-user "hide this show" privacy flag. Hiding keeps the show
+-- (and all watch progress) in the owner's own library but excludes it from
+-- every OUTWARD surface: the public profile's Shows history rows and comment
+-- activity, the public library, the social activity feed and "also watching",
+-- the home page's "From People You Follow" rail, follower watch
+-- notifications, and comment notifications to trackers who hid the show.
+--
+-- Deliberately a separate column, NOT the legacy 'hidden' value in the state
+-- CHECK: state is the watch lifecycle (watching/stopped/watch_later), and a
+-- hidden show keeps its real state so the owner's library and progress stay
+-- intact. Aggregate stats (profile counts, achievements) still include hidden
+-- shows — a number identifies no title; only title-revealing surfaces filter.
+--
+-- No new index: every hidden filter is either a (user_id, show_id) PK probe
+-- (NOT EXISTS) or a residual predicate on an already-indexed row set.
+ALTER TABLE user_shows ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0 CHECK (hidden IN (0,1));

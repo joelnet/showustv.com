@@ -184,6 +184,10 @@ library.get("/home", async (c) => {
          JOIN users u ON u.id = ue.user_id AND u.deleted_at IS NULL
          JOIN episodes e ON e.id = ue.episode_id
          WHERE (ue.watched_at >= ?2 OR ue.last_rewatched_at >= ?2) AND e.season_number > 0
+           -- A followee's hidden show (issue #260) is private activity: keep
+           -- it out of the rail exactly like the activity feed does.
+           AND NOT EXISTS (SELECT 1 FROM user_shows h
+                           WHERE h.user_id = ue.user_id AND h.show_id = e.show_id AND h.hidden = 1)
        )
        SELECT f.show_id, f.username, f.episode_id, f.season_number, f.number, f.episode_title,
               s.title AS show_title, s.poster_url, s.backdrop_url
@@ -243,10 +247,12 @@ library.get("/home", async (c) => {
 // ---------- Library & watchlist ----------
 
 library.get("/library", async (c) => {
-  // The owner's own library carries the Watch Later buckets (issue #257) —
-  // the public route calls libraryPayload without the flag, so the private
-  // watchlist stays off every public surface.
-  return c.json(await libraryPayload(c.env.DB, c.get("uid"), c.get("tz"), { watchlist: true }));
+  // The owner's own library carries the Watch Later buckets (issue #257) AND
+  // their hidden shows (issue #260) — both opt-in, so the public route (which
+  // calls libraryPayload without either flag) can never serve the private
+  // watchlist or a hidden show. Hidden shows must stay visible HERE so the
+  // owner can find and unhide them without losing progress.
+  return c.json(await libraryPayload(c.env.DB, c.get("uid"), c.get("tz"), { watchlist: true, includeHidden: true }));
 });
 
 // No Library page fetches this anymore — Watch Later moved into the Shows and
@@ -276,11 +282,14 @@ library.put("/shows/:id/follow", async (c) => {
   const id = intParam(c.req.param("id"));
   if (!id) return c.json({ error: "bad id" }, 400);
   await ensureShow(c.env, id);
+  // 'hidden' here is the issue-#260 tombstone (a hidden show that was
+  // unfollowed): following it again resurrects it as watching — the hidden
+  // FLAG rides along untouched, so the privacy choice stays sticky.
   await c.env.DB.prepare(
     `INSERT INTO user_shows (user_id, show_id) VALUES (?1, ?2)
      ON CONFLICT (user_id, show_id) DO UPDATE
        SET state = 'watching', last_state_change = strftime('%Y-%m-%dT%H:%M:%fZ','now')
-       WHERE user_shows.state IN ('watch_later', 'stopped')`
+       WHERE user_shows.state IN ('watch_later', 'stopped', 'hidden')`
   )
     .bind(c.get("uid"), id)
     .run();
@@ -290,8 +299,19 @@ library.put("/shows/:id/follow", async (c) => {
 library.delete("/shows/:id/follow", async (c) => {
   const id = intParam(c.req.param("id"));
   if (!id) return c.json({ error: "bad id" }, 400);
-  // Unfollow keeps watch history (user_episodes) — TV Time behavior.
-  await c.env.DB.prepare("DELETE FROM user_shows WHERE user_id = ?1 AND show_id = ?2").bind(c.get("uid"), id).run();
+  const uid = c.get("uid");
+  // Unfollow keeps watch history (user_episodes) — TV Time behavior. A HIDDEN
+  // show (issue #260) can't just drop its row: the privacy flag lives on it,
+  // and the history that stays behind would reappear on the public profile.
+  // Tombstone it instead — the legacy state 'hidden' every read surface
+  // already treats as not-tracked — so unfollow works and the flag survives.
+  await c.env.DB.batch([
+    c.env.DB.prepare("DELETE FROM user_shows WHERE user_id = ?1 AND show_id = ?2 AND hidden = 0").bind(uid, id),
+    c.env.DB.prepare(
+      `UPDATE user_shows SET state = 'hidden', last_state_change = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+       WHERE user_id = ?1 AND show_id = ?2 AND hidden = 1`
+    ).bind(uid, id),
+  ]);
   return c.json({ ok: true });
 });
 
@@ -356,13 +376,52 @@ library.put("/shows/:id/state", async (c) => {
   return c.json({ ok: true });
 });
 
+// Per-user privacy flag (issue #260): hide a show from every outward surface
+// — public profile history rows, public library, activity feed, also-watching,
+// the followee rail, and notifications about it — while it stays fully intact
+// (state, progress, history) in the owner's own library.
+//
+// The flag needs a user_shows row to live on, but a show can leak from watch
+// history alone (unfollow keeps user_episodes). Hiding such a row-less show
+// INSERTs a TOMBSTONE — the legacy state 'hidden', which every read surface
+// (including the owner's own library) already treats as not-tracked — so
+// hiding never re-follows anything. Unhiding clears the flag and deletes a
+// tombstone outright (back to plain history-only); it never inserts, so an
+// unhide can't conjure up a library row either.
+library.put("/shows/:id/hidden", async (c) => {
+  const id = intParam(c.req.param("id"));
+  const body = await c.req.json().catch(() => ({}));
+  if (!id || typeof body.hidden !== "boolean") return c.json({ error: "bad request" }, 400);
+  const uid = c.get("uid");
+  if (body.hidden) {
+    await ensureShow(c.env, id);
+    await c.env.DB.prepare(
+      `INSERT INTO user_shows (user_id, show_id, state, hidden) VALUES (?1, ?2, 'hidden', 1)
+       ON CONFLICT (user_id, show_id) DO UPDATE SET hidden = 1`
+    )
+      .bind(uid, id)
+      .run();
+  } else {
+    await c.env.DB.batch([
+      c.env.DB.prepare("UPDATE user_shows SET hidden = 0 WHERE user_id = ?1 AND show_id = ?2").bind(uid, id),
+      c.env.DB.prepare("DELETE FROM user_shows WHERE user_id = ?1 AND show_id = ?2 AND state = 'hidden'").bind(uid, id),
+    ]);
+  }
+  return c.json({ ok: true });
+});
+
 library.put("/shows/:id/watchlist", async (c) => {
   const id = intParam(c.req.param("id"));
   if (!id) return c.json({ error: "bad id" }, 400);
   await ensureShow(c.env, id);
+  // A tombstone (state 'hidden', issue #260 — a hidden show that was
+  // unfollowed) resurrects as watch-later; any other existing row is
+  // untouched, as before. The hidden flag rides along either way.
   await c.env.DB.prepare(
     `INSERT INTO user_shows (user_id, show_id, state) VALUES (?1, ?2, 'watch_later')
-     ON CONFLICT (user_id, show_id) DO NOTHING`
+     ON CONFLICT (user_id, show_id) DO UPDATE
+       SET state = 'watch_later', last_state_change = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+       WHERE user_shows.state = 'hidden'`
   )
     .bind(c.get("uid"), id)
     .run();
@@ -372,9 +431,16 @@ library.put("/shows/:id/watchlist", async (c) => {
 library.delete("/shows/:id/watchlist", async (c) => {
   const id = intParam(c.req.param("id"));
   if (!id) return c.json({ error: "bad id" }, 400);
-  await c.env.DB.prepare("DELETE FROM user_shows WHERE user_id = ?1 AND show_id = ?2 AND state = 'watch_later'")
-    .bind(c.get("uid"), id)
-    .run();
+  const uid = c.get("uid");
+  // Same tombstone rule as unfollow (issue #260): a hidden watch-later row
+  // keeps its privacy flag on a tombstone instead of vanishing with it.
+  await c.env.DB.batch([
+    c.env.DB.prepare("DELETE FROM user_shows WHERE user_id = ?1 AND show_id = ?2 AND state = 'watch_later' AND hidden = 0").bind(uid, id),
+    c.env.DB.prepare(
+      `UPDATE user_shows SET state = 'hidden', last_state_change = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+       WHERE user_id = ?1 AND show_id = ?2 AND state = 'watch_later' AND hidden = 1`
+    ).bind(uid, id),
+  ]);
   return c.json({ ok: true });
 });
 

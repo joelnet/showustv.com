@@ -996,7 +996,8 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 }
 .show-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 
-.heart-btn {
+.heart-btn,
+.hide-btn {
   width: 38px;
   height: 38px;
   border-radius: 50%;
@@ -1012,6 +1013,13 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .heart-btn:active { transform: scale(0.88); }
 .heart-btn.is-on { color: var(--red); border-color: var(--red); background: rgba(255, 77, 61, 0.12); }
 .heart-btn:disabled { opacity: 0.55; cursor: default; }
+/* The privacy eye (issue #260): the heart button's circular chrome with the
+   amber accent — "on" (slashed eye) means the show is hidden from the
+   owner's public profile and activity. */
+.hide-btn:hover { color: var(--amber); border-color: var(--amber); }
+.hide-btn:active { transform: scale(0.88); }
+.hide-btn.is-on { color: var(--amber); border-color: var(--amber); background: rgba(255, 174, 46, 0.12); }
+.hide-btn:disabled { opacity: 0.55; cursor: default; }
 .show-progress { display: flex; align-items: center; gap: 12px; }
 .show-progress .progress { width: 180px; }
 
@@ -2169,7 +2177,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   .link-btn { padding: 8px 6px; }
   .tabs a { padding: 11px 14px; }
   .check-btn { width: 38px; height: 38px; }
-  .heart-btn { width: 42px; height: 42px; }
+  .heart-btn, .hide-btn { width: 42px; height: 42px; }
   .score-dot { width: 29px; height: 36px; } /* 10 across a 360px screen */
   .score-picker { flex-wrap: wrap; }
   .emoji-btn { width: 36px; height: 36px; }

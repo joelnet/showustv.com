@@ -11,8 +11,9 @@ import { ShowPageSkeleton } from "../components/skeleton";
 import { WhereToWatch, type WatchInfo } from "../components/where-to-watch";
 import { Comments } from "../components/comments";
 import { useCelebrate } from "../components/celebration";
-import { IconCheck, IconPlus, IconChevron, IconBookmark, IconHeart, IconHeartOutline } from "../components/icons";
+import { IconCheck, IconPlus, IconChevron, IconBookmark, IconHeart, IconHeartOutline, IconEye, IconEyeSlash } from "../components/icons";
 import { useConfirm } from "../components/dialog";
+import { useToast } from "../components/toast";
 import { ShareButton } from "../components/share";
 import { AddToList } from "./lists";
 
@@ -48,6 +49,9 @@ interface ShowPayload {
     state: string | null;
     rating: { score: number | null; emoji: string | null } | null;
     favorited: boolean;
+    // Hidden from the viewer's public surfaces (issue #260). Optional so a
+    // service-worker-cached pre-#260 payload still renders.
+    hidden?: boolean;
   } | null;
   progress: { watched: number; aired: number; total: number } | null;
   nextEpisode: Episode | null;
@@ -80,7 +84,7 @@ function withUser(d: ShowPayload, user: Partial<NonNullable<ShowPayload["user"]>
 function cleared(d: ShowPayload): ShowPayload {
   return {
     ...d,
-    user: { followed: false, state: null, rating: null, favorited: false },
+    user: { followed: false, state: null, rating: null, favorited: false, hidden: false },
     progress: d.progress && { ...d.progress, watched: 0 },
     seasons: d.seasons.map((s) => ({
       ...s,
@@ -308,6 +312,7 @@ export function ShowPage() {
   const { user } = useAuth();
   const celebrate = useCelebrate();
   const confirm = useConfirm();
+  const toast = useToast();
   const navigate = useNavigate();
   const location = useLocation();
   const cacheKey = `/shows/${id}`;
@@ -515,6 +520,27 @@ export function ShowPage() {
     )();
   };
 
+  // Hide/unhide from the viewer's public surfaces (issue #260): profile
+  // history rows, public library, activity feed, also-watching, and
+  // notifications about the show — while it stays fully intact right here and
+  // in their own Library. The toast (issue #244 chrome) announces the new
+  // state, matching the profile privacy eye; errors toast too, like
+  // togglePrivacy there.
+  const toggleHidden = async () => {
+    const next = !mine.hidden;
+    try {
+      // Only the flag changes client-side: hiding an unfollowed show writes a
+      // server-side tombstone row, not a follow, so followed/state stay put.
+      await run(
+        () => put(`/shows/${show.id}/hidden`, { hidden: next }),
+        (d) => withUser(d, { hidden: next })
+      )();
+      toast(next ? "Hidden from your public profile" : "Visible on your public profile");
+    } catch (e) {
+      toast(e instanceof Error && e.message ? e.message : "Couldn't update this show", "error");
+    }
+  };
+
   // Remove the show entirely — for accidental adds. Confirms first because it
   // throws away watch history that unfollow would otherwise keep.
   const removeShow = async () => {
@@ -618,6 +644,31 @@ export function ShowPage() {
                 >
                   {mine.favorited ? <IconHeart size={18} /> : <IconHeartOutline size={18} />}
                 </button>
+                {/* Privacy eye (issue #260): icon-only like the profile's
+                    privacy toggle (issue #244) — eye = visible on your public
+                    surfaces, slashed eye = hidden. Offered whenever the show
+                    has any trace in the account (inLibrary), since watch
+                    history alone is what leaks on the profile. */}
+                {inLibrary && (
+                  <button
+                    className={`hide-btn${mine.hidden ? " is-on" : ""}`}
+                    aria-pressed={!!mine.hidden}
+                    aria-label={
+                      mine.hidden
+                        ? "Hidden from your public profile. Make it visible"
+                        : "Visible on your public profile. Hide it"
+                    }
+                    title={
+                      mine.hidden
+                        ? "Hidden from your public profile and activity. Click to show it again"
+                        : "Visible on your public profile and activity. Click to hide it"
+                    }
+                    disabled={busy}
+                    onClick={toggleHidden}
+                  >
+                    {mine.hidden ? <IconEyeSlash size={18} /> : <IconEye size={18} />}
+                  </button>
+                )}
                 <AddToList type="show" id={show.id} />
                 <ShareButton
                   title={show.title}

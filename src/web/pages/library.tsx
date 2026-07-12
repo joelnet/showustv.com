@@ -60,6 +60,10 @@ export interface LibShow {
   aired: number;
   total: number;
   last_watched_at: string | null;
+  // Hidden from the owner's public surfaces (issue #260). Only the owner's
+  // own payload ever carries it — the public library filters hidden shows
+  // server-side — so the marker below can never render for a visitor.
+  hidden?: boolean;
 }
 export interface LibMovie {
   id: number;
@@ -73,6 +77,11 @@ export interface WatchlistItem {
   title: string;
   poster: string | null;
 }
+
+// The progress meta line under a show poster, with a subtle "hidden" marker
+// (issue #260) so the owner can spot — and go unhide — shows they've taken
+// off their public profile. The show page's eye toggle is where that happens.
+const showSub = (s: LibShow) => `${s.watched}/${s.aired}${s.hidden ? " · hidden" : ""}`;
 
 // The shows library: a status tab bar (Watching / Up to date / Finished /
 // Abandoned / Watch Later — only tabs that have shows appear), and the active
@@ -157,11 +166,11 @@ export function ShowsLibrary({ shows, watchlist = [], empty }: { shows: LibShow[
                   to={mediaPath("show", s.id, s.title)}
                   posterPath={s.poster}
                   title={s.title}
-                  pill={`${s.total} ${s.total === 1 ? "episode" : "episodes"}`}
+                  pill={`${s.total} ${s.total === 1 ? "episode" : "episodes"}${s.hidden ? " · hidden" : ""}`}
                 />
               ) : (
                 <div key={s.id} className="lib-card">
-                  <PosterCard to={mediaPath("show", s.id, s.title)} posterPath={s.poster} title={s.title} sub={`${s.watched}/${s.aired}`} />
+                  <PosterCard to={mediaPath("show", s.id, s.title)} posterPath={s.poster} title={s.title} sub={showSub(s)} />
                   <Progress watched={s.watched} total={s.aired} />
                 </div>
               )
@@ -254,7 +263,7 @@ export function AnimeLibrary({ shows, movies, tz }: { shows: LibShow[]; movies: 
           <div className="poster-grid">
             {shows.map((s) => (
               <div key={s.id} className="lib-card">
-                <PosterCard to={mediaPath("show", s.id, s.title)} posterPath={s.poster} title={s.title} sub={`${s.watched}/${s.aired}`} />
+                <PosterCard to={mediaPath("show", s.id, s.title)} posterPath={s.poster} title={s.title} sub={showSub(s)} />
                 <Progress watched={s.watched} total={s.aired} />
               </div>
             ))}

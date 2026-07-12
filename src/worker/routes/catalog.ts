@@ -78,7 +78,7 @@ titles.get("/shows/:id", optionalAuth, async (c) => {
   // The viewer's own state — queried only for a signed-in session.
   if (uid != null) {
     stmts.push(
-      c.env.DB.prepare("SELECT state FROM user_shows WHERE user_id = ?1 AND show_id = ?2").bind(uid, id),
+      c.env.DB.prepare("SELECT state, hidden FROM user_shows WHERE user_id = ?1 AND show_id = ?2").bind(uid, id),
       c.env.DB.prepare(
         `SELECT ue.episode_id, ue.play_count FROM user_episodes ue
          JOIN episodes e ON e.id = ue.episode_id WHERE ue.user_id = ?1 AND e.show_id = ?2`
@@ -160,10 +160,17 @@ titles.get("/shows/:id", optionalAuth, async (c) => {
     show: showJson,
     seasons: seasonsFrom(episodes),
     user: {
-      followed: !!userShow,
-      state: userShow?.state ?? null,
+      // A state-'hidden' row is the issue-#260 tombstone (a hidden show that
+      // was unfollowed, kept only so the privacy flag survives) — it must
+      // not read as followed, or the page would offer Unfollow on a show
+      // that isn't tracked.
+      followed: !!userShow && userShow.state !== "hidden",
+      state: userShow?.state === "hidden" ? null : (userShow?.state ?? null),
       rating: showRating ? { score: showRating.score, emoji: showRating.emoji_reaction } : null,
       favorited: favR.results.length > 0,
+      // Per-user privacy flag (issue #260) — drives the show page's eye
+      // toggle. Only ever the viewer's own bit; never anyone else's.
+      hidden: !!userShow?.hidden,
     },
     progress: {
       watched: airedEps.filter((e) => e.watched).length,

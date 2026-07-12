@@ -148,6 +148,10 @@ export async function notifyFollowersOfWatch(
        -- "X watched Y" IS the actor's watch activity, so it obeys the same
        -- visibility rule as the activity feed (issue #205): the actor shares
        -- activity AND their profile is public or mutual with the recipient.
+       -- And like the feed, a show the ACTOR hid (issue #260) never fans out
+       -- — the notification would broadcast exactly what hiding conceals.
+       AND (?2 != 'show' OR NOT EXISTS (SELECT 1 FROM user_shows ah
+                                        WHERE ah.user_id = ?1 AND ah.show_id = ?3 AND ah.hidden = 1))
        AND au.activity_public = 1
        AND (au.profile_public = 1 OR EXISTS (
              SELECT 1 FROM follows r
@@ -226,11 +230,14 @@ export async function notifyFollowersOfComment(
   const since = new Date(Date.now() - DEDUPE_WINDOW_MS).toISOString();
 
   // Follower-tracks-the-title test, resolved here (not with CASE in SQL) so
-  // each shape keeps its own indexed EXISTS probe.
+  // each shape keeps its own indexed EXISTS probe. A recipient who HID the
+  // show (issue #260) doesn't count as tracking it: a push naming it on
+  // their lock screen would leak exactly what hiding conceals.
   const tracksTitle =
     targetType === "show"
       ? `EXISTS (SELECT 1 FROM user_shows us
-                 WHERE us.user_id = f.follower_id AND us.show_id = ?3 AND us.state != 'hidden')`
+                 WHERE us.user_id = f.follower_id AND us.show_id = ?3
+                   AND us.state != 'hidden' AND us.hidden = 0)`
       : `EXISTS (SELECT 1 FROM user_movies um
                  WHERE um.user_id = f.follower_id AND um.movie_id = ?3)`;
 
@@ -249,6 +256,10 @@ export async function notifyFollowersOfComment(
      JOIN users au ON au.id = f.followee_id AND au.deleted_at IS NULL AND au.shadow_banned = 0
      JOIN users ru ON ru.id = f.follower_id AND ru.deleted_at IS NULL
      WHERE f.followee_id = ?1 AND f.state = 'active'
+       -- The ACTOR hid this show (issue #260): the comment stays public on
+       -- its thread, but no notification may broadcast the association.
+       AND (?2 != 'show' OR NOT EXISTS (SELECT 1 FROM user_shows ah
+                                        WHERE ah.user_id = ?1 AND ah.show_id = ?3 AND ah.hidden = 1))
        AND COALESCE((SELECT np.follow_comment FROM notification_prefs np
                      WHERE np.user_id = f.follower_id AND np.show_id = 0), 1) = 1
        AND ${tracksTitle}
@@ -339,9 +350,12 @@ export async function notifyTrackersOfComment(
   // are skipped, and a shadow-banned or deleted actor drops the whole
   // fan-out — their comments render as [deleted] to everyone else, so a
   // notification would advertise a comment nobody can see (and leak the ban).
+  // As in the follow_comment fan-out, a tracker who hid the show (issue
+  // #260) is skipped — no notification (or lock-screen push) may name it.
   const trackers =
     targetType === "show"
-      ? `SELECT us.user_id AS uid FROM user_shows us WHERE us.show_id = ?3 AND us.state != 'hidden'`
+      ? `SELECT us.user_id AS uid FROM user_shows us
+         WHERE us.show_id = ?3 AND us.state != 'hidden' AND us.hidden = 0`
       : `SELECT um.user_id AS uid FROM user_movies um WHERE um.movie_id = ?3`;
 
   const { results: created } = await env.DB.prepare(
@@ -351,6 +365,9 @@ export async function notifyTrackersOfComment(
      JOIN users au ON au.id = ?1 AND au.deleted_at IS NULL AND au.shadow_banned = 0
      JOIN users ru ON ru.id = t.uid AND ru.deleted_at IS NULL
      WHERE t.uid != ?1
+       -- Actor-hid-the-show guard (issue #260), as in the follow fan-outs.
+       AND (?2 != 'show' OR NOT EXISTS (SELECT 1 FROM user_shows ah
+                                        WHERE ah.user_id = ?1 AND ah.show_id = ?3 AND ah.hidden = 1))
        AND COALESCE((SELECT np.tracked_comment FROM notification_prefs np
                      WHERE np.user_id = t.uid AND np.show_id = 0), 1) = 1
        AND NOT EXISTS (SELECT 1 FROM notifications n

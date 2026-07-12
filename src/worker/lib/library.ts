@@ -62,12 +62,23 @@ export function recentlyActive(lastWatched: string | null, lastAired: string | n
 // planning shown on no public surface (issue #245) — the public route spreads
 // this payload into its response verbatim, so the buckets must not exist
 // unless a caller explicitly asks for them.
-export async function libraryPayload(db: D1Database, uid: number, tz: string, opts?: { watchlist?: boolean }) {
+//
+// `opts.includeHidden` opts IN to shows the user hid (issue #260) — same
+// safe-by-default posture: only the owner's authed GET /library passes it, so
+// the public library can never serve a hidden show even if a future caller
+// forgets to think about it. Owner rows then carry a `hidden` flag so the
+// Library can mark them; the public payload never grows the field.
+export async function libraryPayload(
+  db: D1Database,
+  uid: number,
+  tz: string,
+  opts?: { watchlist?: boolean; includeHidden?: boolean }
+) {
   const today = todayInTz(tz);
   const stmts = [
     db
       .prepare(
-        `SELECT us.show_id AS id, us.state, s.title, s.poster_url AS poster, s.status,
+        `SELECT us.show_id AS id, us.state, us.hidden, s.title, s.poster_url AS poster, s.status,
          s.genres_json, s.original_language,
          (SELECT COUNT(*) FROM episodes e WHERE e.show_id = us.show_id AND e.season_number > 0
             AND ${airedCond("?2", "s")}) AS aired,
@@ -82,6 +93,7 @@ export async function libraryPayload(db: D1Database, uid: number, tz: string, op
             AND e.air_date IS NOT NULL AND e.air_date <= ?2) AS last_aired
        FROM user_shows us JOIN shows s ON s.tmdb_id = us.show_id
        WHERE us.user_id = ?1 AND us.state NOT IN ('watch_later', 'hidden')
+         ${opts?.includeHidden ? "" : "AND us.hidden = 0"}
        ORDER BY s.title`
       )
       .bind(uid, today),
@@ -135,10 +147,14 @@ export async function libraryPayload(db: D1Database, uid: number, tz: string, op
   const shows: any[] = [];
   const animeShows: any[] = [];
   for (const r of showsR.results as any[]) {
-    const { genres_json, original_language, ...rest } = r;
+    const { genres_json, original_language, hidden, ...rest } = r;
     const derivedState = deriveState(r);
     const item = {
       ...rest,
+      // The hidden flag (issue #260) ships only on the owner's opted-in
+      // payload — the public rows are pre-filtered to hidden = 0, so the
+      // field would only be dead weight (and shape drift) there.
+      ...(opts?.includeHidden ? { hidden: !!hidden } : {}),
       derivedState,
       stale: derivedState === "watching" && !recentlyActive(r.last_watched_at, r.last_aired, recentSince),
     };

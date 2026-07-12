@@ -86,7 +86,8 @@ function historyShowsStmt(c: Context<AppEnv>, uid: number, anime: boolean): D1Pr
          WHERE ue.user_id = ?1 AND e.season_number > 0
            AND ${anime ? "" : "NOT "}${animeCond("s")}
            AND NOT EXISTS (SELECT 1 FROM user_shows h
-                           WHERE h.user_id = ?1 AND h.show_id = e.show_id AND h.state = 'hidden')
+                           WHERE h.user_id = ?1 AND h.show_id = e.show_id
+                             AND (h.state = 'hidden' OR h.hidden = 1))
        ) w
      ) WHERE rn = 1 ORDER BY ts DESC LIMIT ${HISTORY_ROW_LIMIT}`
   ).bind(uid);
@@ -136,7 +137,11 @@ pub.get("/profile/:username", async (c) => {
     // Comment activity (issue #16): which shows this user is talking about.
     // Episode comments surface their show's title — that's the conversation
     // a visitor cares about. Deleted comments never appear, and rows whose
-    // catalog target vanished are dropped here, not client-side.
+    // catalog target vanished are dropped here, not client-side. Comments on
+    // a show the owner hid (issue #260) — direct or via one of its episodes —
+    // stay out too: "talking about Real Sex" outs the show as surely as a
+    // watch tile would. (s.tmdb_id / es.tmdb_id are NULL for movie comments,
+    // so the NOT EXISTS never matches and movies are unaffected.)
     c.env.DB.prepare(
       `SELECT c.id, c.body, c.created_at, c.target_type, c.target_id,
               COALESCE(s.title, m.title, es.title) AS title,
@@ -148,6 +153,9 @@ pub.get("/profile/:username", async (c) => {
        LEFT JOIN shows es ON es.tmdb_id = e.show_id
        WHERE c.user_id = ?1 AND c.deleted_at IS NULL
          AND COALESCE(s.title, m.title, es.title) IS NOT NULL
+         AND NOT EXISTS (SELECT 1 FROM user_shows h
+                         WHERE h.user_id = ?1 AND h.hidden = 1
+                           AND h.show_id = COALESCE(s.tmdb_id, es.tmdb_id))
        ORDER BY c.created_at DESC LIMIT 15`
     ).bind(user.id),
     c.env.DB.prepare("SELECT achievement_id FROM user_achievements WHERE user_id = ?1 ORDER BY unlocked_at").bind(user.id),
