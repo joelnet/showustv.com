@@ -568,13 +568,21 @@ export function ShowPage() {
                         Resume watching
                       </button>
                     ) : (
-                      <button
-                        className="btn btn-ghost"
-                        onClick={run(() => put(`/shows/${show.id}/state`, { state: "stopped" }), (d) => withUser(d, { state: "stopped" }))}
-                        disabled={busy}
-                      >
-                        Abandon show
-                      </button>
+                      // Abandon is only for shows genuinely in progress (issue
+                      // #258): with nothing watched the right action is Remove
+                      // (below), and with every aired episode watched there's
+                      // nothing left to abandon. Same aired regular-season
+                      // counting as the server's deriveState.
+                      progress.watched > 0 &&
+                      !isCaughtUp(data) && (
+                        <button
+                          className="btn btn-ghost"
+                          onClick={run(() => put(`/shows/${show.id}/state`, { state: "stopped" }), (d) => withUser(d, { state: "stopped" }))}
+                          disabled={busy}
+                        >
+                          Abandon show
+                        </button>
+                      )
                     )}
                   </>
                 ) : (

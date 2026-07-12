@@ -328,6 +328,25 @@ library.put("/shows/:id/state", async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const state = String(body.state ?? "");
   if (!id || !(STORED_SHOW_STATES as readonly string[]).includes(state)) return c.json({ error: "bad request" }, 400);
+  if (state === "stopped") {
+    // Abandoning only makes sense mid-show (issue #258): an unwatched show
+    // should be removed instead, and one with every aired episode watched is
+    // finished/caught up, not abandoned. Same counting as libraryPayload's
+    // deriveState — regular seasons only (season_number > 0), aired per the
+    // shared airedCond rule in the viewer's timezone. The UI hides Abandon in
+    // these cases; this rejects stale or hand-crafted requests to match.
+    const row = await c.env.DB.prepare(
+      `SELECT
+         (SELECT COUNT(*) FROM user_episodes ue JOIN episodes e ON e.id = ue.episode_id
+            WHERE ue.user_id = ?1 AND e.show_id = ?2 AND e.season_number > 0) AS watched,
+         (SELECT COUNT(*) FROM episodes e JOIN shows s ON s.tmdb_id = e.show_id
+            WHERE e.show_id = ?2 AND e.season_number > 0 AND ${airedCond("?3", "s")}) AS aired`
+    )
+      .bind(c.get("uid"), id, todayInTz(c.get("tz")))
+      .first<{ watched: number; aired: number }>();
+    if (!row || row.watched === 0 || row.watched >= row.aired)
+      return c.json({ error: "only a partially watched show can be abandoned" }, 409);
+  }
   await c.env.DB.prepare(
     `UPDATE user_shows SET state = ?3, last_state_change = strftime('%Y-%m-%dT%H:%M:%fZ','now')
      WHERE user_id = ?1 AND show_id = ?2`
