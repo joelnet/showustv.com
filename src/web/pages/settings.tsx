@@ -144,6 +144,7 @@ interface NotificationPrefs {
   followComment: boolean;
   trackedComment: boolean;
   followFavorite: boolean;
+  newFollower: boolean;
   pushPublicKey: string | null;
 }
 
@@ -164,6 +165,7 @@ function NotificationSettings({ prefs, reload }: { prefs: NotificationPrefs; rel
     followComment?: boolean;
     trackedComment?: boolean;
     followFavorite?: boolean;
+    newFollower?: boolean;
   }) => {
     setBusy(true);
     setErr(null);
@@ -182,6 +184,21 @@ function NotificationSettings({ prefs, reload }: { prefs: NotificationPrefs; rel
 
   return (
     <>
+      <label className="settings-toggle">
+        <input
+          type="checkbox"
+          checked={prefs.newFollower}
+          disabled={busy}
+          onChange={() => togglePref({ newFollower: !prefs.newFollower })}
+        />
+        <span>
+          Someone followed you
+          <span className="settings-hint">
+            Get a notification when another user follows you, with a chance to follow back.
+          </span>
+        </span>
+      </label>
+
       <label className="settings-toggle">
         <input
           type="checkbox"

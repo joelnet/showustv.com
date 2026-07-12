@@ -383,6 +383,65 @@ export async function notifyFollowersOfFavorite(
   });
 }
 
+// Follow notification (issue #273). When A follows B, B hears about it —
+// "A followed you", or "A followed you back" when B already follows A (A's
+// follow reciprocated one of B's). Single recipient, not a fan-out. The row
+// stores type + actor only (target_type/target_id stay NULL — the actor IS
+// the target); the read side computes live whether the recipient follows
+// the actor back, so the client's Follow back button can never go stale.
+// The route only calls this when the follows INSERT actually created a row
+// (re-following is a no-op there), and the 24h dedupe below absorbs
+// unfollow/refollow flapping on top of that — keyed on BOTH types, so a
+// refollow can't re-buzz under the other wording.
+export async function notifyUserOfFollow(env: Env, actorId: number, followeeId: number): Promise<void> {
+  const since = new Date(Date.now() - DEDUPE_WINDOW_MS).toISOString();
+
+  // Same guards as the fan-outs: deleted recipient skipped, deleted or
+  // shadow-banned actor drops the notification — their profile reads as gone
+  // to everyone else, so it would advertise (and link) an account nobody can
+  // see — and the new_follower pref gates it (default on when no prefs row).
+  // Self-follow can't reach here (the route rejects it and follows CHECKs
+  // follower != followee). Reciprocation picks the type at INSERT time:
+  // "followed you back" is a fact about the moment A followed, not about
+  // the current graph, so it's baked into the row rather than recomputed.
+  const created = await env.DB.prepare(
+    `INSERT INTO notifications (user_id, type, actor_id)
+     SELECT ru.id,
+            CASE WHEN EXISTS (SELECT 1 FROM follows r
+                              WHERE r.follower_id = ?2 AND r.followee_id = ?1 AND r.state = 'active')
+                 THEN 'follow_back' ELSE 'follow' END,
+            ?1
+     FROM users ru
+     JOIN users au ON au.id = ?1 AND au.deleted_at IS NULL AND au.shadow_banned = 0
+     WHERE ru.id = ?2 AND ru.deleted_at IS NULL
+       AND COALESCE((SELECT np.new_follower FROM notification_prefs np
+                     WHERE np.user_id = ?2 AND np.show_id = 0), 1) = 1
+       AND NOT EXISTS (SELECT 1 FROM notifications n
+                       WHERE n.user_id = ?2 AND n.type IN ('follow', 'follow_back')
+                         AND n.actor_id = ?1 AND n.created_at >= ?3)
+     RETURNING type`
+  )
+    .bind(actorId, followeeId, since)
+    .first<{ type: string }>();
+  if (!created || !vapidConfigured(env)) return;
+
+  // Push copy: the event IS the whole message, so the title carries it and
+  // the body suggests the next step. Deep link to the follower's profile —
+  // its Follow button is the same affordance the notifications page offers.
+  const actor = await env.DB.prepare("SELECT username FROM users WHERE id = ?1 AND deleted_at IS NULL")
+    .bind(actorId)
+    .first<{ username: string }>();
+  if (!actor) return;
+
+  await pushToRecipients(env, [followeeId], {
+    title:
+      created.type === "follow_back" ? `${actor.username} followed you back` : `${actor.username} followed you`,
+    body: created.type === "follow_back" ? "You now follow each other" : "See their profile to follow back",
+    url: `/u/${actor.username}`,
+    tag: `fl-${actorId}`,
+  });
+}
+
 // A popular title can have far more trackers than anyone has followers, so
 // unlike the follow fan-outs the tracker fan-out bounds its INSERT too (the
 // lowest user ids win, deterministically) — one runaway thread on a hit show

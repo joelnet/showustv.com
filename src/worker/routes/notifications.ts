@@ -35,7 +35,16 @@ notifications.get("/", async (c) => {
             u.username AS actor,
             COALESCE(s.title, m.title) AS title,
             COALESCE(s.poster_url, m.poster_url) AS poster,
-            e.season_number AS ep_season, e.number AS ep_number, e.title AS ep_title
+            e.season_number AS ep_season, e.number AS ep_number, e.title AS ep_title,
+            -- Follow rows (issue #273) carry whether the recipient follows the
+            -- actor NOW, computed live at read time — so the Follow back button
+            -- disappears the moment it's true, however the follow happened
+            -- (this button, their profile, the following page). NULL for every
+            -- other type (CASE without ELSE).
+            CASE WHEN n.type IN ('follow', 'follow_back') THEN
+              EXISTS (SELECT 1 FROM follows fb
+                      WHERE fb.follower_id = n.user_id AND fb.followee_id = n.actor_id AND fb.state = 'active')
+            END AS you_follow_actor
      FROM notifications n
      LEFT JOIN users u ON u.id = n.actor_id AND u.deleted_at IS NULL
      LEFT JOIN shows s ON n.target_type = 'show' AND s.tmdb_id = n.target_id
@@ -60,6 +69,7 @@ notifications.get("/", async (c) => {
       ep_season: number | null;
       ep_number: number | null;
       ep_title: string | null;
+      you_follow_actor: number | null;
     }>();
 
   const items = results.map((r) => ({
@@ -78,6 +88,9 @@ notifications.get("/", async (c) => {
     season: r.ep_season,
     number: r.ep_number,
     episodeTitle: r.ep_title,
+    // Follow rows only: does the recipient follow the actor right now? Null
+    // for other types (and moot when the actor's account is gone).
+    youFollowActor: r.you_follow_actor == null ? null : !!r.you_follow_actor,
     read: !!r.read_at,
     createdAt: r.created_at,
   }));
@@ -121,16 +134,23 @@ notifications.post("/read-all", async (c) => {
 // accordingly.
 notifications.get("/prefs", async (c) => {
   const row = await c.env.DB.prepare(
-    "SELECT follow_watch, follow_comment, tracked_comment, follow_favorite FROM notification_prefs WHERE user_id = ?1 AND show_id = 0"
+    "SELECT follow_watch, follow_comment, tracked_comment, follow_favorite, new_follower FROM notification_prefs WHERE user_id = ?1 AND show_id = 0"
   )
     .bind(c.get("uid"))
-    .first<{ follow_watch: number; follow_comment: number; tracked_comment: number; follow_favorite: number }>();
+    .first<{
+      follow_watch: number;
+      follow_comment: number;
+      tracked_comment: number;
+      follow_favorite: number;
+      new_follower: number;
+    }>();
   return c.json({
     // Defaults on when no row, matching the fan-outs' COALESCE.
     followWatch: row ? !!row.follow_watch : true,
     followComment: row ? !!row.follow_comment : true,
     trackedComment: row ? !!row.tracked_comment : true,
     followFavorite: row ? !!row.follow_favorite : true,
+    newFollower: row ? !!row.new_follower : true,
     pushPublicKey: vapidConfigured(c.env) ? c.env.VAPID_PUBLIC_KEY! : null,
   });
 });
@@ -144,18 +164,26 @@ notifications.put("/prefs", async (c) => {
   const followComment = typeof body.followComment === "boolean" ? (body.followComment ? 1 : 0) : null;
   const trackedComment = typeof body.trackedComment === "boolean" ? (body.trackedComment ? 1 : 0) : null;
   const followFavorite = typeof body.followFavorite === "boolean" ? (body.followFavorite ? 1 : 0) : null;
-  if (followWatch == null && followComment == null && trackedComment == null && followFavorite == null)
+  const newFollower = typeof body.newFollower === "boolean" ? (body.newFollower ? 1 : 0) : null;
+  if (
+    followWatch == null &&
+    followComment == null &&
+    trackedComment == null &&
+    followFavorite == null &&
+    newFollower == null
+  )
     return c.json({ error: "bad request" }, 400);
   await c.env.DB.prepare(
-    `INSERT INTO notification_prefs (user_id, show_id, follow_watch, follow_comment, tracked_comment, follow_favorite)
-     VALUES (?1, 0, COALESCE(?2, 1), COALESCE(?3, 1), COALESCE(?4, 1), COALESCE(?5, 1))
+    `INSERT INTO notification_prefs (user_id, show_id, follow_watch, follow_comment, tracked_comment, follow_favorite, new_follower)
+     VALUES (?1, 0, COALESCE(?2, 1), COALESCE(?3, 1), COALESCE(?4, 1), COALESCE(?5, 1), COALESCE(?6, 1))
      ON CONFLICT (user_id, show_id) DO UPDATE SET
        follow_watch = COALESCE(?2, follow_watch),
        follow_comment = COALESCE(?3, follow_comment),
        tracked_comment = COALESCE(?4, tracked_comment),
-       follow_favorite = COALESCE(?5, follow_favorite)`
+       follow_favorite = COALESCE(?5, follow_favorite),
+       new_follower = COALESCE(?6, new_follower)`
   )
-    .bind(c.get("uid"), followWatch, followComment, trackedComment, followFavorite)
+    .bind(c.get("uid"), followWatch, followComment, trackedComment, followFavorite, newFollower)
     .run();
   return c.json({ ok: true });
 });

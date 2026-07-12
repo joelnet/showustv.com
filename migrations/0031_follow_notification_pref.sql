@@ -1,0 +1,14 @@
+-- issue #273: following a user notifies them — "X followed you", or "X
+-- followed you back" when X's follow reciprocates one the recipient already
+-- had. The notification reuses the 0020 shape — type 'follow' or
+-- 'follow_back', actor_id is the new follower, target_type/target_id/
+-- episode_id stay NULL (the actor IS the target) — so no new notification
+-- columns.
+--
+-- Per-user toggle for the new types (one pref gates both wordings), on the
+-- global prefs row (show_id = 0 sentinel, same as
+-- follow_watch/follow_comment/tracked_comment/follow_favorite). Default on,
+-- matching every other notification pref.
+--
+-- No new index: this is a single-recipient notification, not a fan-out.
+ALTER TABLE notification_prefs ADD COLUMN new_follower INTEGER NOT NULL DEFAULT 1 CHECK (new_follower IN (0,1));

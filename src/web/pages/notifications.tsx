@@ -11,6 +11,7 @@ import { pushSupported, refreshUnread } from "../notifications";
 import { poster } from "../img";
 import { fmtAgo, fmtDateTime, epCode } from "../format";
 import { Empty, ErrorNote } from "../components/ui";
+import { IconPlus } from "../components/icons";
 import { PushToggle } from "../components/push-toggle";
 import { mediaPath } from "../paths";
 import { RowListSkeleton } from "../components/skeleton";
@@ -29,6 +30,9 @@ interface NotificationItem {
   season: number | null;
   number: number | null;
   episodeTitle: string | null;
+  // Follow rows (issue #273) only: whether I follow the actor right now,
+  // computed by the server at read time. Null for every other type.
+  youFollowActor: boolean | null;
   read: boolean;
   createdAt: string;
 }
@@ -44,6 +48,14 @@ interface NotificationItem {
 // episode) degrades to "watched an episode of Dexter" / "commented on
 // Dexter" / "watched Inception".
 function NotificationBody({ n }: { n: NotificationItem }) {
+  // Follow rows (issue #273) have no media target — the actor IS the story,
+  // and their name (rendered by the caller) already links their profile. The
+  // wording was fixed at creation time: 'follow_back' means the actor's
+  // follow reciprocated one the recipient already had.
+  if (n.type === "follow" || n.type === "follow_back") {
+    return <>{n.type === "follow_back" ? "followed you back" : "followed you"}</>;
+  }
+
   const targetLink =
     n.targetType && n.targetId != null ? (
       <Link to={mediaPath(n.targetType, n.targetId, n.title)}>{n.title ?? `a ${n.targetType}`}</Link>
@@ -89,6 +101,38 @@ function NotificationBody({ n }: { n: NotificationItem }) {
   return <>watched {targetLink}</>;
 }
 
+// The follow-back affordance (issue #273), shown on a follow row only while
+// the recipient doesn't already follow the actor. The server computes that
+// live at read time, so a follow made anywhere (their profile, the following
+// page) means the button simply doesn't render on the next load — this
+// visit only needs to cover its own clicks. `done` comes from the PAGE (a
+// per-actor set), not local state: two historical rows from the same actor
+// both settle to a quiet "Following" the moment either button is clicked.
+// Same endpoint and idempotence as the following page's Follow back button.
+function FollowBackButton({ username, done, onDone }: { username: string; done: boolean; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  if (done) return <span className="mono notif-when">Following</span>;
+  return (
+    <button
+      className="btn"
+      disabled={busy}
+      onClick={async () => {
+        setBusy(true);
+        try {
+          await post("/social/follow", { username });
+          onDone();
+        } catch {
+          // failed — leave the button for a retry
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <IconPlus size={14} /> Follow back
+    </button>
+  );
+}
+
 // Extra path to turn on push (issue #237): people live on this page (it's
 // where the bell lands) long before they ever open settings, so surface the
 // same per-device opt-in here when this browser could receive pushes but
@@ -108,6 +152,9 @@ export function NotificationsPage() {
   const [cursor, setCursor] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  // Actors followed back DURING this visit — keyed by username so every row
+  // from the same actor settles together, not just the one that was clicked.
+  const [followedBack, setFollowedBack] = useState<ReadonlySet<string>>(new Set());
 
   const load = useCallback(async (before: number | null) => {
     const q = before ? `?before=${before}` : "";
@@ -155,7 +202,7 @@ export function NotificationsPage() {
       {!items.length ? (
         <Empty
           title="No notifications yet"
-          hint="When someone comments on a show or movie you track, or someone you follow watches, favorites, or comments, you'll hear about it here."
+          hint="When someone follows you, comments on a show or movie you track, or someone you follow watches, favorites, or comments, you'll hear about it here."
         />
       ) : (
         <>
@@ -173,6 +220,13 @@ export function NotificationsPage() {
                   )}{" "}
                   <NotificationBody n={n} />
                 </span>
+                {n.actor != null && n.youFollowActor === false && (
+                  <FollowBackButton
+                    username={n.actor}
+                    done={followedBack.has(n.actor)}
+                    onDone={() => setFollowedBack((cur) => new Set(cur).add(n.actor!))}
+                  />
+                )}
                 <span className="mono notif-when" title={fmtDateTime(n.createdAt, tz)}>
                   {fmtAgo(n.createdAt)}
                 </span>

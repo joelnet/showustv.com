@@ -17,6 +17,7 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
 import type { AppEnv } from "../env";
+import { notifyUserOfFollow } from "../lib/notifications";
 
 export const social = new Hono<AppEnv>();
 
@@ -136,11 +137,20 @@ social.post("/follow", async (c) => {
 
   // is_private is never set today, so this is always an instant active follow.
   // When private accounts land, branch here to insert a 'pending' request.
-  await c.env.DB.prepare(
+  const { meta } = await c.env.DB.prepare(
     "INSERT INTO follows (follower_id, followee_id, state) VALUES (?1, ?2, 'active') ON CONFLICT DO NOTHING"
   )
     .bind(uid, target.id)
     .run();
+  // Notify the followee (issue #273), off the response path — the same hook
+  // shape as the watch/favorite routes. meta.changes detects the transition
+  // INTO following: the ON CONFLICT no-op reports 0 changes, so re-following
+  // someone you already follow never re-notifies.
+  if (meta.changes) {
+    c.executionCtx.waitUntil(
+      notifyUserOfFollow(c.env, uid, target.id).catch((e) => console.error("notify failed", e))
+    );
+  }
   return c.json({ relation: "following" });
 });
 
