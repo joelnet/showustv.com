@@ -1,0 +1,12 @@
+-- issue #266: favoriting a show or movie notifies your followers. The
+-- notification reuses the 0020 shape — type 'follow_favorite',
+-- target_type/target_id point at the favorited show or movie, episode_id
+-- stays NULL — so no new notification columns.
+--
+-- Per-user toggle for the new type, on the global prefs row (show_id = 0
+-- sentinel, same as follow_watch/follow_comment/tracked_comment). Default
+-- on, matching every other notification pref.
+--
+-- No new index: the fan-out is follower-first over idx_follows_followee
+-- (followee_id, state), exactly like the follow_watch fan-out.
+ALTER TABLE notification_prefs ADD COLUMN follow_favorite INTEGER NOT NULL DEFAULT 1 CHECK (follow_favorite IN (0,1));

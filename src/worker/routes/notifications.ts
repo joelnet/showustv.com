@@ -121,15 +121,16 @@ notifications.post("/read-all", async (c) => {
 // accordingly.
 notifications.get("/prefs", async (c) => {
   const row = await c.env.DB.prepare(
-    "SELECT follow_watch, follow_comment, tracked_comment FROM notification_prefs WHERE user_id = ?1 AND show_id = 0"
+    "SELECT follow_watch, follow_comment, tracked_comment, follow_favorite FROM notification_prefs WHERE user_id = ?1 AND show_id = 0"
   )
     .bind(c.get("uid"))
-    .first<{ follow_watch: number; follow_comment: number; tracked_comment: number }>();
+    .first<{ follow_watch: number; follow_comment: number; tracked_comment: number; follow_favorite: number }>();
   return c.json({
     // Defaults on when no row, matching the fan-outs' COALESCE.
     followWatch: row ? !!row.follow_watch : true,
     followComment: row ? !!row.follow_comment : true,
     trackedComment: row ? !!row.tracked_comment : true,
+    followFavorite: row ? !!row.follow_favorite : true,
     pushPublicKey: vapidConfigured(c.env) ? c.env.VAPID_PUBLIC_KEY! : null,
   });
 });
@@ -142,17 +143,19 @@ notifications.put("/prefs", async (c) => {
   const followWatch = typeof body.followWatch === "boolean" ? (body.followWatch ? 1 : 0) : null;
   const followComment = typeof body.followComment === "boolean" ? (body.followComment ? 1 : 0) : null;
   const trackedComment = typeof body.trackedComment === "boolean" ? (body.trackedComment ? 1 : 0) : null;
-  if (followWatch == null && followComment == null && trackedComment == null)
+  const followFavorite = typeof body.followFavorite === "boolean" ? (body.followFavorite ? 1 : 0) : null;
+  if (followWatch == null && followComment == null && trackedComment == null && followFavorite == null)
     return c.json({ error: "bad request" }, 400);
   await c.env.DB.prepare(
-    `INSERT INTO notification_prefs (user_id, show_id, follow_watch, follow_comment, tracked_comment)
-     VALUES (?1, 0, COALESCE(?2, 1), COALESCE(?3, 1), COALESCE(?4, 1))
+    `INSERT INTO notification_prefs (user_id, show_id, follow_watch, follow_comment, tracked_comment, follow_favorite)
+     VALUES (?1, 0, COALESCE(?2, 1), COALESCE(?3, 1), COALESCE(?4, 1), COALESCE(?5, 1))
      ON CONFLICT (user_id, show_id) DO UPDATE SET
        follow_watch = COALESCE(?2, follow_watch),
        follow_comment = COALESCE(?3, follow_comment),
-       tracked_comment = COALESCE(?4, tracked_comment)`
+       tracked_comment = COALESCE(?4, tracked_comment),
+       follow_favorite = COALESCE(?5, follow_favorite)`
   )
-    .bind(c.get("uid"), followWatch, followComment, trackedComment)
+    .bind(c.get("uid"), followWatch, followComment, trackedComment, followFavorite)
     .run();
   return c.json({ ok: true });
 });

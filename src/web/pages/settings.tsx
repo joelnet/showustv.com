@@ -143,6 +143,7 @@ interface NotificationPrefs {
   followWatch: boolean;
   followComment: boolean;
   trackedComment: boolean;
+  followFavorite: boolean;
   pushPublicKey: string | null;
 }
 
@@ -158,7 +159,12 @@ function NotificationSettings({ prefs, reload }: { prefs: NotificationPrefs; rel
   const supported = pushSupported();
 
   // One toggle per notification type; the PUT takes just the flipped key.
-  const togglePref = async (patch: { followWatch?: boolean; followComment?: boolean; trackedComment?: boolean }) => {
+  const togglePref = async (patch: {
+    followWatch?: boolean;
+    followComment?: boolean;
+    trackedComment?: boolean;
+    followFavorite?: boolean;
+  }) => {
     setBusy(true);
     setErr(null);
     try {
@@ -186,6 +192,19 @@ function NotificationSettings({ prefs, reload }: { prefs: NotificationPrefs; rel
         <span>
           Someone you follow watched a show
           <span className="settings-hint">Get a notification when people you follow watch shows and movies.</span>
+        </span>
+      </label>
+
+      <label className="settings-toggle">
+        <input
+          type="checkbox"
+          checked={prefs.followFavorite}
+          disabled={busy}
+          onChange={() => togglePref({ followFavorite: !prefs.followFavorite })}
+        />
+        <span>
+          Someone you follow favorited a show
+          <span className="settings-hint">Get a notification when people you follow favorite shows and movies.</span>
         </span>
       </label>
 

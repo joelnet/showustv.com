@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../env";
 import { ensureShow, ensureMovie } from "../lib/tmdb";
+import { notifyFollowersOfFavorite } from "../lib/notifications";
 
 export const lists = new Hono<AppEnv>();
 
@@ -135,18 +136,37 @@ lists.post("/:id/items", async (c) => {
   const targetId = Number(body.id);
   if (!["show", "movie"].includes(type) || !Number.isInteger(targetId) || targetId <= 0)
     return c.json({ error: "bad item" }, 400);
-  if (!(await ownList(c, id))) return c.json({ error: "not found" }, 404);
+  // Alone among these routes, the list's KIND matters: the Favorites system
+  // list sits in the "Add to list…" picker too, and adding to it there IS
+  // favoriting — it must notify exactly like the heart endpoints.
+  const list = await c.env.DB.prepare("SELECT kind FROM custom_lists WHERE id = ?1 AND user_id = ?2")
+    .bind(id, c.get("uid"))
+    .first<{ kind: string }>();
+  if (!list) return c.json({ error: "not found" }, 404);
 
   if (type === "show") await ensureShow(c.env, targetId);
   else await ensureMovie(c.env, targetId);
 
-  await c.env.DB.prepare(
+  // RETURNING detects the transition INTO the list (the ON CONFLICT no-op
+  // returns nothing), so a re-add never re-notifies.
+  const created = await c.env.DB.prepare(
     `INSERT INTO custom_list_items (list_id, target_type, target_id, position)
      SELECT ?1, ?2, ?3, COALESCE(MAX(position) + 1, 0) FROM custom_list_items WHERE list_id = ?1
-     ON CONFLICT (list_id, target_type, target_id) DO NOTHING`
+     ON CONFLICT (list_id, target_type, target_id) DO NOTHING
+     RETURNING list_id`
   )
     .bind(id, type, targetId)
-    .run();
+    .first();
+  // Notify followers (issue #266), off the response path — same hook as the
+  // heart routes in library.ts; the fan-out skips hidden shows (#260) and
+  // dedupes per actor/title per day.
+  if (created && list.kind === "favorites") {
+    c.executionCtx.waitUntil(
+      notifyFollowersOfFavorite(c.env, c.get("uid"), type as "show" | "movie", targetId).catch((e) =>
+        console.error("notify failed", e)
+      )
+    );
+  }
   return c.json({ ok: true });
 });
 

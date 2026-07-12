@@ -300,6 +300,89 @@ export async function notifyFollowersOfComment(
   });
 }
 
+// Followers are usually far fewer than trackers of a hit title, but a
+// favorite by a big account still shouldn't write unbounded rows in one
+// invocation — cap the INSERT like the tracker fan-out below (lowest
+// follower ids win, deterministically). The push cap still applies on top.
+const MAX_FAVORITE_FANOUT = 500;
+
+// Favorite fan-out (issue #266). When a user favorites a show or movie,
+// their followers hear about it — "X favorited Y" — linking to the title
+// page. The routes (the heart endpoints, and the list-items endpoint when
+// the target list is the Favorites system list) only call this when the
+// favorite INSERT actually created a row (a re-favorite of something
+// already in the list is a no-op there), and the 24h dedupe below absorbs
+// heart-toggle flapping on top of that.
+export async function notifyFollowersOfFavorite(
+  env: Env,
+  actorId: number,
+  targetType: "show" | "movie",
+  targetId: number
+): Promise<void> {
+  const since = new Date(Date.now() - DEDUPE_WINDOW_MS).toISOString();
+
+  // One statement, mirroring the watch fan-out: active followers only (self
+  // can't appear — follows CHECKs follower != followee), deleted recipients
+  // skipped, follow_favorite pref gated (default on when no prefs row), and
+  // deduped per (recipient, actor, target) over 24 hours. The `au` join
+  // drops the whole fan-out when the favoriter is deleted or shadow-banned —
+  // their profile reads as gone to everyone else, so a notification would
+  // advertise (and link) an account nobody can see.
+  const { results: created } = await env.DB.prepare(
+    `INSERT INTO notifications (user_id, type, actor_id, target_type, target_id)
+     SELECT f.follower_id, 'follow_favorite', ?1, ?2, ?3
+     FROM follows f
+     JOIN users au ON au.id = f.followee_id AND au.deleted_at IS NULL AND au.shadow_banned = 0
+     JOIN users ru ON ru.id = f.follower_id AND ru.deleted_at IS NULL
+     WHERE f.followee_id = ?1 AND f.state = 'active'
+       -- A show the ACTOR hid (issue #260) never fans out — the notification
+       -- would broadcast exactly what hiding conceals.
+       AND (?2 != 'show' OR NOT EXISTS (SELECT 1 FROM user_shows ah
+                                        WHERE ah.user_id = ?1 AND ah.show_id = ?3 AND ah.hidden = 1))
+       -- Favorites are profile content: on a private profile the favorites
+       -- list is visible to mutuals only (public.ts profileGate), so the
+       -- notification obeys the same rule — a follower who couldn't see the
+       -- favorite on the profile doesn't hear about it either. Unlike
+       -- follow_watch there's no activity_public gate: that flag governs the
+       -- watch-activity feed, and favorites aren't part of it.
+       AND (au.profile_public = 1 OR EXISTS (
+             SELECT 1 FROM follows r
+             WHERE r.follower_id = f.followee_id AND r.followee_id = f.follower_id AND r.state = 'active'))
+       AND COALESCE((SELECT np.follow_favorite FROM notification_prefs np
+                     WHERE np.user_id = f.follower_id AND np.show_id = 0), 1) = 1
+       AND NOT EXISTS (SELECT 1 FROM notifications n
+                       WHERE n.user_id = f.follower_id AND n.type = 'follow_favorite'
+                         AND n.actor_id = ?1 AND n.target_type = ?2 AND n.target_id = ?3
+                         AND n.created_at >= ?4)
+     ORDER BY f.follower_id
+     LIMIT ?5
+     RETURNING user_id`
+  )
+    .bind(actorId, targetType, targetId, since, MAX_FAVORITE_FANOUT)
+    .all<{ user_id: number }>();
+  if (!created.length || !vapidConfigured(env)) return;
+
+  // Push copy, resolved here so the favorite routes' hook stays one line.
+  // Same shape as the watch push: short title (`<user> favorited`), the
+  // show/movie in the body, deep link to the title page.
+  const [actorR, titleR] = await env.DB.batch([
+    env.DB.prepare("SELECT username FROM users WHERE id = ?1 AND deleted_at IS NULL").bind(actorId),
+    targetType === "show"
+      ? env.DB.prepare("SELECT title FROM shows WHERE tmdb_id = ?1").bind(targetId)
+      : env.DB.prepare("SELECT title FROM movies WHERE tmdb_id = ?1").bind(targetId),
+  ]);
+  const actor = (actorR.results[0] as { username: string } | undefined)?.username;
+  const title = (titleR.results[0] as { title: string } | undefined)?.title;
+  if (!actor || !title) return;
+
+  await pushToRecipients(env, created.map((r) => r.user_id), {
+    title: `${actor} favorited`,
+    body: title,
+    url: `/${targetType}/${targetId}`,
+    tag: `ffav-${actorId}-${targetType.charAt(0)}-${targetId}`,
+  });
+}
+
 // A popular title can have far more trackers than anyone has followers, so
 // unlike the follow fan-outs the tracker fan-out bounds its INSERT too (the
 // lowest user ids win, deterministically) — one runaway thread on a hit show

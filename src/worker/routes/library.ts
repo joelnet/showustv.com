@@ -4,7 +4,7 @@ import type { AppEnv } from "../env";
 import { ensureShow, ensureMovie } from "../lib/tmdb";
 import { nowIso, todayInTz, daysAgoInTz } from "../lib/dates";
 import { airedCond } from "../lib/aired";
-import { notifyFollowersOfWatch } from "../lib/notifications";
+import { notifyFollowersOfFavorite, notifyFollowersOfWatch } from "../lib/notifications";
 // The library payload and its derivation helpers live in lib/library.ts now
 // (issue #245) — the public library endpoint shares them, stats.ts-style.
 import { libraryPayload, recentlyActive } from "../lib/library";
@@ -467,14 +467,27 @@ library.put("/shows/:id/favorite", async (c) => {
   const id = intParam(c.req.param("id"));
   if (!id) return c.json({ error: "bad id" }, 400);
   await ensureShow(c.env, id);
+  const uid = c.get("uid");
   const listId = await favoritesListId(c, true);
-  await c.env.DB.prepare(
+  // RETURNING detects the transition INTO favorited: the ON CONFLICT no-op
+  // returns nothing, so re-PUTting an existing favorite never re-notifies.
+  const created = await c.env.DB.prepare(
     `INSERT INTO custom_list_items (list_id, target_type, target_id, position)
      SELECT ?1, 'show', ?2, COALESCE(MAX(position) + 1, 0) FROM custom_list_items WHERE list_id = ?1
-     ON CONFLICT (list_id, target_type, target_id) DO NOTHING`
+     ON CONFLICT (list_id, target_type, target_id) DO NOTHING
+     RETURNING list_id`
   )
     .bind(listId, id)
-    .run();
+    .first();
+  // Notify followers (issue #266), off the response path — the same hook
+  // shape as the watch routes. The fan-out itself skips shows this user hid
+  // (#260) and dedupes per actor/title per day, so an unfavorite/refavorite
+  // flap stays one notification.
+  if (created) {
+    c.executionCtx.waitUntil(
+      notifyFollowersOfFavorite(c.env, uid, "show", id).catch((e) => console.error("notify failed", e))
+    );
+  }
   return c.json({ ok: true });
 });
 
@@ -494,14 +507,22 @@ library.put("/movies/:id/favorite", async (c) => {
   const id = intParam(c.req.param("id"));
   if (!id) return c.json({ error: "bad id" }, 400);
   await ensureMovie(c.env, id);
+  const uid = c.get("uid");
   const listId = await favoritesListId(c, true);
-  await c.env.DB.prepare(
+  // Same transition detection + follower fan-out as the show route above.
+  const created = await c.env.DB.prepare(
     `INSERT INTO custom_list_items (list_id, target_type, target_id, position)
      SELECT ?1, 'movie', ?2, COALESCE(MAX(position) + 1, 0) FROM custom_list_items WHERE list_id = ?1
-     ON CONFLICT (list_id, target_type, target_id) DO NOTHING`
+     ON CONFLICT (list_id, target_type, target_id) DO NOTHING
+     RETURNING list_id`
   )
     .bind(listId, id)
-    .run();
+    .first();
+  if (created) {
+    c.executionCtx.waitUntil(
+      notifyFollowersOfFavorite(c.env, uid, "movie", id).catch((e) => console.error("notify failed", e))
+    );
+  }
   return c.json({ ok: true });
 });
 
