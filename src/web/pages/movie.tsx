@@ -11,6 +11,7 @@ import { MediaDetailSkeleton } from "../components/skeleton";
 import { WhereToWatch, type WatchInfo } from "../components/where-to-watch";
 import { IconCheck, IconBookmark, IconHeart, IconHeartOutline } from "../components/icons";
 import { ShareButton } from "../components/share";
+import { Comments } from "../components/comments";
 import { AddToList } from "./lists";
 
 interface MoviePayload {
@@ -105,6 +106,10 @@ export function MoviePage() {
             <ExternalLinks title={movie.title} imdbId={movie.imdbId} />
           </div>
         </div>
+
+        {/* Movie comments read like show comments (issue #271): public on a
+            shared link (issue #159), sign-in required only to post. */}
+        <Comments targetType="movie" targetId={movie.id} />
       </div>
     );
   }
@@ -223,6 +228,8 @@ export function MoviePage() {
           <ExternalLinks title={movie.title} imdbId={movie.imdbId} />
         </div>
       </div>
+
+      <Comments targetType="movie" targetId={movie.id} />
     </div>
   );
 }
