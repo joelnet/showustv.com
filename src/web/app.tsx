@@ -495,7 +495,9 @@ export function App() {
             <Route path="/library" element={<LibraryPage tab="shows" />} />
             <Route path="/library/movies" element={<LibraryPage tab="movies" />} />
             <Route path="/library/anime" element={<LibraryPage tab="anime" />} />
-            <Route path="/library/watchlist" element={<LibraryPage tab="watchlist" />} />
+            {/* The Watchlist tab folded into Watch Later subtabs under Shows
+                and Movies (issue #257); old bookmarks land on the Library. */}
+            <Route path="/library/watchlist" element={<Navigate to="/library" replace />} />
             <Route path="/lists" element={<ListsPage />} />
             <Route path="/lists/:id" element={<ListDetailPage />} />
             <Route path="/following" element={<FollowingPage />} />
@@ -519,7 +521,8 @@ export function App() {
                 signed-in viewer — the server gates by profile visibility and
                 serves the owner their own in full, so no OwnOrPublic split:
                 on your own username it doubles as the visitor preview (your
-                real library, watchlist included, stays at /library). */}
+                real library, Watch Later subtabs included, stays at
+                /library). */}
             <Route path="/u/:username/library" element={<PublicLibraryPage tab="shows" />} />
             <Route path="/u/:username/library/movies" element={<PublicLibraryPage tab="movies" />} />
             <Route path="/u/:username/library/anime" element={<PublicLibraryPage tab="anime" />} />

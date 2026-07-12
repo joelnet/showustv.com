@@ -1,8 +1,10 @@
 // The public, read-only library at /u/:username/library (issue #245): the
 // same Shows / Movies / Anime views as the owner's Library — literally the
 // same components (library.tsx) over the same server-side payload shape —
-// with the username up top so it's unmistakably theirs, and no Watchlist tab
-// (planning is private; no public surface shows it). Works signed in or out:
+// with the username up top so it's unmistakably theirs, and no Watch Later
+// content (planning is private; no public surface shows it — the payload
+// carries those buckets only when explicitly requested, and this page's
+// endpoint never asks). Works signed in or out:
 // profiles are shareable, and the profile's history-row headings land here.
 //
 // Visibility is the profile's, nothing more and nothing less (no separate

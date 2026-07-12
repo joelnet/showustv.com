@@ -534,7 +534,8 @@ export function ProfilePage() {
       {/* Watch history rows (issue #245), above Achievements. From the public
           payload like the feed sections below — so this doubles as the
           visitor preview — but the headings link to the owner's own /library
-          tabs: that page (with the watchlist) is the useful one here. */}
+          tabs: that page (with the Watch Later subtabs) is the useful one
+          here. */}
       {pub?.history && <ProfileHistory history={pub.history} base="/library" />}
 
       {/* The grid moved to its own page (issue #201) — the heading itself is

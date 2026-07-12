@@ -55,9 +55,16 @@ export function recentlyActive(lastWatched: string | null, lastAired: string | n
 // viewer's own timezone on the authed route, the signed-in viewer's (or UTC
 // for anonymous visitors) on the public one — a few hours' skew around
 // midnight at most, same as the owner's own view shifts when they travel.
-export async function libraryPayload(db: D1Database, uid: number, tz: string) {
+//
+// `opts.watchlist` opts IN to the watchlistShows / watchlistMovies buckets
+// (issue #257): the Library's Watch Later subtabs under Shows and Movies.
+// Opt-in rather than strip-on-the-way-out because the watchlist is private
+// planning shown on no public surface (issue #245) — the public route spreads
+// this payload into its response verbatim, so the buckets must not exist
+// unless a caller explicitly asks for them.
+export async function libraryPayload(db: D1Database, uid: number, tz: string, opts?: { watchlist?: boolean }) {
   const today = todayInTz(tz);
-  const [showsR, moviesR] = await db.batch([
+  const stmts = [
     db
       .prepare(
         `SELECT us.show_id AS id, us.state, s.title, s.poster_url AS poster, s.status,
@@ -87,7 +94,33 @@ export async function libraryPayload(db: D1Database, uid: number, tz: string) {
        ORDER BY um.watched_at DESC`
       )
       .bind(uid),
-  ]);
+  ];
+  if (opts?.watchlist) {
+    // The Watch Later buckets (issue #257): poster-card rows only, in the
+    // same shape and order the retired top-level Watchlist tab got from
+    // GET /watchlist. Shows order by when they were saved; user_movies has no
+    // added_at (and is WITHOUT ROWID), so movie_id DESC reproduces that
+    // query's `ORDER BY rowid DESC` — which resolved to movies.rowid, i.e.
+    // the same tmdb_id.
+    stmts.push(
+      db
+        .prepare(
+          `SELECT us.show_id AS id, s.title, s.poster_url AS poster
+         FROM user_shows us JOIN shows s ON s.tmdb_id = us.show_id
+         WHERE us.user_id = ?1 AND us.state = 'watch_later' ORDER BY us.added_at DESC`
+        )
+        .bind(uid),
+      db
+        .prepare(
+          `SELECT um.movie_id AS id, m.title, m.poster_url AS poster
+         FROM user_movies um JOIN movies m ON m.tmdb_id = um.movie_id
+         WHERE um.user_id = ?1 AND um.state = 'watchlist' ORDER BY um.movie_id DESC`
+        )
+        .bind(uid)
+    );
+  }
+  const batchR = await db.batch(stmts);
+  const [showsR, moviesR] = batchR;
 
   // A show still being watched but with no watch/air activity in the recent
   // window is "stale" — the same recency split Watch Next uses for its
@@ -119,5 +152,14 @@ export async function libraryPayload(db: D1Database, uid: number, tz: string) {
     (isAnime(parseGenres(genres_json), original_language) ? animeMovies : movies).push(rest);
   }
 
-  return { shows, movies, animeShows, animeMovies };
+  const base = { shows, movies, animeShows, animeMovies };
+  if (!opts?.watchlist) return base;
+
+  // The watchlist buckets are deliberately NOT anime-split: watch-later is a
+  // single planning list per medium (exactly what the old Watchlist tab
+  // held), and the anime partition above only applies to tracked/watched
+  // titles. No duplication either way — a watch-later title lives only under
+  // Watch Later, and moves to its (possibly Anime) home once followed/watched.
+  const [, , wlShowsR, wlMoviesR] = batchR;
+  return { ...base, watchlistShows: wlShowsR.results, watchlistMovies: wlMoviesR.results };
 }

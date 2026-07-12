@@ -243,9 +243,16 @@ library.get("/home", async (c) => {
 // ---------- Library & watchlist ----------
 
 library.get("/library", async (c) => {
-  return c.json(await libraryPayload(c.env.DB, c.get("uid"), c.get("tz")));
+  // The owner's own library carries the Watch Later buckets (issue #257) —
+  // the public route calls libraryPayload without the flag, so the private
+  // watchlist stays off every public surface.
+  return c.json(await libraryPayload(c.env.DB, c.get("uid"), c.get("tz"), { watchlist: true }));
 });
 
+// No Library page fetches this anymore — Watch Later moved into the Shows and
+// Movies subtabs off the /library payload (issue #257). It stays for the
+// offline precache pass (precache.ts warms watchlist titles from it) and for
+// stale service-worker-cached clients still rendering the old Watchlist tab.
 library.get("/watchlist", async (c) => {
   const uid = c.get("uid");
   const [showsR, moviesR] = await c.env.DB.batch([
