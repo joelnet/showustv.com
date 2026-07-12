@@ -21,6 +21,7 @@ import {
   faCalendarDays,
   faClock,
   faFilm,
+  faTv,
   faStar,
   faUser,
   faUserGroup,
@@ -61,6 +62,7 @@ export const IconArrowDown = wrap(faArrowDown);
 export const IconCalendar = wrap(faCalendarDays);
 export const IconClock = wrap(faClock);
 export const IconFilm = wrap(faFilm);
+export const IconTv = wrap(faTv);
 export const IconStar = wrap(faStar);
 export const IconUser = wrap(faUser);
 export const IconUsers = wrap(faUserGroup);

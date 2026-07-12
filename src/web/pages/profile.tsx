@@ -33,6 +33,7 @@ import {
   IconPlay,
   IconClock,
   IconFilm,
+  IconTv,
   IconPencil,
   IconChevron,
 } from "../components/icons";
@@ -40,6 +41,7 @@ import {
 export interface WatchStats {
   episodesWatched: number;
   showsWatched: number;
+  moviesWatched: number;
   minutesWatched: number;
 }
 interface ProfileList {
@@ -135,7 +137,7 @@ function UsernameEditor({
   );
 }
 
-// The three watch stats as a "Stats" slider (issue #250): the stat cards
+// The watch stats as a "Stats" slider (issue #250): the stat cards
 // ride the same horizontal section chrome as the Shows / Movies / Anime
 // history rows below (issue #245), so on phones they side-scroll like every
 // other row instead of stacking into a wall of cards. The heading is plain
@@ -159,10 +161,17 @@ export function StatsGrid({ stats }: { stats: WatchStats }) {
       </div>
       <div className="stat-card">
         <span className="stat-icon" aria-hidden="true">
-          <IconFilm size={16} />
+          <IconTv size={16} />
         </span>
         <span className="stat-value mono">{stats.showsWatched.toLocaleString("en-US")}</span>
         <span className="stat-label">Shows watched</span>
+      </div>
+      <div className="stat-card">
+        <span className="stat-icon" aria-hidden="true">
+          <IconFilm size={16} />
+        </span>
+        <span className="stat-value mono">{stats.moviesWatched.toLocaleString("en-US")}</span>
+        <span className="stat-label">Movies watched</span>
       </div>
     </SliderSection>
   );
