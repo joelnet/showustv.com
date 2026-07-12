@@ -34,20 +34,62 @@ function showBucket(s: LibShow): string {
   return s.derivedState;
 }
 
-type ShowSort = "last_watched" | "alphabetical";
-const SORT_KEY = "library-show-sort";
+// The Library sort (issue #267): one control, shared by the Shows, Movies,
+// and Anime tabs — each with its own persisted choice, so sorting Movies A–Z
+// doesn't reorder Shows. The keys are viewer-local UI preferences, which is
+// why the public library (issue #245) shares them too: the sort belongs to
+// whoever is looking, not to whose library it is.
+type LibrarySort = "last_watched" | "alphabetical";
+const SHOW_SORT_KEY = "library-show-sort";
+const MOVIE_SORT_KEY = "library-movie-sort";
+const ANIME_SORT_KEY = "library-anime-sort";
 
-// Last watched: most recent first; never-watched shows sink to the bottom.
+// Last watched: most recent first; never-watched items sink to the bottom.
 // Alphabetical is the tiebreak (and the whole order for "alphabetical").
-function showComparator(sort: ShowSort) {
-  return (a: LibShow, b: LibShow): number => {
-    if (sort === "last_watched" && a.last_watched_at !== b.last_watched_at) {
-      if (a.last_watched_at == null) return 1;
-      if (b.last_watched_at == null) return -1;
-      return a.last_watched_at > b.last_watched_at ? -1 : 1;
+// `watchedAt` maps the item to its timestamp — shows' last_watched_at is
+// nullable, movies' watched_at never is (a Seen movie was, by definition).
+function libraryComparator<T extends { title: string }>(
+  sort: LibrarySort,
+  watchedAt: (item: T) => string | null
+) {
+  return (a: T, b: T): number => {
+    const aw = watchedAt(a);
+    const bw = watchedAt(b);
+    if (sort === "last_watched" && aw !== bw) {
+      if (aw == null) return 1;
+      if (bw == null) return -1;
+      return aw > bw ? -1 : 1;
     }
     return a.title.localeCompare(b.title);
   };
+}
+
+const showComparator = (sort: LibrarySort) => libraryComparator<LibShow>(sort, (s) => s.last_watched_at);
+const movieComparator = (sort: LibrarySort) => libraryComparator<LibMovie>(sort, (m) => m.watched_at);
+
+function useLibrarySort(key: string): [LibrarySort, (value: LibrarySort) => void] {
+  const [sort, setSort] = useState<LibrarySort>(() =>
+    localStorage.getItem(key) === "alphabetical" ? "alphabetical" : "last_watched"
+  );
+  function change(value: LibrarySort) {
+    setSort(value);
+    localStorage.setItem(key, value);
+  }
+  return [sort, change];
+}
+
+function SortBar({ sort, onChange }: { sort: LibrarySort; onChange: (value: LibrarySort) => void }) {
+  return (
+    <div className="sort-bar">
+      <label>
+        Sort
+        <select value={sort} onChange={(e) => onChange(e.target.value as LibrarySort)}>
+          <option value="last_watched">Last watched</option>
+          <option value="alphabetical">Alphabetical (A–Z)</option>
+        </select>
+      </label>
+    </div>
+  );
 }
 
 export interface LibShow {
@@ -93,15 +135,8 @@ const showSub = (s: LibShow) => `${s.watched}/${s.aired}${s.hidden ? " · hidden
 // owner-only (issue #257) — the public payload never carries the bucket, so
 // no Watch Later tab can appear there.
 export function ShowsLibrary({ shows, watchlist = [], empty }: { shows: LibShow[]; watchlist?: WatchlistItem[]; empty?: ReactElement }) {
-  const [sort, setSort] = useState<ShowSort>(() =>
-    localStorage.getItem(SORT_KEY) === "alphabetical" ? "alphabetical" : "last_watched"
-  );
+  const [sort, setSort] = useLibrarySort(SHOW_SORT_KEY);
   const [tab, setTab] = useState<string | null>(null);
-
-  function changeSort(value: ShowSort) {
-    setSort(value);
-    localStorage.setItem(SORT_KEY, value);
-  }
 
   const counts = new Map<string, number>();
   for (const s of shows) {
@@ -146,15 +181,7 @@ export function ShowsLibrary({ shows, watchlist = [], empty }: { shows: LibShow[
         </div>
       ) : (
         <>
-          <div className="sort-bar">
-            <label>
-              Sort
-              <select value={sort} onChange={(e) => changeSort(e.target.value as ShowSort)}>
-                <option value="last_watched">Last watched</option>
-                <option value="alphabetical">Alphabetical (A–Z)</option>
-              </select>
-            </label>
-          </div>
+          <SortBar sort={sort} onChange={setSort} />
           <div className="poster-grid">
             {activeShows.map((s) =>
               // Finished shows (issue #223): every episode is watched, so the
@@ -184,7 +211,9 @@ export function ShowsLibrary({ shows, watchlist = [], empty }: { shows: LibShow[
 
 // The movies tab's poster grid. `tz` shapes the watched-at sub line — the
 // viewer's saved timezone here, the visitor's own on the public library page
-// (issue #245), where this and AnimeLibrary below are reused as-is.
+// (issue #245), where AnimeLibrary below is reused as-is. Renders in the
+// order given; sorting is the caller's business (AnimeLibrary shares one
+// sort across its two sections, so the bar can't live in here).
 export function MovieGrid({ movies, tz }: { movies: LibMovie[]; tz: string }) {
   return (
     <div className="poster-grid">
@@ -201,13 +230,27 @@ export function MovieGrid({ movies, tz }: { movies: LibMovie[]; tz: string }) {
   );
 }
 
+// MovieGrid under the Shows tab's sort bar (issue #267): watched movies,
+// sortable just like shows. Both movie surfaces render this — the owner
+// Library's Seen subtab and the public library's Movies tab — so the one
+// persisted key follows the viewer across them.
+export function SortedMovieGrid({ movies, tz }: { movies: LibMovie[]; tz: string }) {
+  const [sort, setSort] = useLibrarySort(MOVIE_SORT_KEY);
+  return (
+    <>
+      <SortBar sort={sort} onChange={setSort} />
+      <MovieGrid movies={[...movies].sort(movieComparator(sort))} tz={tz} />
+    </>
+  );
+}
+
 // The movies library (issue #257): a subtab bar mirroring ShowsLibrary's.
 // Movies have exactly two states (0001_init.sql CHECK: watched / watchlist),
 // so Seen and Watch Later fully partition them — Seen is the payload's
 // `movies` bucket (anime movies excluded there, they live on the Anime tab),
 // Watch Later is `watchlistMovies` (unsplit — one planning list, exactly what
 // the retired top-level Watchlist tab held). Owner-only: the public library
-// page keeps rendering MovieGrid directly, so no Watch Later leaks there.
+// page renders SortedMovieGrid directly, so no Watch Later leaks there.
 function MoviesLibrary({ movies, watchlist = [], tz }: { movies: LibMovie[]; watchlist?: WatchlistItem[]; tz: string }) {
   const [tab, setTab] = useState<string | null>(null);
 
@@ -238,10 +281,11 @@ function MoviesLibrary({ movies, watchlist = [], tz }: { movies: LibMovie[]; wat
         ))}
       </nav>
       {activeKey === "seen" ? (
-        <MovieGrid movies={movies} tz={tz} />
+        <SortedMovieGrid movies={movies} tz={tz} />
       ) : (
-        // Watch Later: nothing watched yet, so no watched-at sub line — plain
-        // poster cards in the retired Watchlist tab's order (server-side).
+        // Watch Later: nothing watched yet, so nothing to sort and no
+        // watched-at sub line — plain poster cards in the retired Watchlist
+        // tab's order (server-side), no sort bar, same as Shows' Watch Later.
         <div className="poster-grid">
           {watchlist.map((m) => (
             <PosterCard key={m.id} to={mediaPath("movie", m.id, m.title)} posterPath={m.poster} title={m.title} />
@@ -253,15 +297,19 @@ function MoviesLibrary({ movies, watchlist = [], tz }: { movies: LibMovie[]; wat
 }
 
 // The anime tab: shows (with progress) and movies as two headed sections.
-// Callers guarantee at least one of the two is non-empty.
+// Callers guarantee at least one of the two is non-empty. One sort bar
+// (issue #267) orders both sections — they're one collection split by medium,
+// not two lists that would each earn a control.
 export function AnimeLibrary({ shows, movies, tz }: { shows: LibShow[]; movies: LibMovie[]; tz: string }) {
+  const [sort, setSort] = useLibrarySort(ANIME_SORT_KEY);
   return (
     <>
+      <SortBar sort={sort} onChange={setSort} />
       {shows.length > 0 && (
         <section>
           <h2 className="section-title">Shows</h2>
           <div className="poster-grid">
-            {shows.map((s) => (
+            {[...shows].sort(showComparator(sort)).map((s) => (
               <div key={s.id} className="lib-card">
                 <PosterCard to={mediaPath("show", s.id, s.title)} posterPath={s.poster} title={s.title} sub={showSub(s)} />
                 <Progress watched={s.watched} total={s.aired} />
@@ -273,7 +321,7 @@ export function AnimeLibrary({ shows, movies, tz }: { shows: LibShow[]; movies: 
       {movies.length > 0 && (
         <section>
           <h2 className="section-title">Movies</h2>
-          <MovieGrid movies={movies} tz={tz} />
+          <MovieGrid movies={[...movies].sort(movieComparator(sort))} tz={tz} />
         </section>
       )}
     </>

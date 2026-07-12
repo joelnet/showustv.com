@@ -19,7 +19,7 @@ import { useAuth } from "../app";
 import { Empty, SmpteBars } from "../components/ui";
 import { PosterGridSkeleton } from "../components/skeleton";
 import { IconLock } from "../components/icons";
-import { ShowsLibrary, MovieGrid, AnimeLibrary, type LibShow, type LibMovie } from "./library";
+import { ShowsLibrary, SortedMovieGrid, AnimeLibrary, type LibShow, type LibMovie } from "./library";
 
 interface FullLibrary {
   username: string;
@@ -116,7 +116,7 @@ export function PublicLibraryPage({ tab }: { tab: "shows" | "movies" | "anime" }
         (!data.movies.length ? (
           <Empty title="No movies here yet" hint={`Movies ${data.username} watches will land here.`} />
         ) : (
-          <MovieGrid movies={data.movies} tz={tz} />
+          <SortedMovieGrid movies={data.movies} tz={tz} />
         ))}
 
       {tab === "anime" &&
