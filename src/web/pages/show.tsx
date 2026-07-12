@@ -110,12 +110,19 @@ function priorUnwatched(d: ShowPayload, target: Episode): number {
     .filter((e) => e.season_number > 0 && e.aired && !e.watched && isBefore(e, target)).length;
 }
 
-// The season to open on load: the one the viewer is working through, else the
-// first regular season. Shared so a cache seed and a fresh fetch derive it the
-// same way.
+// The season to open on load: the one the viewer is working through — the
+// first regular season with an aired unwatched episode. Fully-watched seasons
+// never open, and a caught-up viewer (isCaughtUp — the same aired
+// regular-episode counts behind Finished/Up to date) gets every season
+// collapsed instead of a force-opened one (issue #264). Only a show with
+// nothing aired yet (and specials-only shows never counted) keeps the old
+// first-regular-season fallback so upcoming air dates stay visible. Shared so
+// a cache seed and a fresh fetch derive it the same way.
 function pickOpenSeason(d: ShowPayload): number | null {
   const current = d.seasons.find((s) => s.number > 0 && s.episodes.some((e) => e.aired && !e.watched));
-  return current?.number ?? d.seasons.find((s) => s.number > 0)?.number ?? null;
+  if (current) return current.number;
+  if (isCaughtUp(d)) return null; // all watched — collapse every season
+  return d.seasons.find((s) => s.number > 0)?.number ?? null;
 }
 
 // Episode display order (issue #187). Ascending is the server's order (season
@@ -368,6 +375,15 @@ export function ShowPage() {
     const cached = getCached<ShowPayload>(cacheKey);
     setData(cached ?? null); // instant warm paint, or the skeleton on a cold load
     setError(null);
+    // Whether a payload actually renders the seasons UI for this viewer — a
+    // signed-in visit needs the user-shaped fields; without them the page
+    // shows a skeleton, so no season toggle could have happened yet.
+    const renders = (p: ShowPayload) => !user || (p.user != null && p.progress != null);
+    // The open-season pick is settled once it came from a payload the viewer
+    // could see (and may have toggled since). A skeleton-only paint — an
+    // anonymous SW-cached copy replayed for a signed-in viewer — must not pin
+    // a stale default open (issue #264): the fresh fetch re-picks it below.
+    let pickSettled = cached !== undefined && renders(cached);
     if (cached) setOpenSeason(user ? pickOpenSeason(cached) : null);
     if (cached === undefined) {
       // Cold load: paint the service worker's offline copy instantly (issue
@@ -379,6 +395,7 @@ export function ShowPage() {
         painted = true;
         setData(hit);
         setOpenSeason(user ? pickOpenSeason(hit) : null);
+        if (renders(hit)) pickSettled = true;
       });
     }
     api<ShowPayload>(cacheKey)
@@ -389,10 +406,11 @@ export function ShowPage() {
         if (!live || dirty.current) return;
         setCached(cacheKey, d); // refresh the shared cache for the next visit
         setData(d);
-        // Only pick the open season on a cold load; a seed or an SW-cache
-        // paint (and any season the user has since toggled) already settled
-        // it. Anonymous viewers keep everything collapsed (issue #159).
-        if (cached === undefined && !painted) setOpenSeason(user ? pickOpenSeason(d) : null);
+        // Only pick the open season when nothing the viewer could interact
+        // with settled it — a cold load, or a warm paint that only reached
+        // the skeleton (any season the user has since toggled stays put).
+        // Anonymous viewers keep everything collapsed (issue #159).
+        if (!pickSettled) setOpenSeason(user ? pickOpenSeason(d) : null);
       })
       .catch((e) => {
         settled = true;
