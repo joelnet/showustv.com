@@ -1535,6 +1535,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .taste-toolbar {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 14px;
   padding: 10px;
   margin-bottom: 14px;
@@ -1542,13 +1543,11 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   border: 1px solid var(--line);
   border-radius: var(--radius);
 }
-.taste-filter-tabs,
 .taste-view-switch {
   display: inline-flex;
   align-items: center;
   gap: 3px;
 }
-.taste-filter-tabs button,
 .taste-view-switch button {
   display: inline-flex;
   align-items: center;
@@ -1564,10 +1563,8 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   cursor: pointer;
   white-space: nowrap;
 }
-.taste-filter-tabs button:hover,
 .taste-view-switch button:hover { color: var(--text); background: var(--surface-2); }
 .taste-view-switch button:disabled { opacity: 0.45; cursor: default; background: none; color: var(--muted); }
-.taste-filter-tabs button.is-on,
 .taste-view-switch button[aria-pressed="true"] {
   color: var(--amber);
   background: var(--amber-soft);
@@ -1577,7 +1574,6 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  margin-left: auto;
   color: var(--muted);
   font-size: 12.5px;
   white-space: nowrap;
@@ -1638,6 +1634,9 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   border-radius: 8px;
   border: 1px solid var(--line);
 }
+.taste-detail-poster.is-movie { border-color: var(--muted); }
+.taste-detail-poster.is-show { border-color: var(--cyan); }
+.taste-detail-poster.is-anime { border-color: var(--green); }
 .taste-detail-kicker { margin-bottom: 5px !important; font-size: 10.5px; letter-spacing: 0.09em; }
 .taste-mutual-favorite {
   display: inline-flex;
@@ -1693,7 +1692,17 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .taste-key-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
 .taste-key-dot.is-you { background: var(--text); }
 .taste-key-dot.is-mutual { background: var(--cyan); }
-.taste-key-poster { width: 9px; height: 13px; border-radius: 2px; background: var(--surface-2); border: 1px solid var(--muted); }
+.taste-key-frame {
+  width: 10px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--surface-2);
+  border: 2px solid var(--muted);
+}
+.taste-key-frame.is-show { border-color: var(--cyan); }
+.taste-key-frame.is-anime { border-color: var(--green); }
+.taste-key-line { width: 18px; height: 2px; border-radius: 2px; background: var(--line); }
+.taste-key-line.is-favorite { background: var(--red); }
 
 .taste-list {
   max-height: min(66vh, 640px);
@@ -1727,9 +1736,38 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   border: 1px solid var(--line);
   object-fit: cover;
 }
+.taste-list img.is-movie,
+.taste-list-poster-fallback.is-movie { border-color: var(--muted); }
+.taste-list img.is-show,
+.taste-list-poster-fallback.is-show { border-color: var(--cyan); }
+.taste-list img.is-anime,
+.taste-list-poster-fallback.is-anime { border-color: var(--green); }
 .taste-list-poster-fallback { display: grid; place-items: center; color: var(--muted); background: var(--surface-2); }
 .taste-list-copy { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .taste-list-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.taste-list-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 5px 8px; }
+.taste-media-kind,
+.taste-mini-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.taste-media-kind::before,
+.taste-mini-kind::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border: 1px solid currentColor;
+  border-radius: 1px;
+}
+.taste-media-kind.is-show,
+.taste-mini-kind.is-show { color: var(--cyan); }
+.taste-media-kind.is-anime,
+.taste-mini-kind.is-anime { color: var(--green); }
+.taste-mini-kind { margin-right: 7px; font: 600 9px var(--font-mono); text-transform: uppercase; }
 .taste-favorite-marks { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 2px; }
 .taste-favorite-mark {
   display: inline-flex;
@@ -1742,8 +1780,6 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 
 @media (max-width: 860px) {
   .taste-toolbar { flex-wrap: wrap; }
-  .taste-filter-tabs { flex: 1 1 100%; }
-  .taste-mutual-select { margin-left: 0; }
   .taste-workspace { grid-template-columns: minmax(0, 1fr) 240px; }
 }
 
@@ -1753,10 +1789,8 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   .taste-page-head { align-items: flex-start; flex-direction: column; gap: 5px; }
   .taste-summary { padding: 0; }
   .taste-toolbar { align-items: stretch; gap: 9px; padding: 9px; }
-  .taste-filter-tabs { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
-  .taste-filter-tabs button { white-space: normal; min-height: 40px; }
   .taste-mutual-select { justify-content: space-between; flex: 1 1 auto; }
-  .taste-mutual-select select { max-width: 180px; }
+  .taste-mutual-select select { min-height: 40px; max-width: 180px; }
   .taste-view-switch { border-left: 0; padding-left: 0; }
   .taste-view-switch button { min-height: 40px; }
   .taste-workspace { grid-template-columns: 1fr; }

@@ -5,8 +5,13 @@ import Sigma from "sigma";
 import { createNodeImageProgram } from "@sigma/node-image";
 import { poster } from "../img";
 
-export interface TasteGraphMovie {
+export type TasteMediaType = "movie" | "show";
+export type TasteMediaCategory = "movie" | "show" | "anime";
+
+export interface TasteGraphMedia {
   id: number;
+  type: TasteMediaType;
+  category: TasteMediaCategory;
   title: string;
   poster: string | null;
   releaseYear: number | null;
@@ -18,7 +23,8 @@ export interface TasteGraphMovie {
 
 export interface TasteGraphLink {
   person: string;
-  movie: number;
+  targetType: TasteMediaType;
+  targetId: number;
   favorite: boolean;
 }
 
@@ -26,17 +32,20 @@ export interface TasteGraphPayload {
   summary: {
     mutualCount: number;
     mutualsShown: number;
-    sharedMovieCount: number;
-    mutualFavoriteMovieCount: number;
+    sharedTitleCount: number;
+    movieCount: number;
+    showCount: number;
+    animeCount: number;
+    mutualFavoriteCount: number;
     truncated: boolean;
   };
   mutuals: { username: string }[];
-  movies: TasteGraphMovie[];
+  media: TasteGraphMedia[];
   links: TasteGraphLink[];
 }
 
 export type TasteSelection =
-  | { kind: "movie"; id: number }
+  | { kind: "media"; type: TasteMediaType; id: number }
   | { kind: "person"; username: string }
   | null;
 
@@ -48,8 +57,9 @@ interface TasteNodeAttributes {
   color: string;
   type: "circle" | "image";
   image?: string;
-  kind: "movie" | "person";
+  kind: "media" | "person";
   entityId: string | number;
+  entityType?: TasteMediaType;
   forceLabel?: boolean;
   zIndex?: number;
 }
@@ -62,7 +72,7 @@ interface TasteEdgeAttributes {
 }
 
 interface TasteGraphProps {
-  movies: TasteGraphMovie[];
+  media: TasteGraphMedia[];
   links: TasteGraphLink[];
   selfUsername: string;
   selected: TasteSelection;
@@ -70,16 +80,29 @@ interface TasteGraphProps {
 }
 
 const SELF_NODE = "person:self";
-const MovieImageProgram = createNodeImageProgram<TasteNodeAttributes, TasteEdgeAttributes>({
+const FAVORITE_COLOR = "#ff4d3d";
+const EDGE_COLOR = "#2a3344";
+const CATEGORY_COLORS: Record<TasteMediaCategory, string> = {
+  movie: "#8e97a8",
+  show: "#56cfde",
+  anime: "#58c983",
+};
+
+// The padding leaves a narrow, category-colored frame around every poster.
+// Favorite meaning belongs to the connections: a red line says that person
+// favorited that title, and red lines from both sides form a mutual favorite.
+const MediaImageProgram = createNodeImageProgram<TasteNodeAttributes, TasteEdgeAttributes>({
   objectFit: "cover",
   keepWithinCircle: false,
+  padding: 0.08,
   size: { mode: "max", value: 192 },
 });
 
+export const tasteMediaKey = (type: TasteMediaType, id: number) => `${type}:${id}`;
 const personNode = (username: string) => `person:${username}`;
-const movieNode = (id: number) => `movie:${id}`;
+const mediaNode = (type: TasteMediaType, id: number) => `media:${tasteMediaKey(type, id)}`;
 
-// Stable, small positional jitter prevents stacked movie nodes without making
+// Stable, small positional jitter prevents stacked media nodes without making
 // the layout change every time the page mounts.
 function jitter(value: string): number {
   let hash = 2166136261;
@@ -90,7 +113,7 @@ function jitter(value: string): number {
   return ((hash >>> 0) / 0xffffffff - 0.5) * 2.4;
 }
 
-export function TasteGraph({ movies, links, selfUsername, selected, onSelect }: TasteGraphProps) {
+export function TasteGraph({ media, links, selfUsername, selected, onSelect }: TasteGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<Sigma<TasteNodeAttributes, TasteEdgeAttributes> | null>(null);
   const graphRef = useRef<Graph<TasteNodeAttributes, TasteEdgeAttributes> | null>(null);
@@ -102,7 +125,7 @@ export function TasteGraph({ movies, links, selfUsername, selected, onSelect }: 
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container || !movies.length) return;
+    if (!container || !media.length) return;
 
     const graph = new Graph<TasteNodeAttributes, TasteEdgeAttributes>({ type: "undirected" });
     const people = Array.from(new Set(links.map((link) => link.person))).sort((a, b) => a.localeCompare(b));
@@ -119,7 +142,7 @@ export function TasteGraph({ movies, links, selfUsername, selected, onSelect }: 
       kind: "person",
       entityId: selfUsername,
       forceLabel: true,
-      zIndex: 3,
+      zIndex: 4,
     });
 
     people.forEach((username, index) => {
@@ -134,53 +157,60 @@ export function TasteGraph({ movies, links, selfUsername, selected, onSelect }: 
         type: "circle",
         kind: "person",
         entityId: username,
-        zIndex: 2,
+        zIndex: 3,
       });
     });
 
-    const linksByMovie = new Map<number, TasteGraphLink[]>();
+    const linksByMedia = new Map<string, TasteGraphLink[]>();
     for (const link of links) {
-      const group = linksByMovie.get(link.movie) ?? [];
+      const key = tasteMediaKey(link.targetType, link.targetId);
+      const group = linksByMedia.get(key) ?? [];
       group.push(link);
-      linksByMovie.set(link.movie, group);
+      linksByMedia.set(key, group);
     }
 
-    for (const movie of movies) {
-      const movieLinks = linksByMovie.get(movie.id) ?? [];
-      const center = movieLinks.reduce(
+    for (const item of media) {
+      const itemKey = tasteMediaKey(item.type, item.id);
+      const itemLinks = linksByMedia.get(itemKey) ?? [];
+      const center = itemLinks.reduce(
         (sum, link) => {
           const point = positions.get(link.person);
           return point ? { x: sum.x + point.x, y: sum.y + point.y } : sum;
         },
         { x: 0, y: 0 }
       );
-      const divisor = movieLinks.length + 1; // self is fixed at 0,0
-      const image = poster(movie.poster, "w154");
-      graph.addNode(movieNode(movie.id), {
-        x: center.x / divisor + jitter(`x:${movie.id}`),
-        y: center.y / divisor + jitter(`y:${movie.id}`),
-        size: Math.min(11, 5.5 + Math.sqrt(movie.mutualViewerCount) * 1.4),
-        label: movie.title,
-        color: movie.myFavorite ? "#ff4d3d" : "#202836",
+      const divisor = itemLinks.length + 1; // self is fixed at 0,0
+      const image = poster(item.poster, "w154");
+      const favoriteBoost = item.mutualFavorite ? 1.8 : item.myFavorite || item.mutualFavoriteCount > 0 ? 0.8 : 0;
+      graph.addNode(mediaNode(item.type, item.id), {
+        x: center.x / divisor + jitter(`x:${itemKey}`),
+        y: center.y / divisor + jitter(`y:${itemKey}`),
+        size: Math.min(12.5, 5.7 + Math.sqrt(item.mutualViewerCount) * 1.25 + favoriteBoost),
+        label: item.title,
+        color: CATEGORY_COLORS[item.category],
         type: image ? "image" : "circle",
         image: image ?? undefined,
-        kind: "movie",
-        entityId: movie.id,
-        zIndex: movie.myFavorite ? 2 : 1,
+        kind: "media",
+        entityId: item.id,
+        entityType: item.type,
+        zIndex: item.mutualFavorite ? 3 : item.myFavorite || item.mutualFavoriteCount > 0 ? 2 : 1,
       });
-      graph.addEdgeWithKey(`self:${movie.id}`, SELF_NODE, movieNode(movie.id), {
-        size: 0.45,
-        color: "#2a3344",
-        favorite: movie.myFavorite,
+      graph.addEdgeWithKey(`self:${itemKey}`, SELF_NODE, mediaNode(item.type, item.id), {
+        size: item.myFavorite ? 1.45 : 0.45,
+        color: item.myFavorite ? FAVORITE_COLOR : EDGE_COLOR,
+        favorite: item.myFavorite,
+        zIndex: item.myFavorite ? 2 : 1,
       });
     }
 
     for (const link of links) {
-      if (!graph.hasNode(personNode(link.person)) || !graph.hasNode(movieNode(link.movie))) continue;
-      graph.addEdgeWithKey(`${link.person}:${link.movie}`, personNode(link.person), movieNode(link.movie), {
-        size: 0.45,
-        color: "#2a3344",
+      const target = mediaNode(link.targetType, link.targetId);
+      if (!graph.hasNode(personNode(link.person)) || !graph.hasNode(target)) continue;
+      graph.addEdgeWithKey(`${link.person}:${tasteMediaKey(link.targetType, link.targetId)}`, personNode(link.person), target, {
+        size: link.favorite ? 1.45 : 0.45,
+        color: link.favorite ? FAVORITE_COLOR : EDGE_COLOR,
         favorite: link.favorite,
+        zIndex: link.favorite ? 2 : 1,
       });
     }
 
@@ -203,11 +233,11 @@ export function TasteGraph({ movies, links, selfUsername, selected, onSelect }: 
     }
 
     const renderer = new Sigma<TasteNodeAttributes, TasteEdgeAttributes>(graph, container, {
-      nodeProgramClasses: { image: MovieImageProgram },
+      nodeProgramClasses: { image: MediaImageProgram },
       defaultNodeColor: "#202836",
-      defaultEdgeColor: "#2a3344",
+      defaultEdgeColor: EDGE_COLOR,
       labelColor: { color: "#ede9e0" },
-      labelFont: "Lato, system-ui, sans-serif",
+      labelFont: "Roboto, system-ui, sans-serif",
       labelSize: 12,
       labelWeight: "600",
       labelDensity: 0.08,
@@ -223,8 +253,8 @@ export function TasteGraph({ movies, links, selfUsername, selected, onSelect }: 
     renderer.on("clickNode", ({ node }) => {
       const attributes = graph.getNodeAttributes(node);
       onSelectRef.current(
-        attributes.kind === "movie"
-          ? { kind: "movie", id: Number(attributes.entityId) }
+        attributes.kind === "media" && attributes.entityType
+          ? { kind: "media", type: attributes.entityType, id: Number(attributes.entityId) }
           : node === SELF_NODE
             ? null
             : { kind: "person", username: String(attributes.entityId) }
@@ -239,7 +269,7 @@ export function TasteGraph({ movies, links, selfUsername, selected, onSelect }: 
       rendererRef.current = null;
       graphRef.current = null;
     };
-  }, [movies, links, selfUsername]);
+  }, [media, links, selfUsername]);
 
   useEffect(() => {
     const renderer = rendererRef.current;
@@ -247,8 +277,8 @@ export function TasteGraph({ movies, links, selfUsername, selected, onSelect }: 
     if (!renderer || !graph) return;
 
     const selectedNode =
-      selected?.kind === "movie"
-        ? movieNode(selected.id)
+      selected?.kind === "media"
+        ? mediaNode(selected.type, selected.id)
         : selected?.kind === "person"
           ? personNode(selected.username)
           : null;
@@ -284,8 +314,8 @@ export function TasteGraph({ movies, links, selfUsername, selected, onSelect }: 
           ((source === SELF_NODE && neighborhood.has(target)) || (target === SELF_NODE && neighborhood.has(source)));
         if (source !== selectedNode && target !== selectedNode && !selectedPersonComparison) return { hidden: true };
         return {
-          color: attributes.favorite ? "#ff4d3d" : "#56cfde",
-          size: attributes.favorite ? 2 : 1.4,
+          color: attributes.favorite ? FAVORITE_COLOR : "#56cfde",
+          size: attributes.favorite ? 2.2 : 1.4,
           zIndex: 4,
         };
       },
@@ -308,7 +338,7 @@ export function TasteGraph({ movies, links, selfUsername, selected, onSelect }: 
         ref={containerRef}
         className="taste-graph-canvas"
         role="region"
-        aria-label="Interactive graph of movies shared with mutuals. Use the list view for keyboard navigation."
+        aria-label="Interactive graph of movies, TV shows, and anime shared with mutuals. Red connections mark favorites. Use the list view for keyboard navigation."
       />
       <button type="button" className="taste-reset btn btn-ghost" onClick={resetView}>
         Reset view

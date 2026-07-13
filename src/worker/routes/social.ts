@@ -17,13 +17,15 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
 import type { AppEnv } from "../env";
+import { animeCond } from "../lib/library";
 import { notifyUserOfFollow } from "../lib/notifications";
 
 export const social = new Hono<AppEnv>();
 
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 const TASTE_GRAPH_MUTUAL_LIMIT = 80;
-const TASTE_GRAPH_MOVIE_LIMIT = 120;
+const TASTE_GRAPH_MEDIA_LIMIT = 120;
+const TASTE_GRAPH_CATEGORY_RESERVE = 20;
 
 // Resolves a username (exact, case-insensitive) to a live user. The regex
 // pre-check keeps garbage out of the query; NULL means "no such user".
@@ -105,7 +107,9 @@ social.get("/follows", async (c) => {
   });
 });
 
-// Movies the signed-in user has watched in common with reciprocal follows.
+// Movies, TV shows, and anime the signed-in user has watched in common with
+// reciprocal follows. A show enters the graph only after both people have
+// watched at least one episode; merely saving it for later is not enough.
 // This is intentionally a mutual-only surface: a one-way follow must never
 // turn into bulk access to somebody else's watch history. The response is
 // also deliberately minimal. It carries membership and favorite state, but
@@ -119,7 +123,9 @@ social.get("/taste-graph", async (c) => {
     total_count: number;
   };
   type ConnectionRow = {
-    movie_id: number;
+    target_type: "movie" | "show";
+    category: "movie" | "show" | "anime";
+    target_id: number;
     title: string;
     poster: string | null;
     release_year: string | null;
@@ -157,65 +163,132 @@ social.get("/taste-graph", async (c) => {
     ORDER BY since DESC, u.username COLLATE NOCASE
     LIMIT ?2
   ),
-  my_movies AS (
-    SELECT movie_id
+  my_media(target_type, target_id) AS (
+    SELECT 'movie', movie_id
     FROM user_movies
     WHERE user_id = ?1 AND state = 'watched'
+    UNION ALL
+    SELECT 'show', e.show_id
+    FROM user_episodes ue
+    JOIN episodes e ON e.id = ue.episode_id
+    JOIN user_shows us
+      ON us.user_id = ue.user_id
+     AND us.show_id = e.show_id
+     AND us.hidden = 0
+     AND us.state != 'hidden'
+    WHERE ue.user_id = ?1
+    GROUP BY e.show_id
   ),
   favorites AS (
-    SELECT DISTINCT l.user_id, li.target_id AS movie_id
+    SELECT DISTINCT l.user_id, li.target_type, li.target_id
     FROM custom_lists l
     JOIN custom_list_items li ON li.list_id = l.id
     WHERE l.kind = 'favorites'
-      AND li.target_type = 'movie'
+      AND li.target_type IN ('movie', 'show')
       AND (l.user_id = ?1 OR EXISTS (SELECT 1 FROM mutuals mu WHERE mu.id = l.user_id))
   ),
-  shared AS (
-    SELECT mu.username, um.movie_id,
-           CASE WHEN their_fav.movie_id IS NULL THEN 0 ELSE 1 END AS their_favorite
+  mutual_media(user_id, username, target_type, target_id) AS (
+    SELECT mu.id, mu.username, 'movie', um.movie_id
     FROM mutuals mu
     JOIN user_movies um ON um.user_id = mu.id AND um.state = 'watched'
-    JOIN my_movies mine ON mine.movie_id = um.movie_id
+    UNION ALL
+    SELECT mu.id, mu.username, 'show', e.show_id
+    FROM mutuals mu
+    JOIN user_episodes ue ON ue.user_id = mu.id
+    JOIN episodes e ON e.id = ue.episode_id
+    JOIN user_shows us
+      ON us.user_id = mu.id
+     AND us.show_id = e.show_id
+     AND us.hidden = 0
+     AND us.state != 'hidden'
+    GROUP BY mu.id, mu.username, e.show_id
+  ),
+  shared AS (
+    SELECT theirs.username, theirs.target_type, theirs.target_id,
+           CASE WHEN their_fav.target_id IS NULL THEN 0 ELSE 1 END AS their_favorite
+    FROM mutual_media theirs
+    JOIN my_media mine
+      ON mine.target_type = theirs.target_type
+     AND mine.target_id = theirs.target_id
     LEFT JOIN favorites their_fav
-      ON their_fav.user_id = mu.id AND their_fav.movie_id = um.movie_id
+      ON their_fav.user_id = theirs.user_id
+     AND their_fav.target_type = theirs.target_type
+     AND their_fav.target_id = theirs.target_id
   ),
   ranked AS (
-    SELECT shared.movie_id,
+    SELECT shared.target_type, shared.target_id,
            COUNT(*) AS mutual_viewer_count,
            SUM(shared.their_favorite) AS mutual_favorite_count,
-           CASE WHEN my_fav.movie_id IS NULL THEN 0 ELSE 1 END AS my_favorite,
+           CASE WHEN my_fav.target_id IS NULL THEN 0 ELSE 1 END AS my_favorite,
            COUNT(*) +
              (2 * SUM(shared.their_favorite)) +
-             CASE WHEN my_fav.movie_id IS NULL THEN 0 ELSE 2 END +
-             CASE WHEN my_fav.movie_id IS NULL THEN 0 ELSE 3 * SUM(shared.their_favorite) END AS relevance
+             CASE WHEN my_fav.target_id IS NULL THEN 0 ELSE 2 END +
+             CASE WHEN my_fav.target_id IS NULL THEN 0 ELSE 3 * SUM(shared.their_favorite) END AS relevance
     FROM shared
     LEFT JOIN favorites my_fav
-      ON my_fav.user_id = ?1 AND my_fav.movie_id = shared.movie_id
-    GROUP BY shared.movie_id, my_fav.movie_id
-    ORDER BY relevance DESC, mutual_viewer_count DESC, shared.movie_id
+      ON my_fav.user_id = ?1
+     AND my_fav.target_type = shared.target_type
+     AND my_fav.target_id = shared.target_id
+    GROUP BY shared.target_type, shared.target_id, my_fav.target_id
+  ),
+  catalog AS (
+    SELECT 'movie' AS target_type, m.tmdb_id AS target_id, m.title,
+           m.poster_url AS poster,
+           CASE WHEN LENGTH(m.release_date) >= 4 THEN SUBSTR(m.release_date, 1, 4) ELSE NULL END AS release_year,
+           CASE WHEN ${animeCond("m")} THEN 'anime' ELSE 'movie' END AS category
+    FROM movies m
+    UNION ALL
+    SELECT 'show' AS target_type, s.tmdb_id AS target_id, s.title,
+           s.poster_url AS poster,
+           CASE WHEN LENGTH(s.first_air_date) >= 4 THEN SUBSTR(s.first_air_date, 1, 4) ELSE NULL END AS release_year,
+           CASE WHEN ${animeCond("s")} THEN 'anime' ELSE 'show' END AS category
+    FROM shows s
+  ),
+  categorized AS (
+    SELECT ranked.*, catalog.title, catalog.poster, catalog.release_year, catalog.category,
+           ROW_NUMBER() OVER (
+             PARTITION BY catalog.category
+             ORDER BY ranked.relevance DESC, ranked.mutual_viewer_count DESC,
+                      catalog.title COLLATE NOCASE, ranked.target_id
+           ) AS category_rank
+    FROM ranked
+    JOIN catalog
+      ON catalog.target_type = ranked.target_type
+     AND catalog.target_id = ranked.target_id
+  ),
+  selected AS (
+    SELECT *
+    FROM categorized
+    ORDER BY CASE WHEN category_rank <= ?4 THEN 0 ELSE 1 END,
+             relevance DESC, mutual_viewer_count DESC, title COLLATE NOCASE, target_id
     LIMIT ?3
   )
-  SELECT m.tmdb_id AS movie_id, m.title, m.poster_url AS poster,
-         CASE WHEN LENGTH(m.release_date) >= 4 THEN SUBSTR(m.release_date, 1, 4) ELSE NULL END AS release_year,
-         ranked.my_favorite, ranked.mutual_viewer_count, ranked.mutual_favorite_count,
+  SELECT selected.target_type, selected.category, selected.target_id,
+         selected.title, selected.poster, selected.release_year,
+         selected.my_favorite, selected.mutual_viewer_count, selected.mutual_favorite_count,
          shared.username, shared.their_favorite
-  FROM ranked
-  JOIN shared ON shared.movie_id = ranked.movie_id
-  JOIN movies m ON m.tmdb_id = ranked.movie_id
-  ORDER BY ranked.relevance DESC, ranked.mutual_viewer_count DESC,
-           m.title COLLATE NOCASE, shared.username COLLATE NOCASE`;
+  FROM selected
+  JOIN shared
+    ON shared.target_type = selected.target_type
+   AND shared.target_id = selected.target_id
+  ORDER BY selected.relevance DESC, selected.mutual_viewer_count DESC,
+           selected.title COLLATE NOCASE, shared.username COLLATE NOCASE`;
 
   const [mutualsResult, connectionsResult] = await c.env.DB.batch<MutualRow | ConnectionRow>([
     c.env.DB.prepare(mutualsSql).bind(uid, TASTE_GRAPH_MUTUAL_LIMIT),
-    c.env.DB.prepare(connectionsSql).bind(uid, TASTE_GRAPH_MUTUAL_LIMIT, TASTE_GRAPH_MOVIE_LIMIT),
+    c.env.DB
+      .prepare(connectionsSql)
+      .bind(uid, TASTE_GRAPH_MUTUAL_LIMIT, TASTE_GRAPH_MEDIA_LIMIT, TASTE_GRAPH_CATEGORY_RESERVE),
   ]);
 
   const mutualRows = mutualsResult.results as MutualRow[];
   const connectionRows = connectionsResult.results as ConnectionRow[];
-  const movieMap = new Map<
-    number,
+  const mediaMap = new Map<
+    string,
     {
       id: number;
+      type: "movie" | "show";
+      category: "movie" | "show" | "anime";
       title: string;
       poster: string | null;
       releaseYear: number | null;
@@ -227,9 +300,12 @@ social.get("/taste-graph", async (c) => {
   >();
 
   const links = connectionRows.map((row) => {
-    if (!movieMap.has(row.movie_id)) {
-      movieMap.set(row.movie_id, {
-        id: row.movie_id,
+    const key = `${row.target_type}:${row.target_id}`;
+    if (!mediaMap.has(key)) {
+      mediaMap.set(key, {
+        id: row.target_id,
+        type: row.target_type,
+        category: row.category,
         title: row.title,
         poster: row.poster,
         releaseYear: row.release_year == null ? null : Number(row.release_year),
@@ -241,12 +317,13 @@ social.get("/taste-graph", async (c) => {
     }
     return {
       person: row.username,
-      movie: row.movie_id,
+      targetType: row.target_type,
+      targetId: row.target_id,
       favorite: !!row.their_favorite,
     };
   });
 
-  const movies = Array.from(movieMap.values());
+  const media = Array.from(mediaMap.values());
   const totalMutuals = mutualRows[0]?.total_count ?? 0;
 
   // The service worker must never persist a viewer-specific aggregation that
@@ -257,12 +334,15 @@ social.get("/taste-graph", async (c) => {
     summary: {
       mutualCount: totalMutuals,
       mutualsShown: mutualRows.length,
-      sharedMovieCount: movies.length,
-      mutualFavoriteMovieCount: movies.filter((movie) => movie.mutualFavorite).length,
+      sharedTitleCount: media.length,
+      movieCount: media.filter((item) => item.category === "movie").length,
+      showCount: media.filter((item) => item.category === "show").length,
+      animeCount: media.filter((item) => item.category === "anime").length,
+      mutualFavoriteCount: media.filter((item) => item.mutualFavorite).length,
       truncated: totalMutuals > mutualRows.length,
     },
     mutuals: mutualRows.map((row) => ({ username: row.username })),
-    movies,
+    media,
     links,
   });
 });
