@@ -355,6 +355,8 @@ self.addEventListener("push", (event) => {
 // handler the device silently stops receiving pushes and the server row goes
 // stale until a send gets a 404/410 and is pruned — register the replacement
 // with the server instead. Auth rides on the session cookie.
+const PUSH_SUBSCRIPTION_SYNC_TAG = "push-subscription-sync";
+
 self.addEventListener("pushsubscriptionchange", (event) => {
   event.waitUntil(
     (async () => {
@@ -377,24 +379,42 @@ self.addEventListener("pushsubscriptionchange", (event) => {
         }
       }
       try {
-        const res = await fetch("/api/notifications/push/subscribe", {
-          method: "POST",
-          credentials: "same-origin",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(sub.toJSON()),
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        await registerPushSubscriptionWithServer(sub);
       } catch {
-        // The server never stored the replacement (signed out, offline, 5xx).
-        // Drop it browser-side too: a kept-but-unregistered subscription reads
-        // as "on" in settings while no push can ever arrive, and nothing on
-        // the page re-posts an existing subscription. Off is honest, and the
-        // bell's (1) nudge (issue #276) walks the user back to re-enabling.
-        await sub.unsubscribe().catch(() => {});
+        // The replacement is still valid browser-side. Keep it through an
+        // offline or transient server failure and let Background Sync retry it.
+        // Destroying it here would turn a recoverable sync miss into a false
+        // "push off" state. Background Sync is Chromium-only and best-effort;
+        // keeping the subscription is still the safer fallback without it.
+        if ("sync" in self.registration)
+          await self.registration.sync.register(PUSH_SUBSCRIPTION_SYNC_TAG).catch(() => {});
       }
     })()
   );
 });
+
+// A one-off Background Sync retries a rotated subscription that could not be
+// registered while the device was offline. Rejecting the event's promise asks
+// Chromium to retry later with its normal backoff.
+self.addEventListener("sync", (event) => {
+  if (event.tag !== PUSH_SUBSCRIPTION_SYNC_TAG) return;
+  event.waitUntil(
+    (async () => {
+      const sub = await self.registration.pushManager.getSubscription();
+      if (sub) await registerPushSubscriptionWithServer(sub);
+    })()
+  );
+});
+
+async function registerPushSubscriptionWithServer(sub) {
+  const res = await fetch("/api/notifications/push/subscribe", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(sub.toJSON()),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
 
 // Mirrors urlBase64ToUint8Array in src/web/notifications.ts — this file is
 // standalone plain JS (no bundling), so it keeps its own copy.

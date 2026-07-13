@@ -31,9 +31,44 @@ export function PushToggle({
 
   useEffect(() => {
     let live = true;
-    getPushSubscription().then((sub) => live && setPushOn(!!sub));
+    let generation = 0;
+    const refresh = () => {
+      const current = ++generation;
+      void getPushSubscription().then((sub) => {
+        if (live && current === generation) setPushOn(!!sub);
+      });
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+
+    refresh();
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", onVisible);
+    navigator.serviceWorker.addEventListener("controllerchange", refresh);
+
+    // Chrome can change notification permission outside the page (Android app
+    // settings, Safety Check, or WebAPK delegation). Refresh the subscription
+    // when its Permissions API view changes so an already-open browser tab
+    // cannot keep displaying a stale checked box.
+    let permission: PermissionStatus | null = null;
+    if ("permissions" in navigator) {
+      void navigator.permissions
+        .query({ name: "notifications" as PermissionName })
+        .then((status) => {
+          if (!live) return;
+          permission = status;
+          status.addEventListener("change", refresh);
+        })
+        .catch(() => {});
+    }
+
     return () => {
       live = false;
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", onVisible);
+      navigator.serviceWorker.removeEventListener("controllerchange", refresh);
+      permission?.removeEventListener("change", refresh);
     };
   }, []);
 

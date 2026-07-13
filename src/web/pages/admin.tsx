@@ -52,17 +52,22 @@ export function AdminPage() {
   );
 }
 
-// TEMP DEBUG: step-by-step Web Push probe for the Android PWA toggle wedge —
-// enablePush() hangs with no error on that device and the installed app has
-// no devtools, so each stage reports its outcome and timing on screen. Runs
-// the same stages in the same order as enablePush() (src/web/notifications.ts)
-// so a wedge lands on the same step, and if it gets all the way through it
-// really subscribes this device. Self-contained on purpose (including the
-// urlBase64ToUint8Array copy) so removal is deleting this block.
+// TEMP DEBUG: step-by-step Web Push probe for the Android PWA toggle wedge.
+// The installed app has no devtools, so each stage reports its outcome and
+// timing on screen. Runs the same direct PushManager flow as enablePush()
+// (src/web/notifications.ts), preserving the button tap through subscribe(),
+// and really subscribes this device when every stage passes. Self-contained on
+// purpose (including the urlBase64ToUint8Array copy) so removal is deleting
+// this block.
 // REMOVE AFTER DIAGNOSIS.
 
 const fmtErr = (e: unknown) => (e instanceof Error ? `${e.name}: ${e.message}` : String(e));
 const tail = (s: string) => `…${s.slice(-32)}`;
+type NavigatorWithUAData = Navigator & {
+  userAgentData?: {
+    getHighEntropyValues: (hints: string[]) => Promise<Record<string, unknown>>;
+  };
+};
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -139,19 +144,18 @@ function PushDiagnostics() {
       add(`ua: ${navigator.userAgent}`);
       add(`standalone=${isStandalone()} pushSupported=${pushSupported()} online=${navigator.onLine}`);
       add(`Notification.permission: ${Notification.permission}`);
-      // Probe only — we do NOT gate on it. Mirroring the fixed enablePush():
-      // when permission already reads "granted" we press on to (re)subscribe
-      // even if this call wedges. A wedged probe paired with "granted" above
-      // is exactly the pairing the fix targets — and the stages after it
-      // still run, actually re-subscribing this device.
-      const alreadyGranted = Notification.permission === "granted";
-      const perm = await step("requestPermission (probe)", 15_000, () => Notification.requestPermission(), String);
-      if (!alreadyGranted && perm !== "granted")
-        add(
-          `→ permission is "${perm ?? "unresolved"}", not "granted"; continuing anyway to see whether PushManager can recover`
-        );
-      if (alreadyGranted && perm !== "granted")
-        add("→ permission was already granted; proceeding past the probe wedge (this is the fix path)");
+      const appKey = urlBase64ToUint8Array(key);
+      add(`VAPID public key bytes: length=${appKey.length} first=${appKey[0] ?? "n/a"}`);
+      if (appKey.length !== 65 || appKey[0] !== 4) {
+        add("x VAPID public key is invalid; expected a 65-byte uncompressed P-256 public key starting with 4");
+        return;
+      }
+
+      // Do only the work required to locate an existing subscription before
+      // subscribe(). The previous diagnostic spent 15 seconds awaiting a
+      // requestPermission() probe first, so the button's transient user
+      // activation had expired and a subsequent subscribe() result could not
+      // distinguish a permission wedge from a missing user gesture.
       const reg = await step(
         "serviceWorker.ready",
         3_000,
@@ -159,15 +163,6 @@ function PushDiagnostics() {
         (r) => `active=${r.active?.state ?? "none"} waiting=${!!r.waiting} scope=${r.scope}`
       );
       if (!reg) return;
-      // The push service's own view of permission — can disagree with
-      // Notification.permission on Android WebAPKs, which is exactly the
-      // delegation quirk this probe exists to catch.
-      const pushPermission = await step(
-        "pushManager.permissionState",
-        3_000,
-        () => reg.pushManager.permissionState({ userVisibleOnly: true }),
-        String
-      );
       const existing = await step(
         "getSubscription",
         3_000,
@@ -177,12 +172,10 @@ function PushDiagnostics() {
             ? `endpoint ${tail(s.endpoint)} expires=${s.expirationTime == null ? "never" : new Date(s.expirationTime).toISOString()}`
             : "null"
       );
-      const appKey = urlBase64ToUint8Array(key);
-      add(`VAPID public key bytes: length=${appKey.length} first=${appKey[0] ?? "n/a"}`);
-      if (appKey.length !== 65 || appKey[0] !== 4) {
-        add("✗ VAPID public key is invalid; expected a 65-byte uncompressed P-256 public key starting with 4");
-        return;
-      }
+      if (!existing)
+        add(
+          `userActivation before subscribe: active=${navigator.userActivation?.isActive ?? "unsupported"} hasBeenActive=${navigator.userActivation?.hasBeenActive ?? "unsupported"}`
+        );
       const sub =
         existing ??
         (await step(
@@ -195,19 +188,40 @@ function PushDiagnostics() {
             }),
           (s) => `endpoint ${tail(s.endpoint)}`
         ));
+
+      // The push service's own view can disagree with Notification.permission
+      // on Android WebAPKs. Read it after subscribe so this diagnostic does not
+      // spend any of the tap's activation budget before the operation that
+      // needs it.
+      const pushPermission = await step(
+        "pushManager.permissionState",
+        3_000,
+        () => reg.pushManager.permissionState({ userVisibleOnly: true }),
+        String
+      );
+      add(`Notification.permission after subscribe: ${Notification.permission}`);
+      const uaData = (navigator as NavigatorWithUAData).userAgentData;
+      if (uaData) {
+        await step(
+          "userAgentData",
+          3_000,
+          () => uaData.getHighEntropyValues(["platformVersion", "model", "fullVersionList"]),
+          (v) => JSON.stringify(v)
+        );
+      }
       if (!sub && Notification.permission === "granted" && pushPermission === "granted") {
         if (isAppleStandalonePwa())
           add(
-            "→ iOS reports notifications as granted, but refused to create the subscription. This is common in the iOS Simulator; verify on a physical iPhone, or reinstall the Home Screen app if this is a real device."
+            "iOS reports notifications as granted, but refused to create the subscription. This is common in the iOS Simulator; verify on a physical iPhone, or reinstall the Home Screen app if this is a real device."
           );
         else
           add(
-            "→ Browser permission is granted, but PushManager refused to create the subscription. Reset this site's notification permission or reinstall the app."
+            "Browser permission is granted, but PushManager refused to create the subscription. Reset this site's notification permission or reinstall the app."
           );
       }
       if (!sub) return;
       const saved = await step("register with server", 10_000, () => post("/notifications/push/subscribe", sub.toJSON()), () => "ok");
-      if (saved) add("done — this device is now subscribed; the settings toggle should read on");
+      if (saved) add("done: this device is now subscribed; the settings toggle should read on");
     } finally {
       setRunning(false);
     }
@@ -217,8 +231,8 @@ function PushDiagnostics() {
     <>
       <h2 className="settings-subtitle">Push diagnostics</h2>
       <p className="settings-hint">
-        Temporary: runs the exact enable-push sequence one stage at a time and reports each stage's outcome and
-        timing. If every stage passes, this device ends up subscribed for real.
+        Temporary: tries the direct PushManager flow from this tap and reports each stage's outcome and timing. If
+        every stage passes, this device ends up subscribed for real.
       </p>
       <button className="btn" onClick={run} disabled={running || !key}>
         {running ? "Running…" : "Run push diagnostics"}
