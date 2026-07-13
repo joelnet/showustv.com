@@ -346,6 +346,20 @@ export function SettingsPage() {
         Import from TV Time
       </Link>
 
+      {/* Admin entry point (issue #275), for admins only. Hiding it here is
+          cosmetic — the /admin page redirects non-admins and every
+          /api/admin endpoint re-checks is_admin server-side. */}
+      {user!.isAdmin && (
+        <>
+          <hr className="settings-rule" />
+          <h2 className="settings-subtitle">Admin</h2>
+          <p className="settings-hint">Site administration tools. Only admins can see this.</p>
+          <Link className="btn btn-ghost" to="/admin">
+            Open admin page
+          </Link>
+        </>
+      )}
+
       <hr className="settings-rule" />
       <button
         className="btn btn-ghost"

@@ -4,6 +4,7 @@
 import { Hono } from "hono";
 import type { Context, Next } from "hono";
 import type { AppEnv } from "../env";
+import { notifyTestNotification } from "../lib/notifications";
 
 export const admin = new Hono<AppEnv>();
 
@@ -49,6 +50,18 @@ admin.put("/users/:username/shadow-ban", async (c) => {
     .run();
   if (!meta.changes) return c.json({ error: "not found" }, 404);
   return c.json({ ok: true, shadowBanned: b.banned });
+});
+
+// Test notification (issue #275): the admin page's button. Sends the caller
+// themselves an in-app notification (and Web Push to their subscribed
+// devices) so an admin can verify the pipeline end to end. Awaited — the
+// button's toast should mean the row really exists — and safe to await:
+// push failures are swallowed inside sendPush, never thrown. The admin gate
+// is the sub-app middleware above; the mutation lands in activity_log via
+// the global middleware like every other admin action.
+admin.post("/test-notification", async (c) => {
+  await notifyTestNotification(c.env, c.get("uid"));
+  return c.json({ ok: true });
 });
 
 // A user's recent audit trail (activity_log, issue #15) for troubleshooting.

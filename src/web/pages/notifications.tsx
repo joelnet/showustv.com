@@ -56,6 +56,12 @@ function NotificationBody({ n }: { n: NotificationItem }) {
     return <>{n.type === "follow_back" ? "followed you back" : "followed you"}</>;
   }
 
+  // Admin test rows (issue #275): the admin is their own actor, so this reads
+  // "<username> sent a test notification". No target — nothing to link.
+  if (n.type === "test") {
+    return <>sent a test notification</>;
+  }
+
   const targetLink =
     n.targetType && n.targetId != null ? (
       <Link to={mediaPath(n.targetType, n.targetId, n.title)}>{n.title ?? `a ${n.targetType}`}</Link>

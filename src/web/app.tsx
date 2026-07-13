@@ -33,6 +33,7 @@ import { MyAchievementsPage, PublicAchievementsPage } from "./pages/achievements
 import { FollowingPage } from "./pages/following";
 import { NotificationsPage } from "./pages/notifications";
 import { SettingsPage } from "./pages/settings";
+import { AdminPage } from "./pages/admin";
 import { ImportPage } from "./pages/import";
 import { ImportHelpPage } from "./pages/import-help";
 import { InstallPage } from "./pages/install";
@@ -527,6 +528,10 @@ export function App() {
             <Route path="/u/:username/library/movies" element={<PublicLibraryPage tab="movies" />} />
             <Route path="/u/:username/library/anime" element={<PublicLibraryPage tab="anime" />} />
             <Route path="/settings" element={<SettingsPage />} />
+            {/* Admin tools (issue #275). The page redirects non-admins home;
+                the real gate is server-side — /api/admin answers 404 to
+                anyone without users.is_admin. */}
+            <Route path="/admin" element={<AdminPage />} />
             <Route path="/settings/import" element={<ImportPage />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />

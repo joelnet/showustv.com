@@ -442,6 +442,33 @@ export async function notifyUserOfFollow(env: Env, actorId: number, followeeId: 
   });
 }
 
+// Admin test notification (issue #275): the admin page's "Send test
+// notification" button targets the admin THEMSELVES, so they can verify the
+// whole pipeline — the in-app row behind the bell plus Web Push to this
+// account's subscribed devices — without involving anyone else. Deliberately
+// no dedupe window and no pref gate: every click must deliver, that's the
+// point of a test. Unlike the fan-outs this is awaited on the response path
+// (routes/admin.ts) so the button's toast reflects the insert actually
+// happening; push stays best-effort inside sendPush, so a flaky push service
+// can't fail the request.
+export async function notifyTestNotification(env: Env, uid: number): Promise<void> {
+  // The admin is their own actor, so the notifications page renders the row
+  // as "<username> sent a test notification" with no null-actor special case.
+  // No media target — target_type/target_id stay NULL, like follow rows.
+  await env.DB.prepare("INSERT INTO notifications (user_id, type, actor_id) VALUES (?1, 'test', ?1)")
+    .bind(uid)
+    .run();
+  if (!vapidConfigured(env)) return;
+  await pushToRecipients(env, [uid], {
+    title: "Test notification",
+    body: "Push notifications are working on this device.",
+    url: "/notifications",
+    // Stable tag: rapid re-tests replace the previous banner instead of
+    // stacking a pile of identical notifications on the lock screen.
+    tag: `test-${uid}`,
+  });
+}
+
 // A popular title can have far more trackers than anyone has followers, so
 // unlike the follow fan-outs the tracker fan-out bounds its INSERT too (the
 // lowest user ids win, deterministically) — one runaway thread on a hit show
