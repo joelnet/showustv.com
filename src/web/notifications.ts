@@ -167,11 +167,50 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return out;
 }
 
+function applicationServerKey(publicKey: string): BufferSource {
+  const key = urlBase64ToUint8Array(publicKey);
+  // VAPID public keys are uncompressed P-256 points. Browsers usually throw
+  // their own low-level error for bad keys, but this keeps the toggle from
+  // presenting key/config mistakes as a user permission decision.
+  if (key.length !== 65 || key[0] !== 4)
+    throw new Error("Push notifications are misconfigured: the VAPID public key is invalid");
+  return key as unknown as BufferSource;
+}
+
 function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
   return Promise.race([
     promise,
     new Promise<never>((_, reject) => setTimeout(() => reject(new Error(message)), ms)),
   ]);
+}
+
+function isAppleStandalonePwa(): boolean {
+  const nav = navigator as Navigator & { standalone?: boolean };
+  const appleMobile =
+    /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  return appleMobile && nav.standalone === true;
+}
+
+function isNotAllowedError(e: unknown): boolean {
+  return e instanceof DOMException
+    ? e.name === "NotAllowedError"
+    : e instanceof Error && e.name === "NotAllowedError";
+}
+
+async function subscriptionFailureMessage(reg: ServiceWorkerRegistration, e: unknown): Promise<string | null> {
+  if (!isNotAllowedError(e) || Notification.permission !== "granted") return null;
+  const pushPermission = await withTimeout(
+    reg.pushManager.permissionState({ userVisibleOnly: true }),
+    3_000,
+    "Couldn't read notification permission from the installed app"
+  ).catch(() => null);
+  if (pushPermission === "denied") return "Notifications are blocked for this site in your browser settings";
+  if (pushPermission === "granted") {
+    if (isAppleStandalonePwa())
+      return "iOS allowed notifications, but refused to create a push subscription. This is common in the iOS Simulator; test push on a physical iPhone, or reinstall the Home Screen app if this is a real device.";
+    return "The browser allowed notifications, but refused to create a push subscription. Reset this site's notification permission or reinstall the app.";
+  }
+  return null;
 }
 
 // Ask permission, subscribe this device, and register the subscription with
@@ -227,12 +266,14 @@ export async function enablePush(publicKey: string): Promise<void> {
       sub = await withTimeout(
         reg.pushManager.subscribe({
           userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(publicKey) as unknown as BufferSource,
+          applicationServerKey: applicationServerKey(publicKey),
         }),
         20_000,
         "Couldn't create a push subscription in this installed app"
       );
     } catch (e) {
+      const message = await subscriptionFailureMessage(reg, e);
+      if (message) throw new Error(message);
       if (Notification.permission === "default")
         throw new Error(
           "Chrome has the installed app stuck before the notification prompt; reset this site's notification permission or reinstall the app"

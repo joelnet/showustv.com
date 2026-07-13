@@ -73,6 +73,13 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return out;
 }
 
+function isAppleStandalonePwa(): boolean {
+  const nav = navigator as Navigator & { standalone?: boolean };
+  const appleMobile =
+    /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  return appleMobile && nav.standalone === true;
+}
+
 function PushDiagnostics() {
   // undefined = still fetching, null = push not configured/prefs unreachable.
   const [key, setKey] = useState<string | null | undefined>(undefined);
@@ -155,7 +162,12 @@ function PushDiagnostics() {
       // The push service's own view of permission — can disagree with
       // Notification.permission on Android WebAPKs, which is exactly the
       // delegation quirk this probe exists to catch.
-      await step("pushManager.permissionState", 3_000, () => reg.pushManager.permissionState({ userVisibleOnly: true }), String);
+      const pushPermission = await step(
+        "pushManager.permissionState",
+        3_000,
+        () => reg.pushManager.permissionState({ userVisibleOnly: true }),
+        String
+      );
       const existing = await step(
         "getSubscription",
         3_000,
@@ -165,6 +177,12 @@ function PushDiagnostics() {
             ? `endpoint ${tail(s.endpoint)} expires=${s.expirationTime == null ? "never" : new Date(s.expirationTime).toISOString()}`
             : "null"
       );
+      const appKey = urlBase64ToUint8Array(key);
+      add(`VAPID public key bytes: length=${appKey.length} first=${appKey[0] ?? "n/a"}`);
+      if (appKey.length !== 65 || appKey[0] !== 4) {
+        add("✗ VAPID public key is invalid; expected a 65-byte uncompressed P-256 public key starting with 4");
+        return;
+      }
       const sub =
         existing ??
         (await step(
@@ -173,10 +191,20 @@ function PushDiagnostics() {
           () =>
             reg.pushManager.subscribe({
               userVisibleOnly: true,
-              applicationServerKey: urlBase64ToUint8Array(key) as unknown as BufferSource,
+              applicationServerKey: appKey as unknown as BufferSource,
             }),
           (s) => `endpoint ${tail(s.endpoint)}`
         ));
+      if (!sub && Notification.permission === "granted" && pushPermission === "granted") {
+        if (isAppleStandalonePwa())
+          add(
+            "→ iOS reports notifications as granted, but refused to create the subscription. This is common in the iOS Simulator; verify on a physical iPhone, or reinstall the Home Screen app if this is a real device."
+          );
+        else
+          add(
+            "→ Browser permission is granted, but PushManager refused to create the subscription. Reset this site's notification permission or reinstall the app."
+          );
+      }
       if (!sub) return;
       const saved = await step("register with server", 10_000, () => post("/notifications/push/subscribe", sub.toJSON()), () => "ok");
       if (saved) add("done — this device is now subscribed; the settings toggle should read on");
