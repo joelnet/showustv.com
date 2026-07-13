@@ -75,6 +75,69 @@ export function useUnreadNotifications(): number {
   return count;
 }
 
+// ---------- Push-nudge store (issue #276) ----------
+// While this device COULD receive pushes but isn't subscribed — the same
+// off-but-enable-able condition the notifications page's PushToggle discover
+// mode uses (issue #237): push supported, VAPID key configured, no current
+// subscription — the bell badge shows at least (1) to pull people onto the
+// page where the enable toggle lives. Purely a display nudge: the real
+// unread store above (and the server's read state) is never touched.
+
+let pushNudge = false;
+const nudgeListeners = new Set<() => void>();
+
+const subscribeNudge = (cb: () => void) => {
+  nudgeListeners.add(cb);
+  return () => {
+    nudgeListeners.delete(cb);
+  };
+};
+
+// Every set bumps the generation, so an async check that was already in
+// flight when enable/disable answered directly can tell it's stale and must
+// not overwrite that answer (e.g. a slow prefs fetch from mount resolving
+// right after the toggle subscribed — it would resurrect the (1)).
+let nudgeGen = 0;
+
+function setPushNudge(on: boolean): void {
+  nudgeGen++;
+  if (on !== pushNudge) {
+    pushNudge = on;
+    nudgeListeners.forEach((l) => l());
+  }
+}
+
+// Every failure path lands on "no nudge": a wrong (1) that outlives an
+// enable, or one shown while signed out/offline, is worse than no nudge.
+async function checkPushNudge(): Promise<void> {
+  const gen = nudgeGen;
+  const stale = () => gen !== nudgeGen;
+  if (!pushSupported()) return setPushNudge(false);
+  try {
+    const sub = await getPushSubscription();
+    if (stale()) return;
+    if (sub) return setPushNudge(false);
+    // Only unsubscribed devices pay for the prefs fetch; it doubles as the
+    // signed-in check (the route 401s otherwise).
+    const d = await api<{ pushPublicKey: string | null }>("/notifications/prefs");
+    if (stale()) return;
+    setPushNudge(!!d.pushPublicKey);
+  } catch {
+    if (!stale()) setPushNudge(false);
+  }
+}
+
+// Whether the bell should show the synthetic minimum. Checked once per mount
+// (one bell per shell); enablePush/disablePush below flip it live, so the
+// nudge disappears the moment the toggle subscribes this device.
+export function usePushNudge(): boolean {
+  const nudge = useSyncExternalStore(subscribeNudge, () => pushNudge);
+  useEffect(() => {
+    void checkPushNudge();
+  }, []);
+  return nudge;
+}
+
 // ---------- Web Push subscription flow ----------
 
 // iOS Safari only exposes PushManager inside an installed (home-screen) PWA,
@@ -119,6 +182,7 @@ export async function enablePush(publicKey: string): Promise<void> {
       applicationServerKey: urlBase64ToUint8Array(publicKey) as unknown as BufferSource,
     }));
   await post("/notifications/push/subscribe", sub.toJSON());
+  setPushNudge(false); // this device now gets pushes — the bell's (1) nudge goes away
 }
 
 // Drop this device's subscription, server-side and browser-side — in that
@@ -129,5 +193,10 @@ export async function disablePush(): Promise<void> {
   const sub = await getPushSubscription();
   if (!sub) return;
   await post("/notifications/push/unsubscribe", { endpoint: sub.endpoint });
-  await sub.unsubscribe().catch(() => {});
+  const gone = await sub.unsubscribe().catch(() => false);
+  // Nudge again only if the browser-side unsubscribe really happened —
+  // that's what makes this device off-but-enable-able per the detection
+  // above (a surviving subscription would contradict the (1), and the
+  // discover toggle wouldn't show either).
+  setPushNudge(gone);
 }

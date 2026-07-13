@@ -12,7 +12,7 @@ import { CelebrationProvider } from "./components/celebration";
 import { ToastProvider } from "./components/toast";
 import { IconPlay, IconSearch, IconLibrary, IconList, IconGear, IconUser, IconDownload, IconBell } from "./components/icons";
 import { useInstallPrompt, isStandalone, useUpdateReady, applyUpdate } from "./pwa";
-import { useUnreadNotifications, setUnread } from "./notifications";
+import { useUnreadNotifications, usePushNudge, setUnread } from "./notifications";
 import { Landing } from "./pages/landing";
 import { Login } from "./pages/login";
 import { WelcomePage } from "./pages/welcome";
@@ -269,13 +269,24 @@ function HeaderProgress() {
 // it opens the notifications page, which marks everything read.
 function NotificationBell() {
   const count = useUnreadNotifications();
-  const label = count > 0 ? `Notifications, ${count} unread` : "Notifications";
+  const nudge = usePushNudge();
+  // While push is off but enable-able on this device, the badge floors at
+  // (1) so the bell leads people to the notifications page's enable toggle
+  // (issue #276). Display-only: `count`, the app-icon badge, and read
+  // marking all keep using the real unread number.
+  const shown = nudge ? Math.max(count, 1) : count;
+  const label =
+    count > 0
+      ? `Notifications, ${count} unread`
+      : shown > 0
+        ? "Notifications, turn on push notifications"
+        : "Notifications";
   return (
     <Link to="/notifications" className="header-bell" aria-label={label} title="Notifications">
       <IconBell />
-      {count > 0 && (
+      {shown > 0 && (
         <span className="bell-badge" aria-hidden="true">
-          {count > 99 ? "99+" : count}
+          {shown > 99 ? "99+" : shown}
         </span>
       )}
     </Link>
