@@ -22,6 +22,8 @@ import { notifyUserOfFollow } from "../lib/notifications";
 export const social = new Hono<AppEnv>();
 
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
+const TASTE_GRAPH_MUTUAL_LIMIT = 80;
+const TASTE_GRAPH_MOVIE_LIMIT = 120;
 
 // Resolves a username (exact, case-insensitive) to a live user. The regex
 // pre-check keeps garbage out of the query; NULL means "no such user".
@@ -100,6 +102,168 @@ social.get("/follows", async (c) => {
       since: r.since,
       youFollow: !!r.youFollow,
     })),
+  });
+});
+
+// Movies the signed-in user has watched in common with reciprocal follows.
+// This is intentionally a mutual-only surface: a one-way follow must never
+// turn into bulk access to somebody else's watch history. The response is
+// also deliberately minimal. It carries membership and favorite state, but
+// no watch timestamps, ratings, email addresses, or numeric user ids.
+social.get("/taste-graph", async (c) => {
+  const uid = c.get("uid");
+
+  type MutualRow = {
+    username: string;
+    since: string;
+    total_count: number;
+  };
+  type ConnectionRow = {
+    movie_id: number;
+    title: string;
+    poster: string | null;
+    release_year: string | null;
+    my_favorite: number;
+    mutual_viewer_count: number;
+    mutual_favorite_count: number;
+    username: string;
+    their_favorite: number;
+  };
+
+  const mutualsSql = `WITH mutuals AS (
+    SELECT u.id, u.username, MAX(f.created_at, r.created_at) AS since
+    FROM follows f
+    JOIN follows r
+      ON r.follower_id = f.followee_id
+     AND r.followee_id = ?1
+     AND r.state = 'active'
+    JOIN users u ON u.id = f.followee_id AND u.deleted_at IS NULL
+    WHERE f.follower_id = ?1 AND f.state = 'active'
+  )
+  SELECT username, since, COUNT(*) OVER () AS total_count
+  FROM mutuals
+  ORDER BY since DESC, username COLLATE NOCASE
+  LIMIT ?2`;
+
+  const connectionsSql = `WITH mutuals AS (
+    SELECT u.id, u.username, MAX(f.created_at, r.created_at) AS since
+    FROM follows f
+    JOIN follows r
+      ON r.follower_id = f.followee_id
+     AND r.followee_id = ?1
+     AND r.state = 'active'
+    JOIN users u ON u.id = f.followee_id AND u.deleted_at IS NULL
+    WHERE f.follower_id = ?1 AND f.state = 'active'
+    ORDER BY since DESC, u.username COLLATE NOCASE
+    LIMIT ?2
+  ),
+  my_movies AS (
+    SELECT movie_id
+    FROM user_movies
+    WHERE user_id = ?1 AND state = 'watched'
+  ),
+  favorites AS (
+    SELECT DISTINCT l.user_id, li.target_id AS movie_id
+    FROM custom_lists l
+    JOIN custom_list_items li ON li.list_id = l.id
+    WHERE l.kind = 'favorites'
+      AND li.target_type = 'movie'
+      AND (l.user_id = ?1 OR EXISTS (SELECT 1 FROM mutuals mu WHERE mu.id = l.user_id))
+  ),
+  shared AS (
+    SELECT mu.username, um.movie_id,
+           CASE WHEN their_fav.movie_id IS NULL THEN 0 ELSE 1 END AS their_favorite
+    FROM mutuals mu
+    JOIN user_movies um ON um.user_id = mu.id AND um.state = 'watched'
+    JOIN my_movies mine ON mine.movie_id = um.movie_id
+    LEFT JOIN favorites their_fav
+      ON their_fav.user_id = mu.id AND their_fav.movie_id = um.movie_id
+  ),
+  ranked AS (
+    SELECT shared.movie_id,
+           COUNT(*) AS mutual_viewer_count,
+           SUM(shared.their_favorite) AS mutual_favorite_count,
+           CASE WHEN my_fav.movie_id IS NULL THEN 0 ELSE 1 END AS my_favorite,
+           COUNT(*) +
+             (2 * SUM(shared.their_favorite)) +
+             CASE WHEN my_fav.movie_id IS NULL THEN 0 ELSE 2 END +
+             CASE WHEN my_fav.movie_id IS NULL THEN 0 ELSE 3 * SUM(shared.their_favorite) END AS relevance
+    FROM shared
+    LEFT JOIN favorites my_fav
+      ON my_fav.user_id = ?1 AND my_fav.movie_id = shared.movie_id
+    GROUP BY shared.movie_id, my_fav.movie_id
+    ORDER BY relevance DESC, mutual_viewer_count DESC, shared.movie_id
+    LIMIT ?3
+  )
+  SELECT m.tmdb_id AS movie_id, m.title, m.poster_url AS poster,
+         CASE WHEN LENGTH(m.release_date) >= 4 THEN SUBSTR(m.release_date, 1, 4) ELSE NULL END AS release_year,
+         ranked.my_favorite, ranked.mutual_viewer_count, ranked.mutual_favorite_count,
+         shared.username, shared.their_favorite
+  FROM ranked
+  JOIN shared ON shared.movie_id = ranked.movie_id
+  JOIN movies m ON m.tmdb_id = ranked.movie_id
+  ORDER BY ranked.relevance DESC, ranked.mutual_viewer_count DESC,
+           m.title COLLATE NOCASE, shared.username COLLATE NOCASE`;
+
+  const [mutualsResult, connectionsResult] = await c.env.DB.batch<MutualRow | ConnectionRow>([
+    c.env.DB.prepare(mutualsSql).bind(uid, TASTE_GRAPH_MUTUAL_LIMIT),
+    c.env.DB.prepare(connectionsSql).bind(uid, TASTE_GRAPH_MUTUAL_LIMIT, TASTE_GRAPH_MOVIE_LIMIT),
+  ]);
+
+  const mutualRows = mutualsResult.results as MutualRow[];
+  const connectionRows = connectionsResult.results as ConnectionRow[];
+  const movieMap = new Map<
+    number,
+    {
+      id: number;
+      title: string;
+      poster: string | null;
+      releaseYear: number | null;
+      mutualViewerCount: number;
+      mutualFavoriteCount: number;
+      myFavorite: boolean;
+      mutualFavorite: boolean;
+    }
+  >();
+
+  const links = connectionRows.map((row) => {
+    if (!movieMap.has(row.movie_id)) {
+      movieMap.set(row.movie_id, {
+        id: row.movie_id,
+        title: row.title,
+        poster: row.poster,
+        releaseYear: row.release_year == null ? null : Number(row.release_year),
+        mutualViewerCount: row.mutual_viewer_count,
+        mutualFavoriteCount: row.mutual_favorite_count,
+        myFavorite: !!row.my_favorite,
+        mutualFavorite: !!row.my_favorite && row.mutual_favorite_count > 0,
+      });
+    }
+    return {
+      person: row.username,
+      movie: row.movie_id,
+      favorite: !!row.their_favorite,
+    };
+  });
+
+  const movies = Array.from(movieMap.values());
+  const totalMutuals = mutualRows[0]?.total_count ?? 0;
+
+  // The service worker must never persist a viewer-specific aggregation that
+  // can include private-profile mutuals. This mirrors the cache hygiene on
+  // the public profile/library gates.
+  c.header("Cache-Control", "private, no-store");
+  return c.json({
+    summary: {
+      mutualCount: totalMutuals,
+      mutualsShown: mutualRows.length,
+      sharedMovieCount: movies.length,
+      mutualFavoriteMovieCount: movies.filter((movie) => movie.mutualFavorite).length,
+      truncated: totalMutuals > mutualRows.length,
+    },
+    mutuals: mutualRows.map((row) => ({ username: row.username })),
+    movies,
+    links,
   });
 });
 

@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Suspense, createContext, lazy, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { BrowserRouter, Routes, Route, NavLink, Link, Outlet, Navigate, useLocation, useNavigate, useNavigationType, useParams } from "react-router-dom";
 import { DEFAULT_DOCUMENT_TITLE } from "./hooks";
 import { api, post, ApiError } from "./api";
@@ -31,6 +31,7 @@ import { PublicProfilePage } from "./pages/public-profile";
 import { PublicLibraryPage } from "./pages/public-library";
 import { MyAchievementsPage, PublicAchievementsPage } from "./pages/achievements";
 import { FollowingPage } from "./pages/following";
+import { RowListSkeleton } from "./components/skeleton";
 import { NotificationsPage } from "./pages/notifications";
 import { SettingsPage } from "./pages/settings";
 import { AdminPage } from "./pages/admin";
@@ -39,6 +40,21 @@ import { ImportHelpPage } from "./pages/import-help";
 import { InstallPage } from "./pages/install";
 import { AboutPage } from "./pages/about";
 import { PrivacyPage, TermsPage } from "./pages/legal";
+
+// Sigma + Graphology are substantial and only power this one social surface.
+// Keep them out of the app's startup bundle until someone opens Shared Signal.
+const SharedSignalPage = lazy(() =>
+  import("./pages/shared-signal").then((module) => ({ default: module.SharedSignalPage }))
+);
+
+function SharedSignalFallback() {
+  return (
+    <div>
+      <h1 className="page-title">Shared Signal</h1>
+      <RowListSkeleton count={6} />
+    </div>
+  );
+}
 
 export interface User {
   id: number;
@@ -539,6 +555,14 @@ export function App() {
             <Route path="/lists" element={<ListsPage />} />
             <Route path="/lists/:id" element={<ListDetailPage />} />
             <Route path="/following" element={<FollowingPage />} />
+            <Route
+              path="/following/shared"
+              element={
+                <Suspense fallback={<SharedSignalFallback />}>
+                  <SharedSignalPage />
+                </Suspense>
+              }
+            />
             <Route path="/notifications" element={<NotificationsPage />} />
             {/* Your profile lives at its shareable custom URL (issue #220);
                 the old /profile addresses redirect so bookmarks and older

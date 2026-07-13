@@ -1489,6 +1489,285 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .friend-add input { flex: 1; max-width: 320px; min-width: 0; }
 .friend-note { color: var(--muted); font-size: 13.5px; margin: 8px 0 0; }
 
+.social-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 28px;
+}
+.social-section-head .section-title { margin: 0 0 12px; }
+.shared-signal-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.shared-signal-link:hover { border-color: var(--amber); color: var(--amber); text-decoration: none; }
+
+/* ---------- Shared Signal ---------- */
+
+.taste-page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 18px;
+}
+.taste-page-head .page-title { margin-bottom: 5px; }
+.taste-page-head p { margin: 0; color: var(--muted); }
+.taste-summary { flex-shrink: 0; padding-bottom: 3px; }
+.taste-limit-note {
+  margin: -6px 0 16px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.taste-empty-action { margin-top: 14px; }
+
+.taste-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px;
+  margin-bottom: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.taste-filter-tabs,
+.taste-view-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.taste-filter-tabs button,
+.taste-view-switch button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: none;
+  color: var(--muted);
+  font: 600 12.5px var(--font-body);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.taste-filter-tabs button:hover,
+.taste-view-switch button:hover { color: var(--text); background: var(--surface-2); }
+.taste-view-switch button:disabled { opacity: 0.45; cursor: default; background: none; color: var(--muted); }
+.taste-filter-tabs button.is-on,
+.taste-view-switch button[aria-pressed="true"] {
+  color: var(--amber);
+  background: var(--amber-soft);
+  border-color: rgba(255, 174, 46, 0.35);
+}
+.taste-mutual-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.taste-mutual-select select { max-width: 150px; padding: 6px 28px 6px 9px; font-size: 13px; }
+.taste-view-switch { padding-left: 10px; border-left: 1px solid var(--line); }
+
+.taste-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 14px;
+  align-items: stretch;
+}
+.taste-visual { min-width: 0; }
+.taste-graph-wrap {
+  position: relative;
+  height: min(66vh, 640px);
+  min-height: 480px;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+.taste-graph-canvas { position: absolute; inset: 0; }
+.taste-reset {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 5;
+  min-height: 32px;
+  padding: 6px 10px;
+  background: rgba(23, 28, 38, 0.92);
+  font-size: 12px;
+}
+
+.taste-detail {
+  min-width: 0;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+.taste-detail h2 { margin: 0 0 8px; font-size: 20px; line-height: 1.2; }
+.taste-detail h3 {
+  margin: 20px 0 8px;
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+.taste-detail > p { margin: 0 0 14px; color: var(--muted); }
+.taste-detail-poster {
+  display: block;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  margin-bottom: 14px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+}
+.taste-detail-kicker { margin-bottom: 5px !important; font-size: 10.5px; letter-spacing: 0.09em; }
+.taste-mutual-favorite {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--red) !important;
+  font-weight: 600;
+}
+.taste-favorite-action { width: 100%; justify-content: center; }
+.taste-favorite-action.is-on { color: var(--red); border-color: var(--red); background: rgba(255, 77, 61, 0.1); }
+.taste-detail-link { width: 100%; justify-content: center; margin-top: 16px; }
+.taste-detail-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.taste-detail-hint { margin-top: 22px !important; font-size: 12.5px; }
+
+.taste-viewers,
+.taste-person-movies,
+.taste-key,
+.taste-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.taste-viewers li + li,
+.taste-person-movies li + li { border-top: 1px solid var(--line); }
+.taste-viewers button,
+.taste-person-movies button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 2px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: 500 13px var(--font-body);
+  text-align: left;
+  cursor: pointer;
+}
+.taste-viewers button:hover,
+.taste-person-movies button:hover { color: var(--amber); }
+.taste-viewer-favorite {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--red);
+  font-size: 11px;
+}
+.taste-person-movies svg { color: var(--red); flex-shrink: 0; }
+.taste-key { display: grid; gap: 9px; color: var(--muted); font-size: 13px; }
+.taste-key li { display: flex; align-items: center; gap: 9px; }
+.taste-key li svg { color: var(--red); }
+.taste-key-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
+.taste-key-dot.is-you { background: var(--text); }
+.taste-key-dot.is-mutual { background: var(--cyan); }
+.taste-key-poster { width: 9px; height: 13px; border-radius: 2px; background: var(--surface-2); border: 1px solid var(--muted); }
+
+.taste-list {
+  max-height: min(66vh, 640px);
+  overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+.taste-list li + li { border-top: 1px solid var(--line); }
+.taste-list > li > button {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  width: 100%;
+  padding: 10px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.taste-list > li > button:hover { background: var(--surface-2); }
+.taste-list > li > button.is-selected { background: var(--amber-soft); }
+.taste-list img,
+.taste-list-poster-fallback {
+  width: 46px;
+  height: 69px;
+  flex-shrink: 0;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  object-fit: cover;
+}
+.taste-list-poster-fallback { display: grid; place-items: center; color: var(--muted); background: var(--surface-2); }
+.taste-list-copy { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.taste-list-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.taste-favorite-marks { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 2px; }
+.taste-favorite-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--red);
+  font: 600 11px var(--font-body);
+}
+.taste-favorite-mark.is-mine { padding-right: 7px; border-right: 1px solid var(--line); }
+
+@media (max-width: 860px) {
+  .taste-toolbar { flex-wrap: wrap; }
+  .taste-filter-tabs { flex: 1 1 100%; }
+  .taste-mutual-select { margin-left: 0; }
+  .taste-workspace { grid-template-columns: minmax(0, 1fr) 240px; }
+}
+
+@media (max-width: 719px) {
+  .social-section-head { align-items: flex-end; }
+  .shared-signal-link { min-height: 40px; padding: 9px 12px; }
+  .taste-page-head { align-items: flex-start; flex-direction: column; gap: 5px; }
+  .taste-summary { padding: 0; }
+  .taste-toolbar { align-items: stretch; gap: 9px; padding: 9px; }
+  .taste-filter-tabs { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
+  .taste-filter-tabs button { white-space: normal; min-height: 40px; }
+  .taste-mutual-select { justify-content: space-between; flex: 1 1 auto; }
+  .taste-mutual-select select { max-width: 180px; }
+  .taste-view-switch { border-left: 0; padding-left: 0; }
+  .taste-view-switch button { min-height: 40px; }
+  .taste-workspace { grid-template-columns: 1fr; }
+  .taste-graph-wrap { height: 58vh; min-height: 410px; }
+  .taste-detail { padding: 14px; }
+  .taste-detail-poster { width: 126px; }
+  .taste-list { max-height: none; }
+  .taste-viewers button,
+  .taste-person-movies button { min-height: 40px; }
+}
+
 /* Click-to-open action menu (issue #255) — first used by the "Mutuals"
    handshake button on a mutual's profile, where it replaced the issue #199
    native select. Trigger is a regular .btn; the pop panel drops below it. */

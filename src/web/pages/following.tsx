@@ -17,7 +17,7 @@ import { fmtDateTime } from "../format";
 import { Empty, ErrorNote } from "../components/ui";
 import { FollowingSkeleton, RowListSkeleton } from "../components/skeleton";
 import { mediaPath } from "../paths";
-import { IconPlus, IconTrash } from "../components/icons";
+import { IconPlus, IconShare, IconTrash } from "../components/icons";
 
 interface FollowsData {
   mutuals: { username: string; since: string }[];
@@ -204,7 +204,12 @@ export function FollowingPage() {
           in the Following list below. */}
       {mutuals.length > 0 && (
         <>
-          <h2 className="section-title">Mutuals · {mutuals.length}</h2>
+          <div className="social-section-head">
+            <h2 className="section-title">Mutuals · {mutuals.length}</h2>
+            <Link to="/following/shared" className="shared-signal-link">
+              <IconShare size={13} /> Shared Signal
+            </Link>
+          </div>
           <ul className="list-items">
             {mutuals.map((f) => (
               <li key={f.username}>
