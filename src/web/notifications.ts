@@ -172,34 +172,44 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 // Throws with a user-facing message on the known failure modes.
 export async function enablePush(publicKey: string): Promise<void> {
   if (!pushSupported()) throw new Error("Push notifications aren't supported in this browser");
-  // Raced against a timeout: a corrupted installed-app permission binding
-  // (Android WebAPK) can leave requestPermission() pending forever without
-  // ever showing a prompt, which used to strand the toggle dimmed with no
-  // error. Reinstalling the app is what actually fixes such a device, so
-  // that's what the timeout says. 20s is enough to read a real prompt; a
-  // slower answer still registers with the browser, so the next attempt
-  // succeeds without prompting.
-  const permission = await Promise.race([
-    Notification.requestPermission(),
-    new Promise<never>((_, reject) =>
-      setTimeout(
-        () =>
-          reject(
-            new Error(
-              "Couldn't get an answer asking for notification permission — if this is an installed app, uninstalling and reinstalling it usually fixes this"
-            )
-          ),
-        20_000
-      )
-    ),
-  ]);
-  if (permission === "denied") throw new Error("Notifications are blocked for this site in your browser settings");
-  if (permission !== "granted")
-    // "default" with no prompt shown is the same broken installed-app
-    // permission binding as the hang above, just one step further along.
-    throw new Error(
-      "The notification permission prompt wasn't answered — if no prompt appeared, uninstall and reinstall the app"
-    );
+  // Only prompt when we don't already hold permission. The common Android
+  // WebAPK recurrence is the browser silently dropping just the push
+  // *subscription* while permission stays granted — re-enabling then must NOT
+  // call requestPermission(), which can wedge forever inside an installed app
+  // even when there is nothing to ask for. Notification.permission is a
+  // synchronous read that can't hang; when it already says granted we skip
+  // straight to (re)subscribing.
+  if (Notification.permission !== "granted") {
+    if (Notification.permission === "denied")
+      throw new Error("Notifications are blocked for this site in your browser settings");
+    // "default" — we genuinely have to ask. Raced against a timeout: a
+    // corrupted installed-app permission binding can leave requestPermission()
+    // pending forever without ever showing a prompt, which used to strand the
+    // toggle dimmed with no error. Reinstalling is what fixes such a device.
+    // 20s is enough to read a real prompt; a slower answer still registers, so
+    // the next attempt succeeds via the granted short-circuit above.
+    const permission = await Promise.race([
+      Notification.requestPermission(),
+      new Promise<never>((_, reject) =>
+        setTimeout(
+          () =>
+            reject(
+              new Error(
+                "Couldn't get an answer asking for notification permission — if this is an installed app, uninstalling and reinstalling it usually fixes this"
+              )
+            ),
+          20_000
+        )
+      ),
+    ]);
+    if (permission === "denied") throw new Error("Notifications are blocked for this site in your browser settings");
+    if (permission !== "granted")
+      // "default" with no prompt shown is the same broken installed-app
+      // permission binding as the hang above, just one step further along.
+      throw new Error(
+        "The notification permission prompt wasn't answered — if no prompt appeared, uninstall and reinstall the app"
+      );
+  }
   const reg = await navigator.serviceWorker.ready;
   const sub =
     (await reg.pushManager.getSubscription()) ??
