@@ -77,13 +77,20 @@ interface TasteGraphProps {
   selfUsername: string;
   selected: TasteSelection;
   onSelect: (selection: TasteSelection) => void;
+  // Fired when the WebGL layer dies (lost context, or a renderer that fails to
+  // construct). The page uses it to fall back to the list view instead of
+  // leaving a dead black canvas.
+  onRenderError?: () => void;
 }
 
 const SELF_NODE = "person:self";
 const FAVORITE_COLOR = "#ff4d3d";
-const EDGE_COLOR = "#2a3344";
+const SELF_COLOR = "#ffae2e"; // tungsten amber — "you" are the console at the center
+const PERSON_COLOR = "#56cfde";
+// Brighter than --line so the patch cables actually read against the scope.
+const EDGE_COLOR = "#3d4a60";
 const CATEGORY_COLORS: Record<TasteMediaCategory, string> = {
-  movie: "#8e97a8",
+  movie: "#a7b0c0",
   show: "#56cfde",
   anime: "#58c983",
 };
@@ -113,15 +120,20 @@ function jitter(value: string): number {
   return ((hash >>> 0) / 0xffffffff - 0.5) * 2.4;
 }
 
-export function TasteGraph({ media, links, selfUsername, selected, onSelect }: TasteGraphProps) {
+export function TasteGraph({ media, links, selfUsername, selected, onSelect, onRenderError }: TasteGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<Sigma<TasteNodeAttributes, TasteEdgeAttributes> | null>(null);
   const graphRef = useRef<Graph<TasteNodeAttributes, TasteEdgeAttributes> | null>(null);
   const onSelectRef = useRef(onSelect);
+  const onRenderErrorRef = useRef(onRenderError);
 
   useEffect(() => {
     onSelectRef.current = onSelect;
   }, [onSelect]);
+
+  useEffect(() => {
+    onRenderErrorRef.current = onRenderError;
+  }, [onRenderError]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -135,9 +147,9 @@ export function TasteGraph({ media, links, selfUsername, selected, onSelect }: T
     graph.addNode(SELF_NODE, {
       x: 0,
       y: 0,
-      size: 10,
+      size: 11,
       label: `You · ${selfUsername}`,
-      color: "#ede9e0",
+      color: SELF_COLOR,
       type: "circle",
       kind: "person",
       entityId: selfUsername,
@@ -153,10 +165,14 @@ export function TasteGraph({ media, links, selfUsername, selected, onSelect }: T
         ...point,
         size: 7,
         label: username,
-        color: "#56cfde",
+        color: PERSON_COLOR,
         type: "circle",
         kind: "person",
         entityId: username,
+        // Labels are forced on for every node so titles/handles stay readable
+        // at the default zoom — the recurring complaint was that you had to
+        // zoom in close before anything was named.
+        forceLabel: true,
         zIndex: 3,
       });
     });
@@ -193,6 +209,7 @@ export function TasteGraph({ media, links, selfUsername, selected, onSelect }: T
         kind: "media",
         entityId: item.id,
         entityType: item.type,
+        forceLabel: true,
         zIndex: item.mutualFavorite ? 3 : item.myFavorite || item.mutualFavoriteCount > 0 ? 2 : 1,
       });
       graph.addEdgeWithKey(`self:${itemKey}`, SELF_NODE, mediaNode(item.type, item.id), {
@@ -232,39 +249,65 @@ export function TasteGraph({ media, links, selfUsername, selected, onSelect }: T
       });
     }
 
-    const renderer = new Sigma<TasteNodeAttributes, TasteEdgeAttributes>(graph, container, {
-      nodeProgramClasses: { image: MediaImageProgram },
-      defaultNodeColor: "#202836",
-      defaultEdgeColor: EDGE_COLOR,
-      labelColor: { color: "#ede9e0" },
-      labelFont: "Roboto, system-ui, sans-serif",
-      labelSize: 12,
-      labelWeight: "600",
-      labelDensity: 0.08,
-      labelRenderedSizeThreshold: 7,
-      stagePadding: 36,
-      minCameraRatio: 0.25,
-      maxCameraRatio: 5,
-      hideEdgesOnMove: true,
-      enableCameraRotation: false,
-      zIndex: true,
-    });
+    let renderer: Sigma<TasteNodeAttributes, TasteEdgeAttributes>;
+    try {
+      renderer = new Sigma<TasteNodeAttributes, TasteEdgeAttributes>(graph, container, {
+        nodeProgramClasses: { image: MediaImageProgram },
+        defaultNodeColor: "#202836",
+        defaultEdgeColor: EDGE_COLOR,
+        labelColor: { color: "#ede9e0" },
+        labelFont: "Lato, system-ui, sans-serif",
+        labelSize: 11.5,
+        labelWeight: "600",
+        // With forceLabel on every node these density/threshold knobs only
+        // affect hover labels, but keep them permissive as a safety net.
+        labelDensity: 1,
+        labelRenderedSizeThreshold: 0,
+        stagePadding: 44,
+        minCameraRatio: 0.25,
+        maxCameraRatio: 5,
+        hideEdgesOnMove: true,
+        enableCameraRotation: false,
+        zIndex: true,
+      });
+    } catch {
+      // A device that can't spin up the WebGL layer must not leave a dead
+      // canvas — bail to the list view instead.
+      onRenderErrorRef.current?.();
+      return;
+    }
+
+    // A lost GPU context (mobile backgrounding, driver reset) turns the canvas
+    // permanently black. Catch it and hand the page back to the list view
+    // rather than leaving a broken graph the user can only escape by
+    // force-quitting the app.
+    const onContextLost = (event: Event) => {
+      event.preventDefault();
+      onRenderErrorRef.current?.();
+    };
+    const canvases = Array.from(container.querySelectorAll("canvas"));
+    canvases.forEach((canvas) => canvas.addEventListener("webglcontextlost", onContextLost));
 
     renderer.on("clickNode", ({ node }) => {
-      const attributes = graph.getNodeAttributes(node);
-      onSelectRef.current(
-        attributes.kind === "media" && attributes.entityType
-          ? { kind: "media", type: attributes.entityType, id: Number(attributes.entityId) }
-          : node === SELF_NODE
-            ? null
-            : { kind: "person", username: String(attributes.entityId) }
-      );
+      try {
+        const attributes = graph.getNodeAttributes(node);
+        onSelectRef.current(
+          attributes.kind === "media" && attributes.entityType
+            ? { kind: "media", type: attributes.entityType, id: Number(attributes.entityId) }
+            : node === SELF_NODE
+              ? null
+              : { kind: "person", username: String(attributes.entityId) }
+        );
+      } catch {
+        onSelectRef.current(null);
+      }
     });
     renderer.on("clickStage", () => onSelectRef.current(null));
 
     graphRef.current = graph;
     rendererRef.current = renderer;
     return () => {
+      canvases.forEach((canvas) => canvas.removeEventListener("webglcontextlost", onContextLost));
       renderer.kill();
       rendererRef.current = null;
       graphRef.current = null;
@@ -283,44 +326,51 @@ export function TasteGraph({ media, links, selfUsername, selected, onSelect }: T
           ? personNode(selected.username)
           : null;
 
-    if (!selectedNode || !graph.hasNode(selectedNode)) {
-      renderer.setSettings({ nodeReducer: null, edgeReducer: null });
-      renderer.refresh();
-      return;
-    }
+    // Sigma's setSettings/refresh runs the reducers through the WebGL layer;
+    // guard it so a bad frame downgrades to the list view instead of throwing
+    // out of the render tree and blanking the app.
+    try {
+      if (!selectedNode || !graph.hasNode(selectedNode)) {
+        renderer.setSettings({ nodeReducer: null, edgeReducer: null });
+        renderer.refresh();
+        return;
+      }
 
-    const neighborhood = new Set([selectedNode, ...graph.neighbors(selectedNode)]);
-    if (selected?.kind === "person") neighborhood.add(SELF_NODE);
-    renderer.setSettings({
-      nodeReducer: (node, attributes) => {
-        if (!neighborhood.has(node)) return { hidden: true };
-        if (node === selectedNode)
+      const neighborhood = new Set([selectedNode, ...graph.neighbors(selectedNode)]);
+      if (selected?.kind === "person") neighborhood.add(SELF_NODE);
+      renderer.setSettings({
+        nodeReducer: (node, attributes) => {
+          if (!neighborhood.has(node)) return { hidden: true };
+          if (node === selectedNode)
+            return {
+              highlighted: true,
+              forceLabel: true,
+              size: attributes.size * 1.15,
+              zIndex: 5,
+            };
           return {
-            highlighted: true,
             forceLabel: true,
-            size: attributes.size * 1.15,
-            zIndex: 5,
+            zIndex: 3,
           };
-        return {
-          forceLabel: attributes.kind === "person",
-          zIndex: 3,
-        };
-      },
-      edgeReducer: (edge, attributes) => {
-        const source = graph.source(edge);
-        const target = graph.target(edge);
-        const selectedPersonComparison =
-          selected?.kind === "person" &&
-          ((source === SELF_NODE && neighborhood.has(target)) || (target === SELF_NODE && neighborhood.has(source)));
-        if (source !== selectedNode && target !== selectedNode && !selectedPersonComparison) return { hidden: true };
-        return {
-          color: attributes.favorite ? FAVORITE_COLOR : "#56cfde",
-          size: attributes.favorite ? 2.2 : 1.4,
-          zIndex: 4,
-        };
-      },
-    });
-    renderer.refresh();
+        },
+        edgeReducer: (edge, attributes) => {
+          const source = graph.source(edge);
+          const target = graph.target(edge);
+          const selectedPersonComparison =
+            selected?.kind === "person" &&
+            ((source === SELF_NODE && neighborhood.has(target)) || (target === SELF_NODE && neighborhood.has(source)));
+          if (source !== selectedNode && target !== selectedNode && !selectedPersonComparison) return { hidden: true };
+          return {
+            color: attributes.favorite ? FAVORITE_COLOR : PERSON_COLOR,
+            size: attributes.favorite ? 2.2 : 1.4,
+            zIndex: 4,
+          };
+        },
+      });
+      renderer.refresh();
+    } catch {
+      onRenderErrorRef.current?.();
+    }
   }, [selected]);
 
   const resetView = () => {
@@ -334,6 +384,7 @@ export function TasteGraph({ media, links, selfUsername, selected, onSelect }: T
 
   return (
     <div className="taste-graph-wrap">
+      <span className="taste-graph-tag" aria-hidden="true">Live signal</span>
       <div
         ref={containerRef}
         className="taste-graph-canvas"

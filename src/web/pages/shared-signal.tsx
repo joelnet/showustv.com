@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { del, put } from "../api";
 import { useAuth } from "../app";
@@ -7,11 +7,11 @@ import {
   tasteMediaKey,
   type TasteGraphMedia,
   type TasteGraphPayload,
-  type TasteMediaCategory,
   type TasteMediaType,
   type TasteSelection,
 } from "../components/taste-graph";
-import { IconHeart, IconHeartOutline, IconList, IconShare, IconUsers } from "../components/icons";
+import { ErrorBoundary } from "../components/error-boundary";
+import { IconHeart, IconHeartOutline, IconList, IconShare, IconUsers, IconWarning } from "../components/icons";
 import { RowListSkeleton } from "../components/skeleton";
 import { Empty, ErrorNote } from "../components/ui";
 import { useApi, useDocumentTitle } from "../hooks";
@@ -27,11 +27,6 @@ function supportsWebGL(): boolean {
   } catch {
     return false;
   }
-}
-
-function mediaLabel(item: Pick<TasteGraphMedia, "type" | "category">): string {
-  if (item.category === "anime") return item.type === "show" ? "Anime series" : "Anime movie";
-  return item.category === "show" ? "TV show" : "Movie";
 }
 
 function FavoriteMarks({ item }: { item: TasteGraphMedia }) {
@@ -54,9 +49,11 @@ function FavoriteMarks({ item }: { item: TasteGraphMedia }) {
 export function SharedSignalPage() {
   const { user } = useAuth();
   const { data, loading, error, reload } = useApi<TasteGraphPayload>("/social/taste-graph");
-  const [mutualFilter, setMutualFilter] = useState("all");
   const webglSupported = useMemo(supportsWebGL, []);
   const [view, setView] = useState<ViewMode>(() => (webglSupported ? "graph" : "list"));
+  // Once the WebGL layer fails on this device we stop offering the graph and
+  // stay on the list, so a crashing GPU can't strand anyone on a black canvas.
+  const [graphBroken, setGraphBroken] = useState(false);
   const [selected, setSelected] = useState<TasteSelection>(null);
   const [favoriteOverrides, setFavoriteOverrides] = useState<ReadonlyMap<string, boolean>>(new Map());
   const [favoriteBusy, setFavoriteBusy] = useState<string | null>(null);
@@ -64,6 +61,16 @@ export function SharedSignalPage() {
 
   useDocumentTitle("Shared Signal");
 
+  const effectiveView: ViewMode = graphBroken ? "list" : view;
+
+  const handleGraphError = useCallback(() => {
+    setGraphBroken(true);
+    setView("list");
+    setSelected(null);
+  }, []);
+
+  // Every mutual is always in play — comparing against one at a time was more
+  // chrome than it earned, so the whole shared signal shows at once.
   const media = useMemo(
     () =>
       (data?.media ?? []).map((item) => {
@@ -78,35 +85,24 @@ export function SharedSignalPage() {
     [data?.media, favoriteOverrides]
   );
 
-  const visibleMedia = useMemo(() => {
-    if (!data || mutualFilter === "all") return media;
-    const mutualMediaKeys = new Set(
-      data.links
-        .filter((link) => link.person === mutualFilter)
-        .map((link) => tasteMediaKey(link.targetType, link.targetId))
-    );
-    return media.filter((item) => mutualMediaKeys.has(tasteMediaKey(item.type, item.id)));
-  }, [data, media, mutualFilter]);
+  const links = useMemo(() => data?.links ?? [], [data?.links]);
+  const mediaKeys = useMemo(() => new Set(media.map((item) => tasteMediaKey(item.type, item.id))), [media]);
 
-  const visibleMediaKeys = useMemo(
-    () => new Set(visibleMedia.map((item) => tasteMediaKey(item.type, item.id))),
-    [visibleMedia]
+  // The list is ranked by how many mutuals you share each title with, so the
+  // most-shared titles sit at the top.
+  const listMedia = useMemo(
+    () =>
+      [...media].sort(
+        (a, b) => b.mutualViewerCount - a.mutualViewerCount || a.title.localeCompare(b.title)
+      ),
+    [media]
   );
-
-  const visibleLinks = useMemo(() => {
-    if (!data) return [];
-    return data.links.filter(
-      (link) =>
-        visibleMediaKeys.has(tasteMediaKey(link.targetType, link.targetId)) &&
-        (mutualFilter === "all" || link.person === mutualFilter)
-    );
-  }, [data, mutualFilter, visibleMediaKeys]);
 
   useEffect(() => {
     if (!selected) return;
-    if (selected.kind === "media" && !visibleMediaKeys.has(tasteMediaKey(selected.type, selected.id))) setSelected(null);
-    if (selected.kind === "person" && !visibleLinks.some((link) => link.person === selected.username)) setSelected(null);
-  }, [selected, visibleLinks, visibleMediaKeys]);
+    if (selected.kind === "media" && !mediaKeys.has(tasteMediaKey(selected.type, selected.id))) setSelected(null);
+    if (selected.kind === "person" && !links.some((link) => link.person === selected.username)) setSelected(null);
+  }, [selected, links, mediaKeys]);
 
   useEffect(() => {
     setFavoriteError(null);
@@ -117,15 +113,7 @@ export function SharedSignalPage() {
       ? media.find((item) => item.type === selected.type && item.id === selected.id) ?? null
       : null;
   const selectedPerson = selected?.kind === "person" ? selected.username : null;
-  const visibleMutualCount = new Set(visibleLinks.map((link) => link.person)).size;
-  const categoryCounts = useMemo(
-    () =>
-      visibleMedia.reduce<Record<TasteMediaCategory, number>>(
-        (counts, item) => ({ ...counts, [item.category]: counts[item.category] + 1 }),
-        { movie: 0, show: 0, anime: 0 }
-      ),
-    [visibleMedia]
-  );
+  const mutualCount = new Set(links.map((link) => link.person)).size;
 
   const toggleFavorite = async (item: TasteGraphMedia) => {
     const key = tasteMediaKey(item.type, item.id);
@@ -178,8 +166,7 @@ export function SharedSignalPage() {
           <p>Movies, TV shows, and anime in both your watch histories.</p>
         </div>
         <p className="mono taste-summary" aria-live="polite">
-          {visibleMedia.length} titles · {categoryCounts.movie} movies · {categoryCounts.show} TV · {categoryCounts.anime} anime ·{" "}
-          {visibleMutualCount} {visibleMutualCount === 1 ? "mutual" : "mutuals"}
+          {media.length} {media.length === 1 ? "title" : "titles"} · {mutualCount} {mutualCount === 1 ? "mutual" : "mutuals"}
         </p>
       </div>
 
@@ -189,125 +176,120 @@ export function SharedSignalPage() {
         </p>
       )}
 
-      {!data.media.length ? (
+      {!media.length ? (
         <Empty title="No shared titles yet" hint="Your watch histories haven't crossed yet." />
       ) : (
         <>
           <div className="taste-toolbar" aria-label="Shared title controls">
-            <label className="taste-mutual-select">
-              <span>Compare</span>
-              <select value={mutualFilter} onChange={(event) => setMutualFilter(event.target.value)}>
-                <option value="all">All mutuals</option>
-                {data.mutuals.map((mutual) => (
-                  <option key={mutual.username} value={mutual.username}>
-                    {mutual.username}
-                  </option>
-                ))}
-              </select>
-            </label>
-
+            <p className="mono taste-toolbar-hint">
+              {effectiveView === "graph" ? "Drag to pan · scroll to zoom" : "Ranked by most shared"}
+            </p>
             <div className="taste-view-switch" role="group" aria-label="View">
               <button
                 type="button"
-                aria-pressed={view === "graph"}
-                disabled={!webglSupported}
+                aria-pressed={effectiveView === "graph"}
+                disabled={!webglSupported || graphBroken}
                 title={webglSupported ? "Show graph" : "Graph view needs WebGL"}
                 onClick={() => setView("graph")}
               >
                 <IconShare size={14} /> Graph
               </button>
-              <button type="button" aria-pressed={view === "list"} onClick={() => setView("list")}>
+              <button type="button" aria-pressed={effectiveView === "list"} onClick={() => setView("list")}>
                 <IconList size={14} /> List
               </button>
             </div>
           </div>
 
-          {!visibleMedia.length ? (
-            <Empty title="Nothing on this channel" hint="Compare everyone again to bring the full signal back." />
-          ) : (
-            <div className={`taste-workspace taste-workspace--${view}`}>
-              <main className="taste-visual">
-                {view === "graph" ? (
+          {graphBroken && (
+            <p className="taste-limit-note">The live graph hit a snag on this device — showing the list instead.</p>
+          )}
+
+          <div className={`taste-workspace taste-workspace--${effectiveView}`}>
+            <main className="taste-visual">
+              {effectiveView === "graph" ? (
+                <ErrorBoundary
+                  onError={handleGraphError}
+                  fallback={() => (
+                    <div className="taste-graph-fallback">
+                      <IconWarning size={24} />
+                      <p>The live graph hit a snag. Switching to the list.</p>
+                    </div>
+                  )}
+                >
                   <TasteGraph
-                    media={visibleMedia}
-                    links={visibleLinks}
+                    media={media}
+                    links={links}
                     selfUsername={user.username}
                     selected={selected}
                     onSelect={setSelected}
+                    onRenderError={handleGraphError}
                   />
-                ) : (
-                  <ul className="taste-list" aria-label="Shared titles">
-                    {visibleMedia.map((item) => {
-                      const image = poster(item.poster, "w154");
-                      const key = tasteMediaKey(item.type, item.id);
-                      return (
-                        <li key={key}>
-                          <button
-                            type="button"
-                            className={
-                              selectedMedia?.type === item.type && selectedMedia.id === item.id ? "is-selected" : ""
-                            }
-                            onClick={() => setSelected({ kind: "media", type: item.type, id: item.id })}
-                          >
-                            {image ? (
-                              <img className={`is-${item.category}`} src={image} alt="" loading="lazy" />
-                            ) : (
-                              <span className={`taste-list-poster-fallback is-${item.category}`}>
-                                <IconShare size={18} />
-                              </span>
-                            )}
-                            <span className="taste-list-copy">
-                              <strong>{item.title}</strong>
-                              <span className="mono taste-list-meta">
-                                <span className={`taste-media-kind is-${item.category}`}>{mediaLabel(item)}</span>
-                                <span>{item.releaseYear ?? "Year unknown"} · shared with {item.mutualViewerCount}</span>
-                              </span>
-                              <FavoriteMarks item={item} />
+                </ErrorBoundary>
+              ) : (
+                <ul className="taste-list" aria-label="Shared titles">
+                  {listMedia.map((item) => {
+                    const image = poster(item.poster, "w154");
+                    const key = tasteMediaKey(item.type, item.id);
+                    return (
+                      <li key={key}>
+                        <button
+                          type="button"
+                          className={
+                            selectedMedia?.type === item.type && selectedMedia.id === item.id ? "is-selected" : ""
+                          }
+                          onClick={() => setSelected({ kind: "media", type: item.type, id: item.id })}
+                        >
+                          {image ? (
+                            <img className={`is-${item.category}`} src={image} alt="" loading="lazy" />
+                          ) : (
+                            <span className={`taste-list-poster-fallback is-${item.category}`}>
+                              <IconShare size={18} />
                             </span>
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </main>
+                          )}
+                          <span className="taste-list-copy">
+                            <strong>{item.title}</strong>
+                            <span className="mono taste-list-meta">Shared with {item.mutualViewerCount}</span>
+                            <FavoriteMarks item={item} />
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </main>
 
-              <aside className="taste-detail" aria-live="polite">
-                {selectedMedia ? (
-                  <MediaDetail
-                    item={selectedMedia}
-                    links={visibleLinks}
-                    busy={favoriteBusy === tasteMediaKey(selectedMedia.type, selectedMedia.id)}
-                    error={favoriteError}
-                    onToggleFavorite={() => void toggleFavorite(selectedMedia)}
-                    onSelectPerson={(username) => setSelected({ kind: "person", username })}
-                  />
-                ) : selectedPerson ? (
-                  <PersonDetail
-                    username={selectedPerson}
-                    media={visibleMedia.filter((item) =>
-                      visibleLinks.some(
-                        (link) =>
-                          link.person === selectedPerson && link.targetType === item.type && link.targetId === item.id
-                      )
-                    )}
-                    favoriteMediaKeys={new Set(
-                      visibleLinks
-                        .filter((link) => link.person === selectedPerson && link.favorite)
-                        .map((link) => tasteMediaKey(link.targetType, link.targetId))
-                    )}
-                    onCompare={() => {
-                      setMutualFilter(selectedPerson);
-                      setSelected(null);
-                    }}
-                    onSelectMedia={(type, id) => setSelected({ kind: "media", type, id })}
-                  />
-                ) : (
-                  <GraphKey />
-                )}
-              </aside>
-            </div>
-          )}
+            <aside className="taste-detail" aria-live="polite">
+              {selectedMedia ? (
+                <MediaDetail
+                  item={selectedMedia}
+                  links={links}
+                  busy={favoriteBusy === tasteMediaKey(selectedMedia.type, selectedMedia.id)}
+                  error={favoriteError}
+                  onToggleFavorite={() => void toggleFavorite(selectedMedia)}
+                  onSelectPerson={(username) => setSelected({ kind: "person", username })}
+                />
+              ) : selectedPerson ? (
+                <PersonDetail
+                  username={selectedPerson}
+                  media={media.filter((item) =>
+                    links.some(
+                      (link) =>
+                        link.person === selectedPerson && link.targetType === item.type && link.targetId === item.id
+                    )
+                  )}
+                  favoriteMediaKeys={new Set(
+                    links
+                      .filter((link) => link.person === selectedPerson && link.favorite)
+                      .map((link) => tasteMediaKey(link.targetType, link.targetId))
+                  )}
+                  onSelectMedia={(type, id) => setSelected({ kind: "media", type, id })}
+                />
+              ) : (
+                <GraphKey />
+              )}
+            </aside>
+          </div>
         </>
       )}
     </div>
@@ -340,7 +322,9 @@ function MediaDetail({
       {image && (
         <img className={`taste-detail-poster is-${item.category}`} src={image} alt={`Poster for ${item.title}`} />
       )}
-      <p className="mono taste-detail-kicker">{mediaLabel(item).toUpperCase()} · {item.releaseYear ?? "YEAR UNKNOWN"}</p>
+      <p className="mono taste-detail-kicker">
+        Shared with {viewers.length} {viewers.length === 1 ? "mutual" : "mutuals"}
+      </p>
       <h2>{item.title}</h2>
       {isMutualFavorite && <p className="taste-mutual-favorite"><IconHeart size={13} /> Mutual favorite</p>}
       <button
@@ -377,13 +361,11 @@ function PersonDetail({
   username,
   media,
   favoriteMediaKeys,
-  onCompare,
   onSelectMedia,
 }: {
   username: string;
   media: TasteGraphMedia[];
   favoriteMediaKeys: ReadonlySet<string>;
-  onCompare: () => void;
   onSelectMedia: (type: TasteMediaType, id: number) => void;
 }) {
   return (
@@ -394,7 +376,6 @@ function PersonDetail({
         You share {media.length} {media.length === 1 ? "title" : "titles"} in this signal.
       </p>
       <div className="taste-detail-actions">
-        <button type="button" className="btn" onClick={onCompare}>Compare only</button>
         <Link className="btn btn-ghost" to={`/u/${username}`}>Profile</Link>
       </div>
       <h3>Shared titles</h3>
@@ -404,7 +385,7 @@ function PersonDetail({
           return (
             <li key={key}>
               <button type="button" onClick={() => onSelectMedia(item.type, item.id)}>
-                <span><span className={`taste-mini-kind is-${item.category}`}>{mediaLabel(item)}</span>{item.title}</span>
+                <span>{item.title}</span>
                 {item.myFavorite && favoriteMediaKeys.has(key) && <IconHeart size={12} />}
               </button>
             </li>

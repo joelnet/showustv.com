@@ -1535,18 +1535,30 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .taste-toolbar {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 14px;
-  padding: 10px;
+  padding: 8px 8px 8px 14px;
   margin-bottom: 14px;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
 }
+.taste-toolbar-hint {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
 .taste-view-switch {
   display: inline-flex;
   align-items: center;
   gap: 3px;
+  flex-shrink: 0;
 }
 .taste-view-switch button {
   display: inline-flex;
@@ -1570,17 +1582,6 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   background: var(--amber-soft);
   border-color: rgba(255, 174, 46, 0.35);
 }
-.taste-mutual-select {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  color: var(--muted);
-  font-size: 12.5px;
-  white-space: nowrap;
-}
-.taste-mutual-select select { max-width: 150px; padding: 6px 28px 6px 9px; font-size: 13px; }
-.taste-view-switch { padding-left: 10px; border-left: 1px solid var(--line); }
-
 .taste-workspace {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 280px;
@@ -1593,11 +1594,51 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   height: min(66vh, 640px);
   min-height: 480px;
   overflow: hidden;
-  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 14px;
+  /* A broadcast "signal scope": a warm bloom behind the center where you sit,
+     falling off into deep slate at the rim. */
+  background:
+    radial-gradient(120% 95% at 50% 44%, rgba(255, 174, 46, 0.07), transparent 55%),
+    radial-gradient(150% 130% at 50% 50%, #141a26 0%, #10151e 62%, #0c1017 100%);
+}
+/* Faint patch-bay grid, masked so it fades toward the edges and never fights
+   the nodes at the center. */
+.taste-graph-wrap::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(86, 207, 222, 0.14) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(86, 207, 222, 0.14) 1px, transparent 1px);
+  background-size: 34px 34px;
+  -webkit-mask-image: radial-gradient(circle at 50% 46%, #000 45%, transparent 88%);
+          mask-image: radial-gradient(circle at 50% 46%, #000 45%, transparent 88%);
+  pointer-events: none;
 }
 .taste-graph-canvas { position: absolute; inset: 0; }
+.taste-graph-tag {
+  position: absolute;
+  top: 11px;
+  left: 13px;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font: 600 10.5px var(--font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+.taste-graph-tag::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--red);
+  box-shadow: 0 0 0 3px rgba(255, 77, 61, 0.16);
+}
 .taste-reset {
   position: absolute;
   top: 10px;
@@ -1608,6 +1649,22 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   background: rgba(23, 28, 38, 0.92);
   font-size: 12px;
 }
+.taste-graph-fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: min(66vh, 640px);
+  min-height: 480px;
+  padding: 24px;
+  text-align: center;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+.taste-graph-fallback svg { color: var(--amber); }
 
 .taste-detail {
   min-width: 0;
@@ -1690,7 +1747,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .taste-key li { display: flex; align-items: center; gap: 9px; }
 .taste-key li svg { color: var(--red); }
 .taste-key-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
-.taste-key-dot.is-you { background: var(--text); }
+.taste-key-dot.is-you { background: var(--amber); }
 .taste-key-dot.is-mutual { background: var(--cyan); }
 .taste-key-frame {
   width: 10px;
@@ -1745,29 +1802,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .taste-list-poster-fallback { display: grid; place-items: center; color: var(--muted); background: var(--surface-2); }
 .taste-list-copy { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .taste-list-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.taste-list-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 5px 8px; }
-.taste-media-kind,
-.taste-mini-kind {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--muted);
-  white-space: nowrap;
-}
-.taste-media-kind::before,
-.taste-mini-kind::before {
-  content: "";
-  width: 6px;
-  height: 6px;
-  flex: 0 0 auto;
-  border: 1px solid currentColor;
-  border-radius: 1px;
-}
-.taste-media-kind.is-show,
-.taste-mini-kind.is-show { color: var(--cyan); }
-.taste-media-kind.is-anime,
-.taste-mini-kind.is-anime { color: var(--green); }
-.taste-mini-kind { margin-right: 7px; font: 600 9px var(--font-mono); text-transform: uppercase; }
+.taste-list-meta { color: var(--muted); }
 .taste-favorite-marks { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 2px; }
 .taste-favorite-mark {
   display: inline-flex;
@@ -1788,13 +1823,11 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   .shared-signal-link { min-height: 40px; padding: 9px 12px; }
   .taste-page-head { align-items: flex-start; flex-direction: column; gap: 5px; }
   .taste-summary { padding: 0; }
-  .taste-toolbar { align-items: stretch; gap: 9px; padding: 9px; }
-  .taste-mutual-select { justify-content: space-between; flex: 1 1 auto; }
-  .taste-mutual-select select { min-height: 40px; max-width: 180px; }
-  .taste-view-switch { border-left: 0; padding-left: 0; }
+  .taste-toolbar { gap: 9px; padding: 6px 6px 6px 12px; }
   .taste-view-switch button { min-height: 40px; }
   .taste-workspace { grid-template-columns: 1fr; }
   .taste-graph-wrap { height: 58vh; min-height: 410px; }
+  .taste-graph-fallback { height: 58vh; min-height: 410px; }
   .taste-detail { padding: 14px; }
   .taste-detail-poster { width: 126px; }
   .taste-list { max-height: none; }
