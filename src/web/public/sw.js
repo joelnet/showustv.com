@@ -350,6 +350,63 @@ self.addEventListener("push", (event) => {
   );
 });
 
+// The push service can rotate or expire a subscription while no page is open
+// (key rotation, permission flips, service-side expiry). Without this
+// handler the device silently stops receiving pushes and the server row goes
+// stale until a send gets a 404/410 and is pruned — register the replacement
+// with the server instead. Auth rides on the session cookie.
+self.addEventListener("pushsubscriptionchange", (event) => {
+  event.waitUntil(
+    (async () => {
+      // Some browsers hand over the replacement subscription on the event
+      // itself; only re-subscribe when they don't (Chrome).
+      let sub = event.newSubscription || null;
+      if (!sub) {
+        try {
+          let key = (event.oldSubscription && event.oldSubscription.options.applicationServerKey) || null;
+          if (!key) {
+            const res = await fetch("/api/notifications/prefs", { credentials: "same-origin" });
+            if (!res.ok) return;
+            const prefs = await res.json();
+            if (!prefs.pushPublicKey) return;
+            key = urlBase64ToUint8Array(prefs.pushPublicKey);
+          }
+          sub = await self.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+        } catch {
+          return; // no permission or no key to subscribe with — nothing to register
+        }
+      }
+      try {
+        const res = await fetch("/api/notifications/push/subscribe", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(sub.toJSON()),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      } catch {
+        // The server never stored the replacement (signed out, offline, 5xx).
+        // Drop it browser-side too: a kept-but-unregistered subscription reads
+        // as "on" in settings while no push can ever arrive, and nothing on
+        // the page re-posts an existing subscription. Off is honest, and the
+        // bell's (1) nudge (issue #276) walks the user back to re-enabling.
+        await sub.unsubscribe().catch(() => {});
+      }
+    })()
+  );
+});
+
+// Mirrors urlBase64ToUint8Array in src/web/notifications.ts — this file is
+// standalone plain JS (no bundling), so it keeps its own copy.
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(base64);
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+
 // Clicking the notification focuses an open app window (navigating it to the
 // target) or opens a new one. The payload URL is normalized to this origin —
 // our Worker only ever sends same-origin paths, so anything else is a

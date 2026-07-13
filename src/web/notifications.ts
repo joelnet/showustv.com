@@ -172,8 +172,34 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 // Throws with a user-facing message on the known failure modes.
 export async function enablePush(publicKey: string): Promise<void> {
   if (!pushSupported()) throw new Error("Push notifications aren't supported in this browser");
-  const permission = await Notification.requestPermission();
-  if (permission !== "granted") throw new Error("Notifications are blocked for this site in your browser settings");
+  // Raced against a timeout: a corrupted installed-app permission binding
+  // (Android WebAPK) can leave requestPermission() pending forever without
+  // ever showing a prompt, which used to strand the toggle dimmed with no
+  // error. Reinstalling the app is what actually fixes such a device, so
+  // that's what the timeout says. 20s is enough to read a real prompt; a
+  // slower answer still registers with the browser, so the next attempt
+  // succeeds without prompting.
+  const permission = await Promise.race([
+    Notification.requestPermission(),
+    new Promise<never>((_, reject) =>
+      setTimeout(
+        () =>
+          reject(
+            new Error(
+              "Couldn't get an answer asking for notification permission — if this is an installed app, uninstalling and reinstalling it usually fixes this"
+            )
+          ),
+        20_000
+      )
+    ),
+  ]);
+  if (permission === "denied") throw new Error("Notifications are blocked for this site in your browser settings");
+  if (permission !== "granted")
+    // "default" with no prompt shown is the same broken installed-app
+    // permission binding as the hang above, just one step further along.
+    throw new Error(
+      "The notification permission prompt wasn't answered — if no prompt appeared, uninstall and reinstall the app"
+    );
   const reg = await navigator.serviceWorker.ready;
   const sub =
     (await reg.pushManager.getSubscription()) ??
