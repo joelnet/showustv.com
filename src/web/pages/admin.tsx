@@ -139,10 +139,10 @@ function PushDiagnostics() {
       // still run, actually re-subscribing this device.
       const alreadyGranted = Notification.permission === "granted";
       const perm = await step("requestPermission (probe)", 15_000, () => Notification.requestPermission(), String);
-      if (!alreadyGranted && perm !== "granted") {
-        add(`stopped: permission is "${perm ?? "unresolved"}", not "granted" — a real prompt was needed and not granted`);
-        return;
-      }
+      if (!alreadyGranted && perm !== "granted")
+        add(
+          `→ permission is "${perm ?? "unresolved"}", not "granted"; continuing anyway to see whether PushManager can recover`
+        );
       if (alreadyGranted && perm !== "granted")
         add("→ permission was already granted; proceeding past the probe wedge (this is the fix path)");
       const reg = await step(

@@ -167,11 +167,19 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return out;
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error(message)), ms)),
+  ]);
+}
+
 // Ask permission, subscribe this device, and register the subscription with
 // the server. Must be called from a user gesture (the settings toggle).
 // Throws with a user-facing message on the known failure modes.
 export async function enablePush(publicKey: string): Promise<void> {
   if (!pushSupported()) throw new Error("Push notifications aren't supported in this browser");
+  const reg = await navigator.serviceWorker.ready;
   // Only prompt when we don't already hold permission. The common Android
   // WebAPK recurrence is the browser silently dropping just the push
   // *subscription* while permission stays granted — re-enabling then must NOT
@@ -188,35 +196,50 @@ export async function enablePush(publicKey: string): Promise<void> {
     // toggle dimmed with no error. Reinstalling is what fixes such a device.
     // 20s is enough to read a real prompt; a slower answer still registers, so
     // the next attempt succeeds via the granted short-circuit above.
-    const permission = await Promise.race([
+    const permission = await Promise.race<NotificationPermission | "timeout">([
       Notification.requestPermission(),
-      new Promise<never>((_, reject) =>
-        setTimeout(
-          () =>
-            reject(
-              new Error(
-                "Couldn't get an answer asking for notification permission — if this is an installed app, uninstalling and reinstalling it usually fixes this"
-              )
-            ),
-          20_000
-        )
-      ),
+      new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), 20_000)),
     ]);
     if (permission === "denied") throw new Error("Notifications are blocked for this site in your browser settings");
-    if (permission !== "granted")
+    if (permission !== "granted" && permission !== "timeout")
       // "default" with no prompt shown is the same broken installed-app
       // permission binding as the hang above, just one step further along.
       throw new Error(
         "The notification permission prompt wasn't answered — if no prompt appeared, uninstall and reinstall the app"
       );
+    if (permission === "timeout") {
+      // Android WebAPKs can get wedged in `default` even while Chrome/app
+      // settings show notifications as allowed. PushManager has its own view
+      // of the permission, so give it one chance to recover below.
+      const pushPermission = await withTimeout(
+        reg.pushManager.permissionState({ userVisibleOnly: true }),
+        3_000,
+        "Couldn't read notification permission from the installed app"
+      ).catch(() => null);
+      if (pushPermission === "denied")
+        throw new Error("Notifications are blocked for this site in your browser settings");
+    }
   }
-  const reg = await navigator.serviceWorker.ready;
-  const sub =
-    (await reg.pushManager.getSubscription()) ??
-    (await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(publicKey) as unknown as BufferSource,
-    }));
+  const existing = await reg.pushManager.getSubscription();
+  let sub = existing;
+  if (!sub) {
+    try {
+      sub = await withTimeout(
+        reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(publicKey) as unknown as BufferSource,
+        }),
+        20_000,
+        "Couldn't create a push subscription in this installed app"
+      );
+    } catch (e) {
+      if (Notification.permission === "default")
+        throw new Error(
+          "Chrome has the installed app stuck before the notification prompt; reset this site's notification permission or reinstall the app"
+        );
+      throw e;
+    }
+  }
   await post("/notifications/push/subscribe", sub.toJSON());
   setPushNudge(false); // this device now gets pushes — the bell's (1) nudge goes away
 }
