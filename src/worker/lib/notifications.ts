@@ -426,8 +426,10 @@ export async function notifyUserOfFollow(env: Env, actorId: number, followeeId: 
   if (!created || !vapidConfigured(env)) return;
 
   // Push copy: the event IS the whole message, so the title carries it and
-  // the body suggests the next step. Deep link to the follower's profile —
-  // its Follow button is the same affordance the notifications page offers.
+  // the body suggests the next step. Deep link to the notifications page
+  // (issue #280), not the actor's profile — that's where the Follow back
+  // button lives, so following back is one tap away, and the actor's name
+  // there still links their profile for anyone who wants the detour.
   const actor = await env.DB.prepare("SELECT username FROM users WHERE id = ?1 AND deleted_at IS NULL")
     .bind(actorId)
     .first<{ username: string }>();
@@ -436,8 +438,8 @@ export async function notifyUserOfFollow(env: Env, actorId: number, followeeId: 
   await pushToRecipients(env, [followeeId], {
     title:
       created.type === "follow_back" ? `${actor.username} followed you back` : `${actor.username} followed you`,
-    body: created.type === "follow_back" ? "You now follow each other" : "See their profile to follow back",
-    url: `/u/${actor.username}`,
+    body: created.type === "follow_back" ? "You now follow each other" : "Open your notifications to follow back",
+    url: "/notifications",
     tag: `fl-${actorId}`,
   });
 }
