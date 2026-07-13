@@ -1,5 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { BrowserRouter, Routes, Route, NavLink, Link, Outlet, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { BrowserRouter, Routes, Route, NavLink, Link, Outlet, Navigate, useLocation, useNavigate, useNavigationType, useParams } from "react-router-dom";
 import { DEFAULT_DOCUMENT_TITLE } from "./hooks";
 import { api, post, ApiError } from "./api";
 import { setOfflineUser, useOffline } from "./offline";
@@ -111,6 +111,31 @@ function DocumentTitleSync() {
     if (!/^\/(show|movie|episode)\//.test(pathname) && !/^\/u\/[^/]+\/?$/.test(pathname))
       document.title = DEFAULT_DOCUMENT_TITLE;
   }, [pathname]);
+  return null;
+}
+
+// Scroll reset on navigation (issue #281): clicking through to a new page
+// from a scrolled list used to leave the new page at the old scroll offset —
+// the document is the scroll container (the shell has no overflow wrapper),
+// and client-side route changes don't reset it. Only a PUSH to a different
+// pathname scrolls: the previous pathname is tracked so query-only updates
+// (the search box rewriting ?q=) and hash-only moves (the in-page #cookies
+// anchor) never jump; POPs (back/forward) are left to the browser's own
+// scroll restoration so going back doesn't lose your place; and REPLACEs
+// don't reset either — the canonical slug rewrite on show/movie/list pages
+// fires once data arrives, possibly after the reader has already scrolled,
+// and the app's other replaces (post-login, redirect chains) either leave
+// short card pages or follow a PUSH that already reset. A layout effect so
+// the reset lands before paint — no one-frame flash of the old offset.
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  const navigationType = useNavigationType();
+  const prev = useRef(pathname);
+  useLayoutEffect(() => {
+    if (prev.current === pathname) return;
+    prev.current = pathname;
+    if (navigationType === "PUSH") window.scrollTo(0, 0);
+  }, [pathname, navigationType]);
   return null;
 }
 
@@ -455,6 +480,7 @@ export function App() {
     <AuthCtx.Provider value={{ user, setUser }}>
       <BrowserRouter>
         <DocumentTitleSync />
+        <ScrollToTop />
         <ConfirmProvider>
         <CelebrationProvider>
         <ToastProvider>
