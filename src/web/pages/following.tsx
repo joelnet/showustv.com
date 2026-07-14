@@ -6,15 +6,22 @@
 // Social mutations are deliberately NOT offline-queueable (api.ts only queues
 // watch/favorite ops) — when the network is gone they fail fast and the error
 // is shown inline instead of pretending to succeed.
-import { useState } from "react";
+import { Suspense, lazy, useState } from "react";
 import { Link } from "react-router-dom";
 import { post, del } from "../api";
 import { useApi } from "../hooks";
 import { useAuth } from "../app";
 import { useConfirm } from "../components/dialog";
 import { Empty, ErrorNote } from "../components/ui";
-import { FollowingSkeleton } from "../components/skeleton";
-import { IconPlus, IconShare, IconTrash } from "../components/icons";
+import { FollowingSkeleton, RowListSkeleton } from "../components/skeleton";
+import { IconPlus, IconTrash } from "../components/icons";
+
+// Sigma + Graphology (the taste graph) are heavy and only power this one
+// section, so the Following page stays out of the startup bundle by loading
+// the shared-signal graph + list as its own chunk when the page renders.
+const SharedSignalSection = lazy(() =>
+  import("./shared-signal").then((module) => ({ default: module.SharedSignalSection }))
+);
 
 interface FollowsData {
   mutuals: { username: string; since: string }[];
@@ -102,12 +109,20 @@ export function FollowingPage() {
       </form>
       {note && (note.isError ? <ErrorNote message={note.text} /> : <p className="friend-note">{note.text} ✓</p>)}
 
-      {/* Shared Signal (issue #284): the entry point sits at the top, right
-          after the follow form. The linked page handles the no-mutuals case
-          with its own empty state, so the link always shows. */}
-      <Link to="/following/shared" className="shared-signal-link">
-        <IconShare size={13} /> Shared Signal
-      </Link>
+      {/* Shared Signal (issue #284): the taste graph + list renders inline at
+          the top, right after the follow form. The section owns its own fetch
+          and handles the no-mutuals / no-shared-titles cases with its own empty
+          state; the Suspense fallback covers the one-time chunk load. */}
+      <Suspense
+        fallback={
+          <section>
+            <h2 className="section-title">Shared Signal</h2>
+            <RowListSkeleton count={4} />
+          </section>
+        }
+      >
+        <SharedSignalSection />
+      </Suspense>
 
       {/* Mutuals (issue #130): people you follow who follow you back. The
           section hides entirely when there are none rather than adding a third

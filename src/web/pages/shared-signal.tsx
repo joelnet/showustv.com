@@ -9,10 +9,10 @@ import {
   type TasteSelection,
 } from "../components/taste-graph";
 import { ErrorBoundary } from "../components/error-boundary";
-import { IconHeart, IconList, IconShare, IconUsers, IconWarning } from "../components/icons";
+import { IconHeart, IconList, IconShare, IconWarning } from "../components/icons";
 import { RowListSkeleton } from "../components/skeleton";
 import { Empty, ErrorNote } from "../components/ui";
-import { useApi, useDocumentTitle } from "../hooks";
+import { useApi } from "../hooks";
 import { poster } from "../img";
 import { mediaPath } from "../paths";
 
@@ -44,7 +44,11 @@ function FavoriteMarks({ item }: { item: TasteGraphMedia }) {
   );
 }
 
-export function SharedSignalPage() {
+// The shared-signal graph + list renders inline on the Following page (issue
+// #284) rather than on its own route. It owns its /social/taste-graph fetch and
+// every loading/empty/error state so the Following page can drop it in as one
+// self-contained section right after the follow form.
+export function SharedSignalSection() {
   const { user } = useAuth();
   const { data, loading, error } = useApi<TasteGraphPayload>("/social/taste-graph");
   const webglSupported = useMemo(supportsWebGL, []);
@@ -54,8 +58,6 @@ export function SharedSignalPage() {
   const [graphBroken, setGraphBroken] = useState(false);
   // Drives the graph's click-to-isolate highlight only; there is no detail panel.
   const [selected, setSelected] = useState<TasteSelection>(null);
-
-  useDocumentTitle("Shared Signal");
 
   const effectiveView: ViewMode = graphBroken ? "list" : view;
 
@@ -103,35 +105,33 @@ export function SharedSignalPage() {
 
   if (loading)
     return (
-      <div>
-        <Link className="crumb" to="/following">← Following</Link>
-        <h1 className="page-title">Shared Signal</h1>
-        <RowListSkeleton count={6} />
-      </div>
+      <section>
+        <h2 className="section-title">Shared Signal</h2>
+        <RowListSkeleton count={4} />
+      </section>
     );
-  if (error) return <ErrorNote message={error} />;
+  if (error)
+    return (
+      <section>
+        <h2 className="section-title">Shared Signal</h2>
+        <ErrorNote message={error} />
+      </section>
+    );
   if (!data || !user) return null;
 
   if (!data.summary.mutualCount)
     return (
-      <div>
-        <Link className="crumb" to="/following">← Following</Link>
-        <h1 className="page-title">Shared Signal</h1>
-        <Empty title="No mutuals yet" hint="Follow each other first, then your shared watch histories land here." />
-        <Link to="/following" className="btn btn-ghost taste-empty-action">
-          <IconUsers size={15} /> Find people
-        </Link>
-      </div>
+      <section>
+        <h2 className="section-title">Shared Signal</h2>
+        <Empty title="No shared signal yet" hint="Follow each other first, then your shared watch histories land here." />
+      </section>
     );
 
   return (
-    <div className="taste-page">
-      <Link className="crumb" to="/following">← Following</Link>
+    <section>
+      <h2 className="section-title">Shared Signal</h2>
       <div className="taste-page-head">
-        <div>
-          <h1 className="page-title">Shared Signal</h1>
-          <p>Movies, TV shows, and anime in both your watch histories.</p>
-        </div>
+        <p>Movies, TV shows, and anime in both your watch histories.</p>
         <p className="mono taste-summary" aria-live="polite">
           {media.length} {media.length === 1 ? "title" : "titles"} · {mutualCount} {mutualCount === 1 ? "mutual" : "mutuals"}
         </p>
@@ -221,6 +221,6 @@ export function SharedSignalPage() {
           )}
         </>
       )}
-    </div>
+    </section>
   );
 }

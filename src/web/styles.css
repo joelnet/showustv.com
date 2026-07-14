@@ -1489,23 +1489,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .friend-add input { flex: 1; max-width: 320px; min-width: 0; }
 .friend-note { color: var(--muted); font-size: 13.5px; margin: 8px 0 0; }
 
-.shared-signal-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin: 16px 0 12px;
-  padding: 5px 10px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--surface-2);
-  color: var(--text);
-  font-size: 12.5px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-.shared-signal-link:hover { border-color: var(--amber); color: var(--amber); text-decoration: none; }
-
-/* ---------- Shared Signal ---------- */
+/* ---------- Shared Signal (inline on Following, issue #284) ---------- */
 
 .taste-page-head {
   display: flex;
@@ -1514,7 +1498,6 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   gap: 24px;
   margin-bottom: 18px;
 }
-.taste-page-head .page-title { margin-bottom: 5px; }
 .taste-page-head p { margin: 0; color: var(--muted); }
 .taste-summary { flex-shrink: 0; padding-bottom: 3px; }
 .taste-limit-note {
@@ -1522,7 +1505,6 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   color: var(--muted);
   font-size: 13px;
 }
-.taste-empty-action { margin-top: 14px; }
 
 .taste-toolbar {
   display: flex;
@@ -1690,7 +1672,6 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 }
 
 @media (max-width: 719px) {
-  .shared-signal-link { min-height: 40px; padding: 9px 12px; }
   .taste-page-head { align-items: flex-start; flex-direction: column; gap: 5px; }
   .taste-summary { padding: 0; }
   .taste-toolbar { gap: 9px; padding: 6px 6px 6px 12px; }
