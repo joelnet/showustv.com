@@ -243,6 +243,13 @@ function Header() {
       </Link>
       <nav className="header-nav" aria-label="Primary">
         <NavLink to="/" end>Watch now</NavLink>
+        {/* Socials → the Following page (issue #290 follow-up). The mobile footer
+            got this tab in #296, but the desktop header nav (this element, which
+            is CSS-hidden ≤719px where the tabbar takes over) had no way to reach
+            it. Text-only to match the sibling desktop nav links; order mirrors
+            the footer (after Watch now). Scoping is automatic — .header-nav is
+            display:none at phone widths, so this never duplicates the footer tab. */}
+        <NavLink to="/following">Socials</NavLink>
         <NavLink to="/library">Library</NavLink>
         <NavLink to="/lists">Lists</NavLink>
         <NavLink to={profilePath}>Profile</NavLink>
