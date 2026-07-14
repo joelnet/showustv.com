@@ -50,8 +50,53 @@
 
   // Cloudflare Email Service — sends verification mail from the onboarded domain,
   // no API key. Onboard once: `wrangler email sending enable showustv.com`.
-  "send_email": [{ "name": "EMAIL" }]
+  "send_email": [{ "name": "EMAIL" }],
   // Secrets (wrangler secret put): TMDB_TOKEN (v4 read token or v3 key), SESSION_SECRET,
   // VAPID_PUBLIC_KEY + VAPID_PRIVATE_KEY (Web Push, issue #129 — generate with
   // `npx web-push generate-vapid-keys`; push stays dormant until both are set)
+
+  // staging.showustv.com (`wrangler deploy --env staging`): a second Worker
+  // (showustv-staging) running an experimental branch against the SAME prod D1,
+  // to test a codebase on real data before shipping to the apex. Everything here
+  // is inherited from the top level EXCEPT the non-inheritable keys, which
+  // wrangler requires you to respecify in full once any one is overridden:
+  // d1_databases, routes, triggers, send_email, vars.
+  //
+  //   ⚠️ Same database_id as prod: writes are REAL prod writes, and never run
+  //      `d1 migrations apply --env staging` — it would migrate production.
+  //      Staging tests against the CURRENT prod schema; apply additive migrations
+  //      to prod first, then deploy the branch here.
+  //
+  // Divergences from prod: no cron (the nightly sync/prune already runs in prod
+  // against this DB), email forced to log-only (DISABLE_EMAIL_SEND), and push
+  // stays dormant because the VAPID secrets are intentionally not set on staging.
+  "env": {
+    "staging": {
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "showustv",
+          "database_id": "b260221b-135a-4b3e-ae36-c699590e4228",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "routes": [{ "pattern": "staging.showustv.com", "custom_domain": true }],
+      // Single front door: kill the *.workers.dev URL and per-version Preview
+      // URLs so staging.showustv.com is the ONLY way in — otherwise those
+      // separate hostnames stay public and are NOT covered by the Cloudflare
+      // Access policy on the custom domain, exposing untested code + prod data.
+      "workers_dev": false,
+      "preview_urls": false,
+      "triggers": { "crons": [] },
+      "send_email": [{ "name": "EMAIL" }],
+      "vars": {
+        "TMDB_API_BASE": "https://api.themoviedb.org/3",
+        "TMDB_IMG_BASE": "https://image.tmdb.org/t/p",
+        "EMAIL_FROM": "noreply@showustv.com",
+        "EMAIL_FROM_NAME": "Show Us TV (staging)",
+        "VAPID_SUBJECT": "https://showustv.com",
+        "DISABLE_EMAIL_SEND": "true"
+      }
+    }
+  }
 }
