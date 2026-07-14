@@ -2,8 +2,6 @@ import { useEffect, useRef } from "react";
 import Graph from "graphology";
 import forceAtlas2 from "graphology-layout-forceatlas2";
 import Sigma from "sigma";
-import { createNodeImageProgram } from "@sigma/node-image";
-import { poster } from "../img";
 
 export type TasteMediaType = "movie" | "show";
 export type TasteMediaCategory = "movie" | "show" | "anime";
@@ -55,8 +53,7 @@ interface TasteNodeAttributes {
   size: number;
   label: string;
   color: string;
-  type: "circle" | "image";
-  image?: string;
+  type: "circle";
   kind: "media" | "person";
   entityId: string | number;
   entityType?: TasteMediaType;
@@ -95,16 +92,11 @@ const CATEGORY_COLORS: Record<TasteMediaCategory, string> = {
   anime: "#58c983",
 };
 
-// The padding leaves a narrow, category-colored frame around every poster.
-// Favorite meaning belongs to the connections: a red line says that person
-// favorited that title, and red lines from both sides form a mutual favorite.
-const MediaImageProgram = createNodeImageProgram<TasteNodeAttributes, TasteEdgeAttributes>({
-  objectFit: "cover",
-  keepWithinCircle: false,
-  padding: 0.08,
-  size: { mode: "max", value: 192 },
-});
-
+// Nodes are plain dots — Obsidian-graph style — coloured by category. Posters
+// were too small to read once several titles crowded the middle, so the visual
+// language is dots + labels + cables, and favourite meaning lives entirely in
+// the connections: a red line says that person favourited that title, and red
+// lines from both sides form a mutual favourite.
 export const tasteMediaKey = (type: TasteMediaType, id: number) => `${type}:${id}`;
 const personNode = (username: string) => `person:${username}`;
 const mediaNode = (type: TasteMediaType, id: number) => `media:${tasteMediaKey(type, id)}`;
@@ -196,16 +188,16 @@ export function TasteGraph({ media, links, selfUsername, selected, onSelect, onR
         { x: 0, y: 0 }
       );
       const divisor = itemLinks.length + 1; // self is fixed at 0,0
-      const image = poster(item.poster, "w154");
-      const favoriteBoost = item.mutualFavorite ? 1.8 : item.myFavorite || item.mutualFavoriteCount > 0 ? 0.8 : 0;
+      const favoriteBoost = item.mutualFavorite ? 2.2 : item.myFavorite || item.mutualFavoriteCount > 0 ? 1 : 0;
       graph.addNode(mediaNode(item.type, item.id), {
         x: center.x / divisor + jitter(`x:${itemKey}`),
         y: center.y / divisor + jitter(`y:${itemKey}`),
-        size: Math.min(12.5, 5.7 + Math.sqrt(item.mutualViewerCount) * 1.25 + favoriteBoost),
+        // Dots scale with how many mutuals share the title (degree), the way
+        // an Obsidian node grows with its links.
+        size: Math.min(14, 5 + Math.sqrt(item.mutualViewerCount) * 1.6 + favoriteBoost),
         label: item.title,
         color: CATEGORY_COLORS[item.category],
-        type: image ? "image" : "circle",
-        image: image ?? undefined,
+        type: "circle",
         kind: "media",
         entityId: item.id,
         entityType: item.type,
@@ -252,7 +244,6 @@ export function TasteGraph({ media, links, selfUsername, selected, onSelect, onR
     let renderer: Sigma<TasteNodeAttributes, TasteEdgeAttributes>;
     try {
       renderer = new Sigma<TasteNodeAttributes, TasteEdgeAttributes>(graph, container, {
-        nodeProgramClasses: { image: MediaImageProgram },
         defaultNodeColor: "#202836",
         defaultEdgeColor: EDGE_COLOR,
         labelColor: { color: "#ede9e0" },

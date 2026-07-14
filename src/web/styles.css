@@ -1596,25 +1596,9 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 14px;
-  /* A broadcast "signal scope": a warm bloom behind the center where you sit,
-     falling off into deep slate at the rim. */
-  background:
-    radial-gradient(120% 95% at 50% 44%, rgba(255, 174, 46, 0.07), transparent 55%),
-    radial-gradient(150% 130% at 50% 50%, #141a26 0%, #10151e 62%, #0c1017 100%);
-}
-/* Faint patch-bay grid, masked so it fades toward the edges and never fights
-   the nodes at the center. */
-.taste-graph-wrap::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(86, 207, 222, 0.14) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(86, 207, 222, 0.14) 1px, transparent 1px);
-  background-size: 34px 34px;
-  -webkit-mask-image: radial-gradient(circle at 50% 46%, #000 45%, transparent 88%);
-          mask-image: radial-gradient(circle at 50% 46%, #000 45%, transparent 88%);
-  pointer-events: none;
+  /* Flat, recessed canvas like the Obsidian graph pane — no grid, no glow,
+     just a dark well the dots and cables sit on. */
+  background: #0c0f15;
 }
 .taste-graph-canvas { position: absolute; inset: 0; }
 .taste-graph-tag {
@@ -1746,18 +1730,12 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .taste-key { display: grid; gap: 9px; color: var(--muted); font-size: 13px; }
 .taste-key li { display: flex; align-items: center; gap: 9px; }
 .taste-key li svg { color: var(--red); }
-.taste-key-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
+.taste-key-dot { width: 11px; height: 11px; border-radius: 50%; background: var(--muted); }
 .taste-key-dot.is-you { background: var(--amber); }
 .taste-key-dot.is-mutual { background: var(--cyan); }
-.taste-key-frame {
-  width: 10px;
-  height: 14px;
-  border-radius: 2px;
-  background: var(--surface-2);
-  border: 2px solid var(--muted);
-}
-.taste-key-frame.is-show { border-color: var(--cyan); }
-.taste-key-frame.is-anime { border-color: var(--green); }
+.taste-key-dot.is-movie { background: #a7b0c0; }
+.taste-key-dot.is-show { background: var(--cyan); }
+.taste-key-dot.is-anime { background: var(--green); }
 .taste-key-line { width: 18px; height: 2px; border-radius: 2px; background: var(--line); }
 .taste-key-line.is-favorite { background: var(--red); }
 

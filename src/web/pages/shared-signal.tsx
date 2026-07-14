@@ -405,9 +405,9 @@ function GraphKey() {
       <ul className="taste-key">
         <li><span className="taste-key-dot is-you" /> You</li>
         <li><span className="taste-key-dot is-mutual" /> Mutual</li>
-        <li><span className="taste-key-frame is-movie" /> Movie</li>
-        <li><span className="taste-key-frame is-show" /> TV show</li>
-        <li><span className="taste-key-frame is-anime" /> Anime</li>
+        <li><span className="taste-key-dot is-movie" /> Movie</li>
+        <li><span className="taste-key-dot is-show" /> TV show</li>
+        <li><span className="taste-key-dot is-anime" /> Anime</li>
         <li><span className="taste-key-line is-favorite" /> Favorited by that person</li>
       </ul>
       <p className="taste-detail-hint">
