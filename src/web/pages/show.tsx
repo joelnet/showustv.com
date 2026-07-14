@@ -11,7 +11,7 @@ import { ShowPageSkeleton } from "../components/skeleton";
 import { WhereToWatch, type WatchInfo } from "../components/where-to-watch";
 import { Comments } from "../components/comments";
 import { useCelebrate } from "../components/celebration";
-import { IconCheck, IconPlus, IconChevron, IconBookmark, IconHeart, IconHeartOutline, IconEye, IconEyeSlash } from "../components/icons";
+import { IconCheck, IconPlus, IconChevron, IconBookmark, IconHeart, IconHeartOutline, IconEye, IconEyeSlash, IconTrash } from "../components/icons";
 import { useConfirm } from "../components/dialog";
 import { useToast } from "../components/toast";
 import { ShareButton } from "../components/share";
@@ -694,8 +694,14 @@ export function ShowPage() {
                   path={mediaPath("show", show.id, show.title)}
                 />
                 {inLibrary && (
-                  <button className="link-btn link-btn--danger" onClick={removeShow} disabled={busy}>
-                    Remove
+                  <button
+                    className="remove-btn"
+                    aria-label="Remove from library"
+                    title="Remove from library"
+                    onClick={removeShow}
+                    disabled={busy}
+                  >
+                    <IconTrash size={18} />
                   </button>
                 )}
               </div>

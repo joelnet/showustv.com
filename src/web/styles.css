@@ -416,8 +416,6 @@ a:hover { text-decoration: underline; }
 }
 .link-btn:hover { text-decoration: underline; }
 .link-btn:disabled { opacity: 0.55; cursor: default; }
-.link-btn--danger { color: var(--muted); }
-.link-btn--danger:hover { color: var(--red); }
 
 /* Bare icon button (issue #241): just the glyph — no fill, no outline. Muted
    at rest so it doesn't compete with the text it sits beside; brightens on
@@ -1008,7 +1006,8 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .show-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 
 .heart-btn,
-.hide-btn {
+.hide-btn,
+.remove-btn {
   width: 38px;
   height: 38px;
   border-radius: 50%;
@@ -1031,6 +1030,11 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .hide-btn:active { transform: scale(0.88); }
 .hide-btn.is-on { color: var(--amber); border-color: var(--amber); background: rgba(255, 174, 46, 0.12); }
 .hide-btn:disabled { opacity: 0.55; cursor: default; }
+/* Remove-from-library (issue #301): the icon-only trash mirrors the heart/eye
+   circular chrome, with a red danger accent on hover for the destructive act. */
+.remove-btn:hover { color: var(--red); border-color: var(--red); }
+.remove-btn:active { transform: scale(0.88); }
+.remove-btn:disabled { opacity: 0.55; cursor: default; }
 .show-progress { display: flex; align-items: center; gap: 12px; }
 .show-progress .progress { width: 180px; }
 
@@ -2388,7 +2392,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   .link-btn { padding: 8px 6px; }
   .tabs a { padding: 11px 14px; }
   .check-btn { width: 38px; height: 38px; }
-  .heart-btn, .hide-btn { width: 42px; height: 42px; }
+  .heart-btn, .hide-btn, .remove-btn { width: 42px; height: 42px; }
   .score-dot { width: 29px; height: 36px; } /* 10 across a 360px screen */
   .score-picker { flex-wrap: wrap; }
   .emoji-btn { width: 36px; height: 36px; }
