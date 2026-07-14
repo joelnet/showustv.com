@@ -1921,10 +1921,9 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   padding: 72px 0 40px;
 }
 /* Only the landing page's hero hosts the poster wall. Its bottom padding
-   absorbs the 30px the wall used to overhang (bottom: -30px) so the hero
-   always contains the wall and .landing-freebadge below never overlaps it
-   (issue #218). Scoped with a modifier so /import-help and /install heroes
-   keep the base 40px. */
+   absorbs the 30px the wall used to overhang so the hero always contains it
+   and the device showcase below stays clear. Scoped with a modifier so
+   /import-help and /install heroes keep the base 40px. */
 .landing-hero--wall {
   padding-bottom: 70px;
 }
@@ -2008,27 +2007,263 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   /* same slate halo as the h1, scaled to the smaller size */
   text-shadow: 0 1px 14px rgba(15, 18, 24, 0.9), 0 1px 3px rgba(15, 18, 24, 0.55);
 }
-/* Key marketing point: the app is 100% free with no ads (issue #41). A green
-   "go" pill in the conversion zone, built from the hero badge pattern. */
-.landing-freebadge {
-  /* Below the hero now (issue #124): fit-content + auto side margins keep the
-     pill centered in the (left-aligned) landing-main. */
-  display: flex;
-  width: fit-content;
-  align-items: center;
-  gap: 8px;
-  font-family: var(--font-mono);
-  font-size: 18px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--green);
-  background: #58c9831f;
-  border: 1px solid rgba(88, 201, 131, 0.5);
-  border-radius: 999px;
-  padding: 6px 16px;
-  margin: 28px auto 0;
+/* Three-device product proof. The source captures are normalized to the app
+   viewport; the frame supplies platform-specific system chrome so an iPhone
+   shell never contains Android status/navigation UI. */
+.device-showcase {
+  --device-width: clamp(206px, 25vw, 318px);
+  position: relative;
+  width: 100vw;
+  margin-top: clamp(58px, 8vw, 92px);
+  margin-left: calc(50% - 50vw);
+  padding: 14px 0 0;
 }
+.device-showcase::before {
+  content: "";
+  position: absolute;
+  inset: 10% 5% 2%;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(255, 174, 46, 0.07), transparent 68%);
+}
+.device-showcase-stage {
+  position: relative;
+  left: 50%;
+  display: grid;
+  grid-template-columns: var(--device-width);
+  align-items: start;
+  width: var(--device-width);
+  padding: 32px 0 28px;
+  transform: translateX(-50%);
+}
+.showcase-device {
+  grid-area: 1 / 1;
+  position: relative;
+  width: var(--device-width);
+  margin: 0;
+}
+.showcase-device--left {
+  z-index: 1;
+  transform: translateX(-36%) rotateZ(-10deg);
+  transform-origin: 50% 100%;
+}
+.showcase-device--center { z-index: 3; }
+.showcase-device--right {
+  z-index: 1;
+  transform: translateX(36%) rotateZ(10deg);
+  transform-origin: 50% 100%;
+}
+
+.device-frame {
+  position: relative;
+  width: 100%;
+  padding: clamp(6px, 0.72vw, 10px);
+  background: linear-gradient(145deg, #32343a, #090b10 28%, #202229 72%, #07090d);
+  border: 1px solid #454852;
+  box-shadow:
+    0 34px 68px -28px rgba(2, 4, 8, 0.9),
+    0 10px 24px -18px rgba(2, 4, 8, 0.95),
+    inset 0 0 0 1px rgba(237, 233, 224, 0.1);
+}
+.device-frame--iphone {
+  padding: clamp(7px, 0.8vw, 11px);
+  border-radius: clamp(30px, 3.7vw, 48px);
+  background: linear-gradient(145deg, #3a3c42, #080a0e 26%, #22242a 73%, #07090d);
+}
+.device-frame--galaxy {
+  border-color: #77776f;
+  border-radius: clamp(17px, 1.8vw, 24px);
+  background: linear-gradient(145deg, #a2a097, #5f605d 20%, #282b2e 72%, #77776f);
+}
+.device-screen {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  aspect-ratio: 1440 / 3120;
+  overflow: hidden;
+  background: #0d1017;
+  border: 1px solid rgba(237, 233, 224, 0.08);
+}
+.device-frame--iphone .device-screen { border-radius: clamp(24px, 3vw, 39px); }
+.device-frame--galaxy .device-screen { border-radius: clamp(12px, 1.25vw, 17px); }
+
+.device-side-key {
+  position: absolute;
+  z-index: -1;
+  display: block;
+  width: 3px;
+  border-radius: 2px;
+  background: #53555b;
+}
+.device-frame--iphone .device-side-key--one { top: 18%; left: -3px; height: 10%; }
+.device-frame--iphone .device-side-key--two { top: 31%; left: -3px; height: 15%; }
+.device-frame--galaxy .device-side-key--one { top: 19%; right: -3px; height: 14%; background: #77776f; }
+.device-frame--galaxy .device-side-key--two { top: 36%; right: -3px; height: 8%; background: #77776f; }
+
+.device-status {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  flex: 0 0 3.076923%;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 0;
+  padding: 0 6.5%;
+  color: #e8e8e3;
+  background: #0d1017;
+  font: 700 clamp(6.5px, 0.72vw, 9.5px)/1 var(--font-body);
+}
+.device-status--iphone { padding: 0 8%; }
+.device-status-time { letter-spacing: -0.02em; }
+.device-status-icons { display: flex; align-items: center; gap: clamp(2px, 0.25vw, 4px); height: 100%; }
+.device-status-network { font-size: 0.82em; letter-spacing: -0.04em; }
+.device-status-key {
+  position: relative;
+  width: 0.74em;
+  height: 0.46em;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+}
+.device-status-key::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 70%;
+  width: 0.65em;
+  height: 1px;
+  background: currentColor;
+}
+.device-status-signal { display: inline-flex; align-items: flex-end; gap: 1px; height: 0.72em; }
+.device-status-signal i { display: block; width: 1.5px; border-radius: 1px; background: currentColor; }
+.device-status-signal i:nth-child(1) { height: 35%; }
+.device-status-signal i:nth-child(2) { height: 55%; }
+.device-status-signal i:nth-child(3) { height: 75%; }
+.device-status-signal i:nth-child(4) { height: 100%; }
+.device-status-wifi {
+  position: relative;
+  width: 0.95em;
+  height: 0.65em;
+  overflow: hidden;
+}
+.device-status-wifi::before {
+  content: "";
+  position: absolute;
+  inset: 0.04em 0.06em auto;
+  height: 0.72em;
+  border-top: 1.5px solid currentColor;
+  border-radius: 50%;
+}
+.device-status-wifi::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: currentColor;
+  transform: translateX(-50%);
+}
+.device-status-battery {
+  position: relative;
+  display: block;
+  width: 1.65em;
+  height: 0.78em;
+  padding: 1px;
+  border: 1px solid currentColor;
+  border-radius: 0.2em;
+  opacity: 0.94;
+}
+.device-status-battery::after {
+  content: "";
+  position: absolute;
+  top: 28%;
+  right: -0.23em;
+  width: 0.14em;
+  height: 44%;
+  border-radius: 0 1px 1px 0;
+  background: currentColor;
+}
+.device-status-battery i { display: block; height: 100%; border-radius: 1px; background: currentColor; }
+
+.device-camera {
+  position: absolute;
+  z-index: 5;
+  top: 1.05%;
+  left: 50%;
+  display: block;
+  background: #05070b;
+  transform: translateX(-50%);
+  box-shadow: inset 0 0 0 1px rgba(237, 233, 224, 0.04);
+}
+.device-frame--iphone .device-camera {
+  width: 28%;
+  height: 2.35%;
+  border-radius: 999px;
+}
+.device-frame--galaxy .device-camera {
+  width: 3%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+}
+
+.device-app-screen {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  background: #0f1218;
+}
+.device-static-shot { display: block; width: 100%; height: 100%; object-fit: cover; }
+.scrolling-shot { display: flex; flex-direction: column; width: 100%; height: 100%; overflow: hidden; }
+.scrolling-shot-header,
+.scrolling-shot-footer { position: relative; z-index: 2; display: block; flex: 0 0 auto; width: 100%; height: auto; }
+.scrolling-shot-viewport { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; background: #0f1218; }
+.scrolling-shot-content {
+  display: block;
+  width: 100%;
+  height: auto;
+  will-change: transform;
+  animation: product-scroll-demo 15s infinite;
+}
+@keyframes product-scroll-demo {
+  0%, 9% { transform: translate3d(0, 0, 0); }
+  9% { animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1); }
+  27%, 35% { transform: translate3d(0, -33.73%, 0); }
+  35% { animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1); }
+  53%, 62% { transform: translate3d(0, -67.46%, 0); }
+  62% { animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1); }
+  80%, 88% { transform: translate3d(0, -33.73%, 0); }
+  88% { animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1); }
+  100% { transform: translate3d(0, 0, 0); }
+}
+
+.device-system-nav {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  flex: 0 0 6.153846%;
+  align-items: center;
+  justify-content: space-around;
+  min-height: 0;
+}
+.device-system-nav--iphone { justify-content: center; background: #0d1017; }
+.device-system-nav--iphone i {
+  display: block;
+  width: 34%;
+  height: clamp(2px, 0.24vw, 3px);
+  margin-top: 8%;
+  border-radius: 999px;
+  background: #e8e8e3;
+}
+.device-system-nav--galaxy { background: #eeefed; }
+.device-system-nav--galaxy i { position: relative; display: block; color: #686b6d; }
+.device-recents { width: 10px; height: 10px; border-left: 1.5px solid currentColor; border-right: 1.5px solid currentColor; }
+.device-recents::after { content: ""; position: absolute; inset: 0 3px; border-left: 1.5px solid currentColor; }
+.device-home { width: 12px; height: 12px; border: 1.5px solid currentColor; border-radius: 50%; }
+.device-back { width: 10px; height: 10px; border-bottom: 1.5px solid currentColor; border-left: 1.5px solid currentColor; transform: rotate(45deg); }
+
 /* Shared CTA row for the import-help and install marketing pages. */
 .landing-cta-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 .btn-lg { font-size: 15.5px; padding: 12px 26px; border-radius: 10px; }
@@ -2439,6 +2674,14 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   .landing-hero { padding-top: 40px; --wall-opacity: 0.34; }
   .landing-header { padding: 12px 14px; gap: 10px; }
   .landing-header-actions { gap: 8px; }
+  .device-showcase {
+    --device-width: clamp(170px, 47vw, 226px);
+    margin-top: 54px;
+    padding-bottom: 18px;
+  }
+  .device-showcase-stage { padding: 26px 0 22px; }
+  .showcase-device--left { transform: translateX(-34%) rotateZ(-9deg); }
+  .showcase-device--right { transform: translateX(34%) rotateZ(9deg); }
   .landing-cta-row .btn-lg { flex: 1 1 100%; justify-content: center; }
   .landing-section { margin-top: 88px; }
   .landing-final { margin-top: 88px; }
@@ -2460,6 +2703,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation-duration: 0.01ms !important; }
+  .scrolling-shot-content { animation: none !important; transform: none !important; will-change: auto; }
 }
 
 /* ---------- Comments (reddit-style threads) ---------- */

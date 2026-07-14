@@ -11,6 +11,7 @@
     "db:migrate:local": "wrangler d1 migrations apply showustv --local",
     "db:migrate:remote": "wrangler d1 migrations apply showustv --remote",
     "admin": "node scripts/admin.mjs",
+    "generate:landing-screenshots": "node scripts/prepare-landing-screenshots.mjs",
     "generate:poster-wall": "node scripts/generate-poster-wall.mjs"
   },
   "dependencies": {

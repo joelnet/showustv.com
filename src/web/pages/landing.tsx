@@ -5,7 +5,8 @@ import { Wordmark, SiteFooter, SmpteBars } from "../components/ui";
 import { InstallAppButton } from "../components/install";
 import { AuthCard } from "../components/auth-card";
 import { PosterWall } from "../components/poster-wall";
-import { IconCheck, IconChevron, IconWarning } from "../components/icons";
+import { DeviceShowcase } from "../components/device-showcase";
+import { IconChevron, IconWarning } from "../components/icons";
 
 // Developer link used in a couple of FAQ answers.
 function JoelLink() {
@@ -41,22 +42,15 @@ const FAQS: { q: string; a: React.ReactNode }[] = [
     q: "Is this app vibe coded?",
     a: (
       <>
-        Yes and No. While AI is used to create this app, the features, architectural, and security
+        Not exactly. While AI is used to create this app, the features, architectural, and security
         decisions are made by <JoelLink /> (a software developer with over 30 years of professional
         software development experience)
       </>
     ),
   },
   {
-    q: "How does this app make money?",
-    a: (
-      <>
-        We don&rsquo;t. If the costs to run the site go up significantly, we&rsquo;ll introduce a
-        premium tier to help support the cost of the servers / API&rsquo;s, etc. The app was
-        specifically designed to run on Cloudflare infrastructure to keep costs down even when
-        traffic scales.
-      </>
-    ),
+    q: "Is this free? Any fees?",
+    a: "Free as in beer!",
   },
 ];
 
@@ -90,10 +84,7 @@ export function Landing() {
           <PosterWall />
         </section>
 
-        {/* Free badge sits below the hero rather than inside it (issue #124). */}
-        <p className="landing-freebadge">
-          <IconCheck size={13} /> 100% free! No credit card, no ads!
-        </p>
+        <DeviceShowcase />
 
         {/* The exact same card as /login, opened in register mode. */}
         <section className="landing-signup" aria-label="Create your account">
