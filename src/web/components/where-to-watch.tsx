@@ -5,8 +5,10 @@ export interface WatchInfo {
   providers: { name: string; logo: string | null }[];
 }
 
-// "Where to watch" strip for the show and movie pages (issue #144).
+// "Streaming" strip for the show and movie pages (issues #144, #291).
 // Providers arrive from the worker already deduped to one row per service.
+// A small "Streaming" heading sits on its own line above the (doubled-size)
+// provider logos, with a smaller faded JustWatch credit below.
 // TMDB's watch-provider terms want JustWatch credited wherever the data
 // renders and users sent to the title's TMDB watch page (which holds the
 // actual deep links), so the shelf links out when TMDB supplies one.
@@ -24,7 +26,7 @@ export function WhereToWatch({ watch }: { watch?: WatchInfo }) {
   );
   return (
     <div className="providers">
-      <span className="providers-label">Where to watch</span>
+      <span className="providers-label">Streaming</span>
       {watch.link ? (
         <a
           className="providers-shelf"
@@ -41,7 +43,7 @@ export function WhereToWatch({ watch }: { watch?: WatchInfo }) {
       ) : (
         <span className="providers-shelf">{logos}</span>
       )}
-      <span className="justwatch">Streaming data by JustWatch</span>
+      <span className="justwatch">data by JustWatch</span>
     </div>
   );
 }
