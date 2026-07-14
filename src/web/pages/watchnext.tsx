@@ -35,11 +35,14 @@ const SECTIONS: { key: SectionKey; label: string; field: keyof HomeData }[] = [
   { key: "friends", label: "From People You Follow", field: "friendsWatched" },
 ];
 
-// The queue sections: their tiles name the user's exact next-up episode, so
-// they carry a mark-watched check button (issue #186). The other sections
-// don't — Upcoming episodes haven't aired, History is already watched, and
-// friends tiles track someone else's viewing.
-const MARKABLE_SECTIONS: ReadonlySet<SectionKey> = new Set(["continue", "haven", "notstarted"]);
+// The queue sections mid-watch: their tiles name the user's exact next-up
+// episode, so they carry a mark-watched check button (issue #186). The other
+// sections don't — Upcoming episodes haven't aired, History is already
+// watched, and friends tiles track someone else's viewing. Not Started is
+// excluded too (issue #300 follow-up): its poster tiles are solely about the
+// show, so they drop the episode meta and the check — the user clicks through
+// to the show to start the first episode there.
+const MARKABLE_SECTIONS: ReadonlySet<SectionKey> = new Set(["continue", "haven"]);
 
 // Sections whose tiles show the show's portrait poster ("show art") rather
 // than the episode still (issue #300). Only Not Started: its shows are

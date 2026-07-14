@@ -78,7 +78,13 @@ export function Tile({ item, markable, onWatched, posterArt }: { item: TileItem;
     item.username && item.episodeId != null && item.season != null && item.number != null
       ? mediaPath("episode", item.episodeId, item.episodeTitle)
       : mediaPath(item.kind, item.id, item.title);
-  const canMark = markable === true && item.episodeId != null;
+  // Poster-art tiles are solely about the show (issue #300 follow-up): an
+  // unstarted show is always at S01E01, so the episode number/title line is
+  // redundant, and the mark-watched check is dropped too — the user clicks
+  // through to the show to start the first episode there. So poster tiles are
+  // never markable and never render the episode meta line, regardless of the
+  // section's markable/episode fields; only the poster + show name remain.
+  const canMark = markable === true && item.episodeId != null && !posterArt;
   const checked = item.episodeId != null && markedId === item.episodeId;
 
   // Fresh /home data that still names the same episode means the mark never
@@ -124,7 +130,7 @@ export function Tile({ item, markable, onWatched, posterArt }: { item: TileItem;
         </div>
         <div className={canMark ? "wn-tile-body has-check" : "wn-tile-body"}>
           <span className="wn-tile-show">{item.title}</span>
-          {item.season != null && item.number != null && (
+          {!posterArt && item.season != null && item.number != null && (
             <span className="wn-tile-ep">
               {epCode(item.season, item.number)}
               {item.episodeTitle ? ` - ${item.episodeTitle}` : ""}
