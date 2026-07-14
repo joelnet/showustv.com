@@ -14,6 +14,11 @@ import { useCelebrate } from "./celebration";
 import { mediaPath } from "../paths";
 
 // A tile for any media item — a show (with its next/last episode) or a movie.
+// Most sections render the landscape 16:9 thumb (episode still / show
+// backdrop). `posterArt` tiles (Not Started, issue #300) instead show the
+// show's portrait poster — the app's key "show art" everywhere else (search,
+// library, lists) — since an unstarted show is better sold by its poster than
+// by a screenshot of an episode you haven't reached.
 export interface TileItem {
   kind: "show" | "movie";
   id: number;
@@ -57,14 +62,18 @@ export interface TileItem {
 // then steers the update: queued offline it stays put (the post-sync
 // revalidation will refresh /home), online `onWatched` refetches /home so
 // the tile advances to the next episode or the show leaves the section.
-export function Tile({ item, markable, onWatched }: { item: TileItem; markable?: boolean; onWatched?: () => void }) {
+export function Tile({ item, markable, onWatched, posterArt }: { item: TileItem; markable?: boolean; onWatched?: () => void; posterArt?: boolean }) {
   const celebrate = useCelebrate();
   // The episode id this tile has optimistically marked watched — compared
   // against item.episodeId so the check unwinds by itself when fresh data
   // advances the tile to the next episode.
   const [markedId, setMarkedId] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
-  const thumb = still(item.still) ?? backdrop(item.backdrop) ?? poster(item.poster);
+  // Poster-art tiles (Not Started, issue #300) show the show's portrait poster;
+  // every other section leads with the episode still, then the show backdrop,
+  // and only falls back to the poster. A missing poster degrades to the same
+  // .poster-fallback placeholder the app's other poster tiles use.
+  const thumb = posterArt ? poster(item.poster) : still(item.still) ?? backdrop(item.backdrop) ?? poster(item.poster);
   const to =
     item.username && item.episodeId != null && item.season != null && item.number != null
       ? mediaPath("episode", item.episodeId, item.episodeTitle)
@@ -108,7 +117,7 @@ export function Tile({ item, markable, onWatched }: { item: TileItem; markable?:
   return (
     <div className="wn-tile">
       <Link to={to} className="wn-tile-link" draggable={false}>
-        <div className="wn-tile-thumb">
+        <div className={posterArt ? "wn-tile-thumb is-poster" : "wn-tile-thumb"}>
           {thumb ? <img src={thumb} alt="" loading="lazy" decoding="async" draggable={false} /> : <div className="poster-fallback">{item.title}</div>}
           {item.count != null && item.count > 0 && <span className="pill wn-tile-count">{item.count} left</span>}
           {item.airDate && <span className="pill wn-tile-date">{fmtMonthDay(item.airDate)}</span>}
@@ -241,11 +250,11 @@ export function ScrollRow({ children }: { children: React.ReactNode }) {
 }
 
 // One section's horizontal row of tiles, drag-scrollable on desktop.
-export function Row({ items, markable, onWatched }: { items: TileItem[]; markable?: boolean; onWatched?: () => void }) {
+export function Row({ items, markable, onWatched, posterArt }: { items: TileItem[]; markable?: boolean; onWatched?: () => void; posterArt?: boolean }) {
   return (
     <ScrollRow>
       {items.map((it, i) => (
-        <Tile key={`${it.kind}-${it.id}-${i}`} item={it} markable={markable} onWatched={onWatched} />
+        <Tile key={`${it.kind}-${it.id}-${i}`} item={it} markable={markable} onWatched={onWatched} posterArt={posterArt} />
       ))}
     </ScrollRow>
   );

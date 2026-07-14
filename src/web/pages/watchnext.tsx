@@ -41,6 +41,13 @@ const SECTIONS: { key: SectionKey; label: string; field: keyof HomeData }[] = [
 // friends tiles track someone else's viewing.
 const MARKABLE_SECTIONS: ReadonlySet<SectionKey> = new Set(["continue", "haven", "notstarted"]);
 
+// Sections whose tiles show the show's portrait poster ("show art") rather
+// than the episode still (issue #300). Only Not Started: its shows are
+// unstarted, so the poster sells them better than a still from an episode the
+// user hasn't reached. The queue's other sections track a specific episode
+// mid-watch, where the still is the right, more informative image.
+const POSTER_ART_SECTIONS: ReadonlySet<SectionKey> = new Set(["notstarted"]);
+
 // Sections the user has hidden on Watch Now (issue #185), persisted per user
 // so two accounts on the same browser keep separate layouts. A per-device UI
 // preference, so localStorage is the right home (no API round-trip; the
@@ -144,7 +151,9 @@ export function WatchNext() {
                 {isHidden ? <IconEyeSlash size={15} /> : <IconEye size={15} />}
               </button>
             </div>
-            {!isHidden && <Row items={s.items} markable={MARKABLE_SECTIONS.has(s.key)} onWatched={reload} />}
+            {!isHidden && (
+              <Row items={s.items} markable={MARKABLE_SECTIONS.has(s.key)} posterArt={POSTER_ART_SECTIONS.has(s.key)} onWatched={reload} />
+            )}
           </section>
         );
       })}
@@ -173,7 +182,7 @@ export function WatchSectionPage() {
       <div>
         <Link to="/" className="crumb">‹ Watch</Link>
         <h1 className="page-title">{section.label}</h1>
-        <TileGridSkeleton />
+        <TileGridSkeleton posterArt={POSTER_ART_SECTIONS.has(section.key)} />
       </div>
     );
   if (error) return <ErrorNote message={error} />;
@@ -188,7 +197,13 @@ export function WatchSectionPage() {
       ) : (
         <div className="wn-grid">
           {items.map((it, i) => (
-            <Tile key={`${it.kind}-${it.id}-${i}`} item={it} markable={MARKABLE_SECTIONS.has(section.key)} onWatched={reload} />
+            <Tile
+              key={`${it.kind}-${it.id}-${i}`}
+              item={it}
+              markable={MARKABLE_SECTIONS.has(section.key)}
+              posterArt={POSTER_ART_SECTIONS.has(section.key)}
+              onWatched={reload}
+            />
           ))}
         </div>
       )}

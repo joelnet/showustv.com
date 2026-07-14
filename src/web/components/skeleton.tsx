@@ -75,10 +75,12 @@ export function TrendingSkeleton() {
 }
 
 // One Watch Next tile: 16:9 thumbnail + show + episode lines (issue #106).
-function TileSkeleton({ i }: { i: number }) {
+// `posterArt` tiles (Not Started, issue #300) stand in for the 2:3 poster the
+// loaded tile shows, so the grid doesn't jump when data lands.
+function TileSkeleton({ i, posterArt }: { i: number; posterArt?: boolean }) {
   return (
     <div className="wn-tile">
-      <Skeleton className="skel-thumb" />
+      <Skeleton className={posterArt ? "skel-poster" : "skel-thumb"} />
       <div className="wn-tile-body">
         <Skeleton className="skel-line" style={{ width: w(i, 50, 40) }} />
         <Skeleton className="skel-line skel-line--sm" style={{ width: w(i + 2, 35, 30) }} />
@@ -105,12 +107,14 @@ export function HomeSkeleton({ sections = 3 }: { sections?: number }) {
   );
 }
 
-// The full-section tile grid behind each home row (/watch/:key).
-export function TileGridSkeleton({ count = 12 }: { count?: number }) {
+// The full-section tile grid behind each home row (/watch/:key). Poster-art
+// sections (Not Started, issue #300) render 2:3 tile skeletons so the grid
+// keeps its shape when the real posters arrive.
+export function TileGridSkeleton({ count = 12, posterArt }: { count?: number; posterArt?: boolean }) {
   return (
     <SkeletonShell className="wn-grid">
       {range(count).map((i) => (
-        <TileSkeleton key={i} i={i} />
+        <TileSkeleton key={i} i={i} posterArt={posterArt} />
       ))}
     </SkeletonShell>
   );

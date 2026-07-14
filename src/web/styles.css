@@ -767,6 +767,11 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   display: block;
 }
 .wn-tile-thumb .poster-fallback { display: flex; align-items: center; justify-content: center; text-align: center; }
+/* Poster-art tiles (Not Started, issue #300): the show's portrait poster, so
+   the thumb (and its fallback) takes the 2:3 shape the app's other poster
+   tiles use instead of the 16:9 still frame. */
+.wn-tile-thumb.is-poster img,
+.wn-tile-thumb.is-poster .poster-fallback { aspect-ratio: 2 / 3; }
 /* Overlay pills on the thumb corner: episodes-left count, and the air-date
    pill on Upcoming tiles (issue #175). Same spot — no tile carries both. */
 .wn-tile-count,
