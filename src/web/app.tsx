@@ -10,7 +10,7 @@ import { Spinner, Wordmark, SiteFooter } from "./components/ui";
 import { ConfirmProvider } from "./components/dialog";
 import { CelebrationProvider } from "./components/celebration";
 import { ToastProvider } from "./components/toast";
-import { IconPlay, IconSearch, IconLibrary, IconList, IconGear, IconUser, IconDownload, IconBell } from "./components/icons";
+import { IconPlay, IconSearch, IconLibrary, IconList, IconGear, IconUser, IconUsers, IconDownload, IconBell } from "./components/icons";
 import { useInstallPrompt, isStandalone, useUpdateReady, applyUpdate } from "./pwa";
 import { useUnreadNotifications, usePushNudge, setUnread } from "./notifications";
 import { Landing } from "./pages/landing";
@@ -268,6 +268,15 @@ function Header() {
             <IconDownload size={14} /> <span>Install App</span>
           </button>
         ))}
+      {/* Icon-only search for phone widths, where the search pill above is
+          hidden (issue #290): the footer tab bar dropped its Search item, so
+          this keeps /search reachable from the header. Sits with the other
+          header icons (before the bell); desktop uses the pill, so this is
+          CSS-hidden there. Placed after Install so the sibling margin rules in
+          styles.css can hand it the auto margin only when Install is absent. */}
+      <Link to="/search" className="header-search-btn" aria-label="Search">
+        <IconSearch />
+      </Link>
       <NotificationBell />
       <Link to="/settings" className="header-gear" aria-label="Settings">
         <IconGear />
@@ -386,7 +395,7 @@ function TabBar() {
   return (
     <nav className="tabbar" aria-label="Primary">
       <NavLink to="/" end><IconPlay /><span>Watch now</span></NavLink>
-      <NavLink to="/search"><IconSearch /><span>Search</span></NavLink>
+      <NavLink to="/following"><IconUsers /><span>Socials</span></NavLink>
       <NavLink to="/library"><IconLibrary /><span>Library</span></NavLink>
       <NavLink to="/lists"><IconList /><span>Lists</span></NavLink>
       <NavLink to={profilePath}><IconUser /><span>Profile</span></NavLink>

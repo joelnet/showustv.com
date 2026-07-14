@@ -144,6 +144,12 @@ a:hover { text-decoration: underline; }
 .header-gear { color: var(--muted); display: flex; }
 .header-gear:hover { color: var(--text); }
 
+/* Icon-only search (issue #290): only shown at phone width, where the
+   .header-search pill is hidden and the footer tab bar no longer carries a
+   Search item. Desktop keeps the pill, so this is a no-op there. */
+.header-search-btn { display: none; color: var(--muted); }
+.header-search-btn:hover { color: var(--text); }
+
 /* Notification bell (issue #129): sits with the gear; the badge is the
    unread count in ON AIR red. */
 .header-bell { color: var(--muted); display: flex; position: relative; }
@@ -2331,29 +2337,32 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 @media (max-width: 719px) {
   .header-nav, .header-search { display: none; }
   .header { gap: 12px; }
-  /* Icon alone is ~20px — pad the touch area without moving the icon. The
-     bell (always present, right before the gear) carries the auto margin
-     that right-aligns the icon cluster. */
-  .header-bell { padding: 12px; margin: -12px -6px -12px auto; }
+  /* Icon alone is ~20px — pad the touch area without moving the icon. With the
+     search pill hidden here, the icon-only search (issue #290) is shown and
+     carries the auto margin that right-aligns the search + bell + gear cluster
+     — the role the bell used to hold. */
+  .header-search-btn { display: flex; padding: 12px; margin: -12px -6px -12px auto; }
+  .header-bell { padding: 12px; margin: -12px -6px -12px 0; }
   .header-bell .bell-badge { top: 2px; right: 2px; }
   .header-gear { padding: 12px; margin: -12px -12px -12px 0; }
-  /* With the search hidden, the install button carries the right-alignment;
-     when it's present, hand the auto margin from the bell to it so the
-     icons stay grouped. The nav and search are gone at this width, so the
-     "Install App" words still fit — and mobile Chromium is exactly where we
-     want the install nudge to read clearly. */
+  /* With the search pill hidden, the install button carries the right-alignment;
+     when it's present, hand the auto margin from the search icon to it so the
+     icons stay grouped after the button. The nav and search pill are gone at
+     this width, so the "Install App" words still fit — and mobile Chromium is
+     exactly where we want the install nudge to read clearly. */
   .header-install { margin-left: auto; padding: 10px 12px; }
+  .header-install ~ .header-search-btn { margin-left: 0; }
   .header-install ~ .header-bell { margin-left: -6px; }
   /* Profile page, install showing (issue #289): drop the logo and lead with
      the Install button to free header space (more is planned here), keeping
      the install nudge prominent. Install moves to the leading edge and the
-     bell reclaims the auto margin so the bell+gear cluster still hugs the
-     right. Scoped by the header--profile-install modifier (app.tsx) and this
-     phone-width query — desktop, other pages, and the no-Install case keep the
-     logo untouched. */
+     search icon reclaims the auto margin so the search + bell + gear cluster
+     still hugs the right. Scoped by the header--profile-install modifier
+     (app.tsx) and this phone-width query — desktop, other pages, and the
+     no-Install case keep the logo untouched. */
   .header--profile-install .header-brand { display: none; }
   .header--profile-install .header-install { margin-left: 0; }
-  .header--profile-install .header-install ~ .header-bell { margin-left: auto; }
+  .header--profile-install .header-install ~ .header-search-btn { margin-left: auto; }
   .tabbar { display: grid; }
   .main { padding-bottom: 90px; }
   .footer { margin-bottom: 62px; }
