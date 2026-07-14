@@ -219,6 +219,7 @@ function PublicShell() {
 function Header() {
   const navigate = useNavigate();
   const profilePath = useProfilePath();
+  const { pathname } = useLocation();
   const { available, ios, install } = useInstallPrompt();
   // Show the install affordance unless the app is already running installed.
   // `available` is false in standalone mode (isStandalone()), so this naturally
@@ -227,8 +228,16 @@ function Header() {
   // additionally drops `available` once beforeinstallprompt is consumed; on iOS
   // the button just links to the /install instructions.
   const showInstall = available;
+  // On the profile page (issue #289) a phone header is tight, and there's room
+  // reserved for future profile chrome. When the Install button is showing,
+  // trade the logo for it: the modifier drops the wordmark and leads with
+  // Install (see the mobile rules in styles.css). CSS-gated to phone width, so
+  // desktop keeps the logo; the class is a no-op there and off every other page
+  // and whenever Install isn't available. Same exact-profile match as the title
+  // sync above — sub-pages (achievements, library) keep their logo.
+  const installOverLogo = showInstall && /^\/u\/[^/]+\/?$/.test(pathname);
   return (
-    <header className="header">
+    <header className={`header${installOverLogo ? " header--profile-install" : ""}`}>
       <Link to="/" className="header-brand" aria-label="Show Us TV, home">
         <Wordmark />
       </Link>

@@ -2344,6 +2344,16 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
      want the install nudge to read clearly. */
   .header-install { margin-left: auto; padding: 10px 12px; }
   .header-install ~ .header-bell { margin-left: -6px; }
+  /* Profile page, install showing (issue #289): drop the logo and lead with
+     the Install button to free header space (more is planned here), keeping
+     the install nudge prominent. Install moves to the leading edge and the
+     bell reclaims the auto margin so the bell+gear cluster still hugs the
+     right. Scoped by the header--profile-install modifier (app.tsx) and this
+     phone-width query — desktop, other pages, and the no-Install case keep the
+     logo untouched. */
+  .header--profile-install .header-brand { display: none; }
+  .header--profile-install .header-install { margin-left: 0; }
+  .header--profile-install .header-install ~ .header-bell { margin-left: auto; }
   .tabbar { display: grid; }
   .main { padding-bottom: 90px; }
   .footer { margin-bottom: 62px; }
