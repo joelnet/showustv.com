@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { poster } from "../img";
 import { epCode } from "../format";
 import { EMOJI_REACTIONS } from "../../shared/constants";
-import { IconCheck, IconX, IconDiscord } from "./icons";
+import { IconCheck, IconX, IconDiscord, IconImdb, IconRottenTomatoes } from "./icons";
 
 // External social links for the footer (issue #75).
 const SOCIALS = [
@@ -98,25 +98,43 @@ export function Wordmark() {
   );
 }
 
-// Off-site links for detail pages (issue #12). IMDb links straight to the
-// title once the catalog row has synced its imdb_id; until then (and always
-// for Rotten Tomatoes and Reddit, which expose no stable id mapping) the
-// link is a title search on the target site.
+// Off-site links for detail pages (issues #12, #292). Each brand renders as
+// its bundled logo (see icons.tsx) linking out, mirroring the streaming-logo
+// treatment above. IMDb links straight to the title once the catalog row has
+// synced its imdb_id; until then (and always for Rotten Tomatoes, which
+// exposes no stable id mapping) the link is a title search on the target site.
 export function ExternalLinks({ title, imdbId }: { title: string; imdbId: string | null }) {
   const q = encodeURIComponent(title);
   const links = [
-    ["IMDb", imdbId ? `https://www.imdb.com/title/${imdbId}/` : `https://www.imdb.com/find/?q=${q}`],
-    ["Rotten Tomatoes", `https://www.rottentomatoes.com/search?search=${q}`],
-    ["Reddit", `https://www.reddit.com/search/?q=${q}`],
+    {
+      name: "IMDb",
+      href: imdbId ? `https://www.imdb.com/title/${imdbId}/` : `https://www.imdb.com/find/?q=${q}`,
+      Logo: IconImdb,
+    },
+    {
+      name: "Rotten Tomatoes",
+      href: `https://www.rottentomatoes.com/search?search=${q}`,
+      Logo: IconRottenTomatoes,
+    },
   ];
   return (
     <div className="external-links">
       <span className="external-links-label">Elsewhere</span>
-      {links.map(([name, href]) => (
-        <a key={name} className="external-chip" href={href} target="_blank" rel="noopener noreferrer">
-          {name} ↗
-        </a>
-      ))}
+      <div className="external-logos">
+        {links.map(({ name, href, Logo }) => (
+          <a
+            key={name}
+            className="external-logo"
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={name}
+            aria-label={name}
+          >
+            <Logo size={36} />
+          </a>
+        ))}
+      </div>
     </div>
   );
 }

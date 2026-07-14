@@ -1066,11 +1066,12 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 
 /* Streaming (issues #144, #291): a small "Streaming" heading stacked over the
    provider shelf, with a smaller faded JustWatch credit below — each on its own
-   line. The shelf carries the same language as the external-chip row below it —
-   surface riser, 1px line, pill — and links out to the title's TMDB watch page.
+   line. The shelf is a surface riser — 1px line, pill — and links out to the
+   title's TMDB watch page.
    Doubled-size logos wrap inside the shelf so a long row never overflows. */
 .providers { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-bottom: 20px; }
-.providers-label {
+.providers-label,
+.external-links-label {
   color: var(--muted);
   font-size: 12px;
   font-weight: 700;
@@ -1095,23 +1096,24 @@ a.providers-shelf:hover { border-color: var(--amber); text-decoration: none; }
 a.providers-shelf:hover .providers-out { color: var(--amber); }
 .justwatch { color: var(--muted); font-size: 11px; opacity: 0.75; }
 
-/* Off-site link chips (IMDb / Rotten Tomatoes / Reddit) — same shelf
-   language as the providers row above. */
-.external-links { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
-.external-links-label { color: var(--muted); font-size: 13px; }
-.external-chip {
+/* Off-site "Elsewhere" links (IMDb / Rotten Tomatoes) — a small heading
+   (shared with the Streaming label, issue #291) stacked over a row of bundled
+   brand logos, mirroring the streaming-logo treatment above (issue #292). */
+.external-links { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-bottom: 20px; }
+.external-logos { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.external-logo {
   display: inline-flex;
   align-items: center;
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 3px 12px;
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 500;
-  white-space: nowrap;
+  justify-content: center;
+  min-width: 40px;
+  min-height: 40px;
+  border-radius: 8px;
+  line-height: 0;
+  opacity: 0.9;
+  transition: opacity 0.15s ease, transform 0.15s ease;
 }
-.external-chip:hover { border-color: var(--amber); color: var(--amber); text-decoration: none; }
+.external-logo:hover { opacity: 1; transform: translateY(-1px); text-decoration: none; }
+.external-logo svg { display: block; }
 
 .seasons { display: flex; flex-direction: column; gap: 10px; }
 .season { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
