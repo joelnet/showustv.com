@@ -233,12 +233,14 @@ function useDragScroll<T extends HTMLElement>() {
 // The bare horizontal scroller: a .wn-row strip of whatever the caller puts
 // in it, drag-scrollable on desktop. Row feeds it Tiles; the profile's Stats
 // slider (issue #250) feeds it stat cards — one scroller, so the drag/click
-// behavior can never fork between them.
-export function ScrollRow({ children }: { children: React.ReactNode }) {
+// behavior can never fork between them. `posterArt` rows (Not Started, issue
+// #300) mark the strip `.is-poster` so its portrait tiles take a narrower
+// column and drop the deliberate half-tile peek other rows use (see styles).
+export function ScrollRow({ children, posterArt }: { children: React.ReactNode; posterArt?: boolean }) {
   const drag = useDragScroll<HTMLDivElement>();
   return (
     <div
-      className="wn-row"
+      className={posterArt ? "wn-row is-poster" : "wn-row"}
       ref={drag.ref}
       onMouseDown={drag.onMouseDown}
       onClickCapture={drag.onClickCapture}
@@ -252,7 +254,7 @@ export function ScrollRow({ children }: { children: React.ReactNode }) {
 // One section's horizontal row of tiles, drag-scrollable on desktop.
 export function Row({ items, markable, onWatched, posterArt }: { items: TileItem[]; markable?: boolean; onWatched?: () => void; posterArt?: boolean }) {
   return (
-    <ScrollRow>
+    <ScrollRow posterArt={posterArt}>
       {items.map((it, i) => (
         <Tile key={`${it.kind}-${it.id}-${i}`} item={it} markable={markable} onWatched={onWatched} posterArt={posterArt} />
       ))}

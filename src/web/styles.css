@@ -875,6 +875,13 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .wn-row.is-grabbing { cursor: grabbing; user-select: none; }
 .wn-row.is-grabbing img { pointer-events: none; }
 .wn-row img { -webkit-user-drag: none; user-select: none; }
+/* Not Started poster rows (issue #300): the portrait 2:3 posters tower over the
+   landscape rows at the shared 220px column, so they take a ~1/3-narrower
+   column (220 → 147px), bringing the tile height back in line with the still
+   rows. Same fixed-column scroller — it still drags/scrolls when the row
+   overflows — just smaller tiles. The deliberate half-tile peek is dropped on
+   mobile (see the max-width: 560px block). */
+.wn-row.is-poster { grid-auto-columns: 147px; }
 
 .sr-only {
   position: absolute;
@@ -2948,6 +2955,15 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
      .main padding (2×10px) and the one visible 10px gap, then splits the
      remaining viewport across 1.5 columns. */
   .wn-row { grid-auto-columns: calc((100vw - 30px) / 1.5); gap: 10px; }
+  /* The Not Started poster row opts out of the deliberate 1.5-tile peek (issue
+     #300): it sits centered among the landscape rows where scrollability
+     already reads, so it shows whole tiles. Two posters fill the viewport
+     exactly — 2×column + 1×10px gap = the row's width (100vw − 20px main
+     padding) — so the rightmost tile is never cut; this also matches the 2-up
+     poster size on the full /watch/notstarted grid (issue #286). It still
+     scrolls when there are more than two. Markable tiles keep room for the
+     check control at this width; 3-up would crush the title line. */
+  .wn-row.is-poster { grid-auto-columns: calc((100vw - 30px) / 2); }
   .wn-section-head h2 { font-size: 18px; }
 }
 
