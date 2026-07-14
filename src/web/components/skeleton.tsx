@@ -116,9 +116,9 @@ export function TileGridSkeleton({ count = 12 }: { count?: number }) {
   );
 }
 
-// Feed rows (notifications, activity, follow lists): an optional small
+// Feed rows (notifications, follow lists): an optional small
 // poster, then one or two text lines — same surface-card geometry as
-// .notif-list / .activity-feed / .list-items rows.
+// .notif-list / .list-items rows.
 export function RowListSkeleton({ count = 6, thumb = true }: { count?: number; thumb?: boolean }) {
   return (
     <SkeletonShell className="skel-rows">
@@ -250,8 +250,7 @@ export function ProfileSkeleton({ action = false }: { action?: boolean }) {
   );
 }
 
-// Following: the follow-by-username form, then two follow sections and the
-// start of the activity feed.
+// Following: the follow-by-username form, then two follow sections.
 export function FollowingSkeleton() {
   return (
     <SkeletonShell>

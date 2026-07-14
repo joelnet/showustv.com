@@ -614,7 +614,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .skel-copy { margin: 14px 0; }
 .skel-detail-body { flex: 1; min-width: 0; max-width: 640px; }
 
-/* Feed-row shells matching .notif-list / .activity-feed / .list-items rows. */
+/* Feed-row shells matching .notif-list / .list-items rows. */
 .skel-rows { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
 .skel-row {
   display: flex;
@@ -1489,19 +1489,11 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .friend-add input { flex: 1; max-width: 320px; min-width: 0; }
 .friend-note { color: var(--muted); font-size: 13.5px; margin: 8px 0 0; }
 
-.social-section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-top: 28px;
-}
-.social-section-head .section-title { margin: 0 0 12px; }
 .shared-signal-link {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin-bottom: 12px;
+  margin: 16px 0 12px;
   padding: 5px 10px;
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -1698,7 +1690,6 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 }
 
 @media (max-width: 719px) {
-  .social-section-head { align-items: flex-end; }
   .shared-signal-link { min-height: 40px; padding: 9px 12px; }
   .taste-page-head { align-items: flex-start; flex-direction: column; gap: 5px; }
   .taste-summary { padding: 0; }
@@ -1758,22 +1749,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .also-watching { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 16px; }
 .also-watching-label { color: var(--muted); font-size: 13px; }
 
-.activity-feed { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.activity-feed li {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 8px 12px;
-}
-.activity-poster { width: 38px; aspect-ratio: 2/3; object-fit: cover; border-radius: 5px; flex-shrink: 0; }
-.activity-text { flex: 1; font-size: 14px; min-width: 0; }
-.activity-user { font-weight: 600; color: var(--text); }
-.activity-when { flex-shrink: 0; }
-
-/* Notifications page (issue #129) — activity-feed rows plus an unread
+/* Notifications page (issue #129) — feed-row cards plus an unread
    amber accent that survives the visit even after read-all fires. */
 .notif-list { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .notif-list li {
@@ -2440,10 +2416,6 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   .wn-section-toggle { width: 40px; height: 40px; }
 
   .import-actions { flex-wrap: wrap; }
-
-  /* Activity rows: timestamp drops under the text instead of crowding it. */
-  .activity-feed li { flex-wrap: wrap; }
-  .activity-when { flex-basis: 100%; padding-left: 50px; }
 
   .landing-hero { padding-top: 40px; --wall-opacity: 0.34; }
   .landing-header { padding: 12px 14px; gap: 10px; }

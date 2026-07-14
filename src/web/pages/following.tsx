@@ -1,22 +1,19 @@
-// Following (issue #39): follow people by username, see who follows you, and
-// read the activity feed of the people you follow. Instagram-style asymmetric
-// follows — no accept step, and following isn't mutual. Pairs that DO follow
-// each other surface in a Mutuals section up top (issue #130).
+// Following (issue #39): follow people by username, and see who follows you.
+// Instagram-style asymmetric follows — no accept step, and following isn't
+// mutual. Pairs that DO follow each other surface in a Mutuals section
+// (issue #130).
 //
 // Social mutations are deliberately NOT offline-queueable (api.ts only queues
 // watch/favorite ops) — when the network is gone they fail fast and the error
 // is shown inline instead of pretending to succeed.
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import { api, post, del } from "../api";
+import { post, del } from "../api";
 import { useApi } from "../hooks";
 import { useAuth } from "../app";
 import { useConfirm } from "../components/dialog";
-import { poster } from "../img";
-import { fmtDateTime } from "../format";
 import { Empty, ErrorNote } from "../components/ui";
-import { FollowingSkeleton, RowListSkeleton } from "../components/skeleton";
-import { mediaPath } from "../paths";
+import { FollowingSkeleton } from "../components/skeleton";
 import { IconPlus, IconShare, IconTrash } from "../components/icons";
 
 interface FollowsData {
@@ -25,102 +22,9 @@ interface FollowsData {
   followers: { username: string; since: string; youFollow: boolean }[];
 }
 
-export interface ActivityItem {
-  type: "watched" | "followed" | "rated";
-  username: string;
-  target_type: "show" | "movie";
-  target_id: number;
-  title: string;
-  poster: string | null;
-  count: number;
-  score: number | null;
-  ts: string;
-  k: string; // server-side unique row key (doubles as the pagination tie-break)
-}
-
 // Follow dates render date-only in the viewer's profile timezone.
 function fmtDate(iso: string, tz: string): string {
   return new Date(iso).toLocaleDateString("en-US", { timeZone: tz, month: "short", day: "numeric", year: "numeric" });
-}
-
-function activityPhrase(a: ActivityItem): string {
-  if (a.type === "followed") return "started following";
-  if (a.type === "rated") return `rated ${a.score}/10:`;
-  if (a.target_type === "show") return a.count === 1 ? "watched an episode of" : `watched ${a.count} episodes of`;
-  return "watched";
-}
-
-export function ActivityFeed() {
-  const { user } = useAuth();
-  const [items, setItems] = useState<ActivityItem[] | null>(null);
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loadingMore, setLoadingMore] = useState(false);
-
-  const load = useCallback(async (before: string | null) => {
-    const q = before ? `?before=${encodeURIComponent(before)}` : "";
-    return api<{ items: ActivityItem[]; nextCursor: string | null }>(`/social/activity${q}`);
-  }, []);
-
-  useEffect(() => {
-    let live = true;
-    load(null)
-      .then((d) => {
-        if (!live) return;
-        setItems(d.items);
-        setCursor(d.nextCursor);
-      })
-      .catch((e) => live && setError(e.message));
-    return () => {
-      live = false;
-    };
-  }, [load]);
-
-  if (error) return <ErrorNote message={error} />;
-  if (!items) return <RowListSkeleton count={5} />;
-  if (!items.length)
-    return <Empty title="Nothing here yet" hint="When someone you follow watches, follows, or rates something, it shows up here." />;
-
-  const tz = user!.tz;
-  return (
-    <>
-      <ul className="activity-feed">
-        {items.map((a) => (
-          <li key={`${a.k}:${a.ts}`}>
-            {a.poster && <img className="activity-poster" src={poster(a.poster, "w154")!} alt="" loading="lazy" />}
-            <span className="activity-text">
-              <Link to={`/u/${a.username}`} className="activity-user">
-                {a.username}
-              </Link>{" "}
-              {activityPhrase(a)}{" "}
-              <Link to={mediaPath(a.target_type === "show" ? "show" : "movie", a.target_id, a.title)}>{a.title}</Link>
-            </span>
-            <span className="mono activity-when">{fmtDateTime(a.ts, tz)}</span>
-          </li>
-        ))}
-      </ul>
-      {cursor && (
-        <button
-          className="link-btn"
-          disabled={loadingMore}
-          onClick={async () => {
-            setLoadingMore(true);
-            try {
-              const d = await load(cursor);
-              setItems((cur) => [...(cur ?? []), ...d.items]);
-              setCursor(d.nextCursor);
-            } catch (e: any) {
-              setError(e.message);
-            } finally {
-              setLoadingMore(false);
-            }
-          }}
-        >
-          {loadingMore ? "Loading…" : "Load more"}
-        </button>
-      )}
-    </>
-  );
 }
 
 export function FollowingPage() {
@@ -198,18 +102,20 @@ export function FollowingPage() {
       </form>
       {note && (note.isError ? <ErrorNote message={note.text} /> : <p className="friend-note">{note.text} ✓</p>)}
 
+      {/* Shared Signal (issue #284): the entry point sits at the top, right
+          after the follow form. The linked page handles the no-mutuals case
+          with its own empty state, so the link always shows. */}
+      <Link to="/following/shared" className="shared-signal-link">
+        <IconShare size={13} /> Shared Signal
+      </Link>
+
       {/* Mutuals (issue #130): people you follow who follow you back. The
           section hides entirely when there are none rather than adding a third
           empty block to a fresh account. Rows are plain links; unfollow lives
           in the Following list below. */}
       {mutuals.length > 0 && (
         <>
-          <div className="social-section-head">
-            <h2 className="section-title">Mutuals · {mutuals.length}</h2>
-            <Link to="/following/shared" className="shared-signal-link">
-              <IconShare size={13} /> Shared Signal
-            </Link>
-          </div>
+          <h2 className="section-title">Mutuals · {mutuals.length}</h2>
           <ul className="list-items">
             {mutuals.map((f) => (
               <li key={f.username}>
@@ -243,7 +149,7 @@ export function FollowingPage() {
                   onClick={async () => {
                     const yes = await confirm({
                       title: `Unfollow ${f.username}?`,
-                      message: "Their activity will stop showing in your feed. They won't be notified.",
+                      message: "You'll stop seeing their activity. They won't be notified.",
                       confirmLabel: "Unfollow",
                       danger: true,
                     });
@@ -282,9 +188,6 @@ export function FollowingPage() {
           ))}
         </ul>
       )}
-
-      <h2 className="section-title">Activity</h2>
-      <ActivityFeed />
     </div>
   );
 }
