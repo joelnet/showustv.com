@@ -2647,14 +2647,20 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   .comments-head { flex-wrap: wrap; }
 }
 
-/* Issue #79: on phones, fit 3 posters per row (was 2) so more shows are
-   visible at once. A tighter gutter and slightly trimmed page padding buy the
-   extra column; wider phones/tablets (561px+) keep the auto-fill layout. */
+/* Portrait phones show 2 tiles per row, not 3 (issue #286). The full Watch
+   Next section pages (Continue Watching, Upcoming, Haven't Watched in a While,
+   Not Started, History, From People You Follow) render as .wn-grid, and the
+   library/search/list poster grids as .poster-grid — 3-up made both too cramped
+   on portrait mobile. This supersedes issue #79's 3-up (which trimmed padding
+   and gutters to buy a third column); 2-up gives the artwork the room it needs.
+   Wider phones/tablets (561px+) keep the auto-fill layout, so tablet/desktop are
+   untouched. The horizontal .wn-row section strips already show ~1.5 tiles and
+   are left as-is. */
 @media (max-width: 560px) {
   .main { padding-left: 10px; padding-right: 10px; }
-  .wn-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 8px; }
-  /* Library poster grid matches the 3-up Watch Now layout on phones (#88). */
-  .poster-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 8px; }
+  .wn-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 8px; }
+  /* Library/search poster grids stay matched to the Watch Now grid, now 2-up (#88, #286). */
+  .poster-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 8px; }
   /* Section rows show exactly 1.5 tiles so the cut-off tile hints at horizontal
      scroll while keeping tiles large (issue #105 follow-up). Width backs out the
      .main padding (2×10px) and the one visible 10px gap, then splits the
