@@ -56,8 +56,11 @@ const FOLLOWING_CTE = `WITH following(fid) AS (
 // ---------- Follow graph ----------
 
 // Everything the Following page needs in one request: mutuals (we follow each
-// other), who I follow, and who follows me. Each follower row carries
-// youFollow so the UI can offer a "Follow back" button.
+// other), who I follow but who doesn't follow back, and who follows me but whom
+// I don't follow back. The three lists are disjoint (issue #288) — a mutual
+// appears only under Mutuals, never duplicated into Following or Followers — so
+// each account shows in exactly one section and the section counts don't
+// double-count.
 social.get("/follows", async (c) => {
   const uid = c.get("uid");
 
@@ -74,23 +77,33 @@ social.get("/follows", async (c) => {
     .bind(uid)
     .all();
 
+  // Following minus mutuals: people I follow who do NOT follow me back (issue
+  // #288). The NOT EXISTS drops any followee with a reciprocal edge — those
+  // belong to the Mutuals list above.
   const following = await c.env.DB.prepare(
     `SELECT u.username, f.created_at AS since
      FROM follows f
      JOIN users u ON u.id = f.followee_id AND u.deleted_at IS NULL
      WHERE f.follower_id = ?1 AND f.state = 'active'
+       AND NOT EXISTS (SELECT 1 FROM follows r
+                       WHERE r.follower_id = f.followee_id AND r.followee_id = ?1 AND r.state = 'active')
      ORDER BY f.created_at DESC`
   )
     .bind(uid)
     .all();
 
+  // Followers minus mutuals: people who follow me whom I do NOT follow back
+  // (issue #288). The NOT EXISTS drops anyone I already follow — those are
+  // mutuals. Every row here is therefore non-mutual, so youFollow is always
+  // false; it's kept for response-shape stability and drives the client's
+  // "Follow back" button.
   const followers = await c.env.DB.prepare(
-    `SELECT u.username, f.created_at AS since,
-            EXISTS (SELECT 1 FROM follows me
-                    WHERE me.follower_id = ?1 AND me.followee_id = f.follower_id AND me.state = 'active') AS youFollow
+    `SELECT u.username, f.created_at AS since
      FROM follows f
      JOIN users u ON u.id = f.follower_id AND u.deleted_at IS NULL
      WHERE f.followee_id = ?1 AND f.state = 'active'
+       AND NOT EXISTS (SELECT 1 FROM follows me
+                       WHERE me.follower_id = ?1 AND me.followee_id = f.follower_id AND me.state = 'active')
      ORDER BY f.created_at DESC`
   )
     .bind(uid)
@@ -99,10 +112,10 @@ social.get("/follows", async (c) => {
   return c.json({
     mutuals: mutuals.results,
     following: following.results,
-    followers: (followers.results as { username: string; since: string; youFollow: number }[]).map((r) => ({
+    followers: (followers.results as { username: string; since: string }[]).map((r) => ({
       username: r.username,
       since: r.since,
-      youFollow: !!r.youFollow,
+      youFollow: false,
     })),
   });
 });
