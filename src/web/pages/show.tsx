@@ -114,14 +114,18 @@ function priorUnwatched(d: ShowPayload, target: Episode): number {
 // first regular season with an aired unwatched episode. Fully-watched seasons
 // never open, and a caught-up viewer (isCaughtUp — the same aired
 // regular-episode counts behind Finished/Up to date) gets every season
-// collapsed instead of a force-opened one (issue #264). Only a show with
-// nothing aired yet (and specials-only shows never counted) keeps the old
-// first-regular-season fallback so upcoming air dates stay visible. Shared so
-// a cache seed and a fresh fetch derive it the same way.
+// collapsed instead of a force-opened one (issue #264). An abandoned show
+// (state 'stopped', issue #302) collapses every season too — the viewer has
+// stopped and won't be marking new episodes watched, even if aired unwatched
+// ones remain — so that check comes first, before the working-season lookup.
+// Only a show with nothing aired yet (and specials-only shows never counted)
+// keeps the old first-regular-season fallback so upcoming air dates stay
+// visible. Shared so a cache seed and a fresh fetch derive it the same way.
 function pickOpenSeason(d: ShowPayload): number | null {
+  // Nothing left to mark watched — collapse every season (issues #264, #302).
+  if (d.user?.state === "stopped" || isCaughtUp(d)) return null;
   const current = d.seasons.find((s) => s.number > 0 && s.episodes.some((e) => e.aired && !e.watched));
   if (current) return current.number;
-  if (isCaughtUp(d)) return null; // all watched — collapse every season
   return d.seasons.find((s) => s.number > 0)?.number ?? null;
 }
 
