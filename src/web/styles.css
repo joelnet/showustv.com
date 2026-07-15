@@ -1521,7 +1521,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .friend-add input { flex: 1; max-width: 320px; min-width: 0; }
 .friend-note { color: var(--muted); font-size: 13.5px; margin: 8px 0 0; }
 
-/* ---------- Shared Signal (inline on Following, issue #284) ---------- */
+/* ---------- Social Graph (inline on Following, issue #284) ---------- */
 
 .taste-page-head {
   display: flex;
@@ -1600,28 +1600,6 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   background: #0c0f15;
 }
 .taste-graph-canvas { position: absolute; inset: 0; }
-.taste-graph-tag {
-  position: absolute;
-  top: 11px;
-  left: 13px;
-  z-index: 5;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  color: var(--muted);
-  font: 600 10.5px var(--font-mono);
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  pointer-events: none;
-}
-.taste-graph-tag::before {
-  content: "";
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--red);
-  box-shadow: 0 0 0 3px rgba(255, 77, 61, 0.16);
-}
 .taste-reset {
   position: absolute;
   top: 10px;

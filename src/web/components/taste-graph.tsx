@@ -375,7 +375,6 @@ export function TasteGraph({ media, links, selfUsername, selected, onSelect, onR
 
   return (
     <div className="taste-graph-wrap">
-      <span className="taste-graph-tag" aria-hidden="true">Live signal</span>
       <div
         ref={containerRef}
         className="taste-graph-canvas"

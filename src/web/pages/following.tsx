@@ -18,9 +18,9 @@ import { IconPlus, IconTrash } from "../components/icons";
 
 // Sigma + Graphology (the taste graph) are heavy and only power this one
 // section, so the Following page stays out of the startup bundle by loading
-// the shared-signal graph + list as its own chunk when the page renders.
-const SharedSignalSection = lazy(() =>
-  import("./shared-signal").then((module) => ({ default: module.SharedSignalSection }))
+// the social-graph section as its own chunk when the page renders.
+const SocialGraphSection = lazy(() =>
+  import("./social-graph").then((module) => ({ default: module.SocialGraphSection }))
 );
 
 interface FollowsData {
@@ -109,19 +109,19 @@ export function FollowingPage() {
       </form>
       {note && (note.isError ? <ErrorNote message={note.text} /> : <p className="friend-note">{note.text} ✓</p>)}
 
-      {/* Shared Signal (issue #284): the taste graph + list renders inline at
+      {/* Social Graph (issue #284): the taste graph + list renders inline at
           the top, right after the follow form. The section owns its own fetch
           and handles the no-mutuals / no-shared-titles cases with its own empty
           state; the Suspense fallback covers the one-time chunk load. */}
       <Suspense
         fallback={
           <section>
-            <h2 className="section-title">Shared Signal</h2>
+            <h2 className="section-title">Social Graph</h2>
             <RowListSkeleton count={4} />
           </section>
         }
       >
-        <SharedSignalSection />
+        <SocialGraphSection />
       </Suspense>
 
       {/* Mutuals (issue #130): people you follow who follow you back. The

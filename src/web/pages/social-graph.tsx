@@ -44,11 +44,11 @@ function FavoriteMarks({ item }: { item: TasteGraphMedia }) {
   );
 }
 
-// The shared-signal graph + list renders inline on the Following page (issue
-// #284) rather than on its own route. It owns its /social/taste-graph fetch and
-// every loading/empty/error state so the Following page can drop it in as one
-// self-contained section right after the follow form.
-export function SharedSignalSection() {
+// The social-graph section (taste graph + list) renders inline on the Following
+// page (issue #284) rather than on its own route. It owns its /social/taste-graph
+// fetch and every loading/empty/error state so the Following page can drop it in
+// as one self-contained section right after the follow form.
+export function SocialGraphSection() {
   const { user } = useAuth();
   const { data, loading, error } = useApi<TasteGraphPayload>("/social/taste-graph");
   const webglSupported = useMemo(supportsWebGL, []);
@@ -106,14 +106,14 @@ export function SharedSignalSection() {
   if (loading)
     return (
       <section>
-        <h2 className="section-title">Shared Signal</h2>
+        <h2 className="section-title">Social Graph</h2>
         <RowListSkeleton count={4} />
       </section>
     );
   if (error)
     return (
       <section>
-        <h2 className="section-title">Shared Signal</h2>
+        <h2 className="section-title">Social Graph</h2>
         <ErrorNote message={error} />
       </section>
     );
@@ -122,14 +122,14 @@ export function SharedSignalSection() {
   if (!data.summary.mutualCount)
     return (
       <section>
-        <h2 className="section-title">Shared Signal</h2>
-        <Empty title="No shared signal yet" hint="Follow each other first, then your shared watch histories land here." />
+        <h2 className="section-title">Social Graph</h2>
+        <Empty title="No social graph yet" hint="Follow each other first, then your shared watch histories land here." />
       </section>
     );
 
   return (
     <section>
-      <h2 className="section-title">Shared Signal</h2>
+      <h2 className="section-title">Social Graph</h2>
       <div className="taste-page-head">
         <p>Movies, TV shows, and anime in both your watch histories.</p>
         <p className="mono taste-summary" aria-live="polite">

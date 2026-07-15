@@ -5,8 +5,8 @@ interface ErrorBoundaryProps {
   // Rendered in place of the children once a descendant throws. Receives a
   // `reset` that clears the caught error so the subtree can try mounting again.
   fallback: (reset: () => void) => ReactNode;
-  // Notified on the catch so a parent can react (e.g. flip Shared Signal to the
-  // list view when the WebGL graph blows up) — runs in the commit phase, so a
+  // Notified on the catch so a parent can react (e.g. flip the Social Graph to
+  // the list view when the WebGL graph blows up) — runs in the commit phase, so a
   // setState here is safe.
   onError?: (error: unknown) => void;
   // When any entry changes identity the boundary clears its error and remounts
