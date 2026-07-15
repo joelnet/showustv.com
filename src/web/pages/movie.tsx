@@ -101,7 +101,7 @@ export function MoviePage() {
               />
             </div>
 
-            <WhereToWatch watch={watch} />
+            <WhereToWatch watch={watch} title={movie.title} />
 
             <ExternalLinks title={movie.title} imdbId={movie.imdbId} />
           </div>
@@ -223,7 +223,7 @@ export function MoviePage() {
             />
           </div>
 
-          <WhereToWatch watch={watch} />
+          <WhereToWatch watch={watch} title={movie.title} />
 
           <ExternalLinks title={movie.title} imdbId={movie.imdbId} />
         </div>

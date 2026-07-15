@@ -6,6 +6,7 @@
 // Note: the Cache API is a no-op on *.workers.dev — caching only kicks in on
 // the custom domain. TMDB's ~40 req/s limit makes that acceptable meanwhile.
 
+import { justWatchSearchUrl } from "../../shared/justwatch";
 import type { Env } from "../env";
 import { nowIso } from "./dates";
 
@@ -295,20 +296,27 @@ export function dedupeWatchProviders(entries: any[]): WatchProvider[] {
 }
 
 export interface WatchInfo {
-  link: string | null;
+  link: string;
   providers: WatchProvider[];
 }
 
 // US flatrate providers for the where-to-watch strip, one row per service.
-// TMDB's watch-provider terms: attribute JustWatch wherever the data renders,
-// and send users to the returned TMDB watch page (which holds the real deep
-// links) rather than deep-linking providers directly.
-export async function watchProviders(env: Env, kind: "tv" | "movie", tmdbId: number): Promise<WatchInfo> {
+// TMDB's watch-provider data is JustWatch's, so the shelf links straight to
+// JustWatch rather than TMDB's own watch page (issue #310). New clients build
+// that URL from the title themselves; `link` is the same JustWatch search so
+// still-running pre-#310 clients (which read `link`) also land on JustWatch.
+export async function watchProviders(
+  env: Env,
+  kind: "tv" | "movie",
+  tmdbId: number,
+  title: string
+): Promise<WatchInfo> {
+  const link = justWatchSearchUrl(title);
   try {
     const data = await tmdb(env, `/${kind}/${tmdbId}/watch/providers`, {}, 86400);
     const us = data.results?.US;
-    return { link: us?.link ?? null, providers: dedupeWatchProviders(us?.flatrate ?? []) };
+    return { link, providers: dedupeWatchProviders(us?.flatrate ?? []) };
   } catch {
-    return { link: null, providers: [] };
+    return { link, providers: [] };
   }
 }

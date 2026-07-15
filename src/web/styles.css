@@ -1080,10 +1080,10 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 }
 .emoji-btn.is-on { border-color: var(--amber); background: var(--amber-soft); filter: none; }
 
-/* Streaming (issues #144, #291): a small "Streaming" heading stacked over the
-   provider shelf, with a smaller faded JustWatch credit below — each on its own
-   line. The shelf is a surface riser — 1px line, pill — and links out to the
-   title's TMDB watch page.
+/* Streaming (issues #144, #291, #310): a small "Streaming" heading stacked over
+   the provider shelf, with a smaller faded JustWatch credit below — each on its
+   own line. The shelf is a surface riser — 1px line, pill — and links out to the
+   title's JustWatch search page.
    Doubled-size logos wrap inside the shelf so a long row never overflows. */
 .providers { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-bottom: 20px; }
 .providers-label,

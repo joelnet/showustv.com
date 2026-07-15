@@ -269,7 +269,7 @@ function PublicShowView({
 
       {show.overview && <p className="show-overview">{show.overview}</p>}
 
-      <WhereToWatch watch={watch} />
+      <WhereToWatch watch={watch} title={show.title} />
 
       <ExternalLinks title={show.title} imdbId={show.imdbId} />
 
@@ -745,7 +745,7 @@ export function ShowPage() {
         />
       </div>
 
-      <WhereToWatch watch={watch} />
+      <WhereToWatch watch={watch} title={show.title} />
 
       <ExternalLinks title={show.title} imdbId={show.imdbId} />
 

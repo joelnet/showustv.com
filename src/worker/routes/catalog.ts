@@ -133,7 +133,7 @@ titles.get("/shows/:id", optionalAuth, async (c) => {
       user: null,
       progress: null,
       nextEpisode: regular.find((e) => e.air_date != null && e.air_date > today) ?? null,
-      watch: await watchProviders(c.env, "tv", id),
+      watch: await watchProviders(c.env, "tv", id, showJson.title),
     });
   }
 
@@ -178,7 +178,7 @@ titles.get("/shows/:id", optionalAuth, async (c) => {
       total: regular.length,
     },
     nextEpisode,
-    watch: await watchProviders(c.env, "tv", id),
+    watch: await watchProviders(c.env, "tv", id, showJson.title),
   });
 });
 
@@ -219,7 +219,7 @@ titles.get("/movies/:id", optionalAuth, async (c) => {
     genres: JSON.parse(movie.genres_json),
     imdbId: movie.imdb_id,
   };
-  const watch = await watchProviders(c.env, "movie", id);
+  const watch = await watchProviders(c.env, "movie", id, movieJson.title);
 
   // Anonymous (issue #159): catalog content only — `user: null`, never an
   // empty user object.
