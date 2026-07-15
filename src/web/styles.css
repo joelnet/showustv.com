@@ -1408,29 +1408,24 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .list-collage img { width: 100%; aspect-ratio: 2/3; object-fit: cover; border-radius: 4px; }
 .list-name { font-family: var(--font-display); font-weight: 700; }
 
-.list-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.list-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 4px 0 18px; }
 .list-head-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .list-name .svg-inline--fa { color: var(--red); }
 .page-title .svg-inline--fa { color: var(--red); }
 
-.share-note {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 10px 14px;
-  font-size: 13.5px;
-  color: var(--muted);
-  margin: 0 0 18px;
-  overflow-wrap: anywhere;
-}
+/* The list name with its icon-only share glyph right beside it (issue #319),
+   mirroring the profile header. On the owner's list head this wrapper is the
+   left cluster — the action buttons sit opposite it via space-between; on the
+   public list page it stands alone, so it carries the title's block spacing. */
+.list-title-wrap { display: flex; align-items: center; gap: 10px; min-width: 0; margin: 4px 0 18px; }
+.list-title-wrap .page-title { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.list-head .list-title-wrap { margin: 0; }
 
 .public-byline { color: var(--muted); margin: -8px 0 20px; }
 .public-byline a { color: var(--cyan); }
 .public-byline a:hover { color: var(--text); }
-.public-page .header { justify-content: center; }
-/* Signed-out chrome on shared title pages (issue #159) and public profiles
-   (issue #200): brand left, sign-in right. The centered brand-only header
-   above stays for public list pages. */
+/* Signed-out chrome on shared title pages (issue #159), public profiles
+   (issue #200), and public lists (issue #319): brand left, sign-in right. */
 .public-page .header--public { justify-content: space-between; }
 
 /* Public list: detailed cards with poster + overview so a shared list reads

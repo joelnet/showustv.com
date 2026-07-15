@@ -26,6 +26,7 @@ import { MoviePage } from "./pages/movie";
 import { LibraryPage } from "./pages/library";
 import { ListsPage, ListDetailPage } from "./pages/lists";
 import { PublicListPage } from "./pages/public-list";
+import { publicListPath, idFromParam } from "./paths";
 import { ProfilePage } from "./pages/profile";
 import { PublicProfilePage } from "./pages/public-profile";
 import { PublicLibraryPage } from "./pages/public-library";
@@ -169,6 +170,19 @@ function OwnOrPublic({ own, other }: { own: React.ReactElement; other: React.Rea
 function ProfileRedirect({ sub = "" }: { sub?: string }) {
   const { user } = useAuth();
   return <Navigate to={user ? `/u/${user.username}${sub}` : "/login"} replace />;
+}
+
+// Lists moved to owner-scoped, SEO-friendly URLs (issue #319):
+// /u/:username/lists/:id-slug. Old /lists/:id bookmarks and links redirect to
+// the owner's canonical URL — signed-in visitors here are always the owner
+// (the old address only ever rendered your own list), so their username builds
+// it. No slug yet; the list page appends it once the name loads. Shell already
+// sent signed-out visitors to /login, so `user` is present.
+function ListRedirect() {
+  const { user } = useAuth();
+  const { id } = useParams();
+  if (!user) return <Navigate to="/login" replace />;
+  return <Navigate to={publicListPath(user.username, Number(idFromParam(id)))} replace />;
 }
 
 function Shell() {
@@ -531,7 +545,6 @@ export function App() {
           {/* Legal pages — public so they're reachable signed in or out (footer). */}
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/terms" element={<TermsPage />} />
-          <Route path="/u/:username/lists/:id" element={<PublicListPage />} />
           {/* Shared title pages (issue #159) and user profiles (issue #200):
               signed-out visitors open these links with public chrome instead
               of bouncing to /login. Signed-in users skip these (the branch
@@ -546,6 +559,9 @@ export function App() {
               <Route path="/u/:username/library" element={<PublicLibraryPage tab="shows" />} />
               <Route path="/u/:username/library/movies" element={<PublicLibraryPage tab="movies" />} />
               <Route path="/u/:username/library/anime" element={<PublicLibraryPage tab="anime" />} />
+              {/* Shared list (issue #319): a signed-out visitor from a list
+                  link gets the read-only public view in public chrome. */}
+              <Route path="/u/:username/lists/:id" element={<PublicListPage />} />
             </Route>
           )}
           <Route element={<Shell />}>
@@ -562,7 +578,15 @@ export function App() {
                 and Movies (issue #257); old bookmarks land on the Library. */}
             <Route path="/library/watchlist" element={<Navigate to="/library" replace />} />
             <Route path="/lists" element={<ListsPage />} />
-            <Route path="/lists/:id" element={<ListDetailPage />} />
+            {/* Lists live at their owner-scoped, SEO-friendly URL (issue #319);
+                the old /lists/:id addresses redirect so bookmarks keep working.
+                Your own list renders the owner (editable) view; anyone else's
+                the read-only public one — mirroring the profile split above. */}
+            <Route path="/lists/:id" element={<ListRedirect />} />
+            <Route
+              path="/u/:username/lists/:id"
+              element={<OwnOrPublic own={<ListDetailPage />} other={<PublicListPage />} />}
+            />
             <Route path="/following" element={<FollowingPage />} />
             <Route path="/notifications" element={<NotificationsPage />} />
             {/* Your profile lives at its shareable custom URL (issue #220);

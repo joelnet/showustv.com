@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useApi, dropCached } from "../hooks";
 import { api, post, put, del } from "../api";
 import { useToast } from "../components/toast";
@@ -7,7 +7,7 @@ import { poster } from "../img";
 import { useAuth } from "../app";
 import { Empty, ErrorNote, PosterCard } from "../components/ui";
 import { ListsGridSkeleton, ListDetailSkeleton } from "../components/skeleton";
-import { mediaPath, publicListPath } from "../paths";
+import { mediaPath, publicListPath, idFromParam } from "../paths";
 import {
   IconPlus,
   IconTrash,
@@ -47,6 +47,7 @@ interface ListItem {
 }
 
 export function ListsPage() {
+  const { user } = useAuth();
   const { data, loading, error, reload } = useApi<{ lists: ListSummary[] }>("/lists");
   const [creating, setCreating] = useState(false);
 
@@ -83,7 +84,7 @@ export function ListsPage() {
       ) : (
         <div className="lists-grid">
           {data.lists.map((l) => (
-            <Link key={l.id} to={`/lists/${l.id}`} className="list-card">
+            <Link key={l.id} to={publicListPath(user!.username, l.id, l.name)} className="list-card">
               <div className="list-collage">
                 {l.posters.length ? (
                   l.posters.map((p, i) => <img key={i} src={poster(p, "w154")!} alt="" loading="lazy" />)
@@ -170,8 +171,11 @@ function ListPreamble({ id, preamble, onSaved }: { id: string; preamble: string 
 }
 
 export function ListDetailPage() {
-  const { id } = useParams();
+  // The URL is /u/:username/lists/:id-slug now (issue #319); only the leading
+  // digits identify the list — the slug is advisory (see paths.ts).
+  const id = idFromParam(useParams().id);
   const navigate = useNavigate();
+  const location = useLocation();
   const confirm = useConfirm();
   const { user } = useAuth();
   const { data, loading, error, reload } = useApi<{
@@ -187,7 +191,15 @@ export function ListDetailPage() {
     items: ListItem[];
   }>(`/lists/${id}`);
   const [busy, setBusy] = useState(false);
-  const [copied, setCopied] = useState(false);
+
+  // Canonicalize the address bar to the owner's slugged URL once the name is
+  // known — this also finishes the /lists/:id redirect (which lands here
+  // slugless) and fixes a stale slug or username casing, like the media pages.
+  useEffect(() => {
+    if (!data || !user) return;
+    const canonical = publicListPath(user.username, data.list.id, data.list.name);
+    if (location.pathname !== canonical) navigate(canonical + location.search, { replace: true });
+  }, [data, user, location.pathname, location.search, navigate]);
 
   // The crumb is static — render it for real during the load so only the
   // list body is skeletal.
@@ -228,8 +240,6 @@ export function ListDetailPage() {
     await act(() => put(`/lists/${id}/visibility`, { public: !data!.list.is_shared }))();
   }
 
-  const publicUrl = `${window.location.origin}${publicListPath(user!.username, data.list.id, data.list.name)}`;
-
   async function move(index: number, delta: number) {
     const items = [...data!.items];
     const [it] = items.splice(index, 1);
@@ -247,9 +257,23 @@ export function ListDetailPage() {
     <div>
       <Link to="/lists" className="crumb">‹ Lists</Link>
       <div className="list-head">
-        <h1 className="page-title">
-          {data.list.kind === "favorites" && <IconHeart size={20} />} {data.list.name}
-        </h1>
+        <div className="list-title-wrap">
+          <h1 className="page-title">
+            {data.list.kind === "favorites" && <IconHeart size={20} />} {data.list.name}
+          </h1>
+          {/* Icon-only share, right of the name (issue #319). The address bar
+              is already the clean, shareable URL, so the old "Anyone with this
+              link can view…" note and Copy-link button are gone. Only public
+              lists are shareable — a private list's link just 404s a visitor. */}
+          {!!data.list.is_shared && (
+            <ShareButton
+              variant="icon"
+              title={data.list.name}
+              text={`A list by ${user!.username} on Show Us TV.`}
+              path={publicListPath(user!.username, data.list.id, data.list.name)}
+            />
+          )}
+        </div>
         <div className="list-head-actions">
           <button
             className="btn btn-ghost"
@@ -295,33 +319,7 @@ export function ListDetailPage() {
         </div>
       </div>
 
-      {!!data.list.is_shared && (
-        <p className="share-note">
-          Anyone with this link can view:{" "}
-          <a href={publicUrl}>{publicUrl}</a>{" "}
-          <button
-            className="link-btn"
-            onClick={async () => {
-              await navigator.clipboard.writeText(publicUrl);
-              setCopied(true);
-              setTimeout(() => setCopied(false), 2000);
-            }}
-          >
-            {copied ? "Copied ✓" : "Copy link"}
-          </button>
-          {/* Native share (issue #147) — hidden where unsupported; the copy
-              link above already covers those browsers. */}
-          <ShareButton
-            variant="link"
-            fallback="hide"
-            title={data.list.name}
-            text={`A list by ${user!.username} on Show Us TV.`}
-            path={publicListPath(user!.username, data.list.id, data.list.name)}
-          />
-        </p>
-      )}
-
-      <ListPreamble id={id!} preamble={data.list.preamble} onSaved={reload} />
+      <ListPreamble id={id} preamble={data.list.preamble} onSaved={reload} />
 
       {data.list.kind === "favorites" ? (
         !data.items.length ? (

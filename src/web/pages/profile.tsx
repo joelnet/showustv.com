@@ -14,7 +14,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useApi, useDocumentTitle, dropCached } from "../hooks";
 import { api, post, put, del } from "../api";
 import { watchTimeStr, fmtAgo, fmtDateTime } from "../format";
-import { mediaPath, type MediaType } from "../paths";
+import { mediaPath, publicListPath, type MediaType } from "../paths";
 import { ACHIEVEMENTS } from "../../shared/achievements";
 import { useAuth } from "../app";
 import { useConfirm } from "../components/dialog";
@@ -575,7 +575,7 @@ export function ProfilePage() {
           {data.lists.map((l, i) => (
             <li key={l.id}>
               <span className="mono list-pos">{i + 1}</span>
-              <Link to={`/lists/${l.id}`} className="profile-list-link">
+              <Link to={publicListPath(data.username, l.id, l.name)} className="profile-list-link">
                 <span className="list-name">
                   {l.kind === "favorites" && <IconHeart size={13} />} {l.name}
                 </span>

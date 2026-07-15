@@ -1,10 +1,13 @@
-// Public, read-only list view — reachable without an account at
-// /u/:username/lists/:id when the owner has made the list public.
+// Read-only list view — a non-owner (or signed-out visitor from a shared
+// link) sees this at /u/:username/lists/:id-slug when the owner has made the
+// list public. Renders inside PublicShell (signed-out) or the app Shell
+// (signed-in), so it returns just the content, no chrome of its own — the
+// owner gets the editable ListDetailPage at the same URL instead (issue #319).
 import { useEffect } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useApi } from "../hooks";
 import { useAuth } from "../app";
-import { Wordmark, SmpteBars, SiteFooter } from "../components/ui";
+import { SmpteBars } from "../components/ui";
 import { ShareButton } from "../components/share";
 import { PubListSkeleton } from "../components/skeleton";
 import { Comments } from "../components/comments";
@@ -39,79 +42,73 @@ export function PublicListPage() {
   }, [data, location.pathname, location.search, navigate]);
 
   return (
-    <div className="public-page">
-      <header className="header">
-        <Link to="/" className="header-brand" aria-label="Show Us TV, home">
-          <Wordmark />
-        </Link>
-      </header>
-      <main className="main">
-        {loading ? (
-          <PubListSkeleton />
-        ) : error || !data ? (
-          <div className="empty">
-            <SmpteBars />
-            <h3>Nothing to see here</h3>
-            <p>This list is private or doesn&rsquo;t exist.</p>
-          </div>
-        ) : (
-          <>
+    <>
+      {loading ? (
+        <PubListSkeleton />
+      ) : error || !data ? (
+        <div className="empty">
+          <SmpteBars />
+          <h3>Nothing to see here</h3>
+          <p>This list is private or doesn&rsquo;t exist.</p>
+        </div>
+      ) : (
+        <>
+          {/* Share sits right of the name, icon-only (issue #319), mirroring
+              the public profile header. This page only renders for public
+              lists (the server 404s private ones), so it's always safe. */}
+          <div className="list-title-wrap">
             <h1 className="page-title">{data.list.name}</h1>
-            <p className="public-byline">
-              {/* Always linked: a private profile renders its teaser now
-                  (issue #158) instead of 404ing, so the link is safe. */}
-              A list by <Link to={`/u/${data.list.username}`}>{data.list.username}</Link> · {data.items.length}{" "}
-              {data.items.length === 1 ? "title" : "titles"}
-            </p>
-            {/* This page only renders for public lists (the server 404s
-                private ones), so the share affordance is always safe here. */}
-            <div className="public-actions">
-              <ShareButton
-                title={data.list.name}
-                text={`A list by ${data.list.username} on Show Us TV.`}
-                path={publicListPath(data.list.username, data.list.id, data.list.name)}
-              />
-            </div>
-            {data.list.preamble && <p className="list-preamble">{data.list.preamble}</p>}
-            <ul className="pub-list">
-              {data.items.map((it) => {
-                const src = poster(it.poster);
-                const to = mediaPath(it.type, it.id, it.title);
-                return (
-                  <li key={`${it.type}-${it.id}`} className="pub-list-item">
-                    <Link to={to} className="pub-list-poster" aria-label={`View ${it.title}`}>
-                      {src ? (
-                        <img src={src} alt="" loading="lazy" />
-                      ) : (
-                        <div className="poster-fallback">{it.title}</div>
-                      )}
+            <ShareButton
+              variant="icon"
+              title={data.list.name}
+              text={`A list by ${data.list.username} on Show Us TV.`}
+              path={publicListPath(data.list.username, data.list.id, data.list.name)}
+            />
+          </div>
+          <p className="public-byline">
+            {/* Always linked: a private profile renders its teaser now
+                (issue #158) instead of 404ing, so the link is safe. */}
+            A list by <Link to={`/u/${data.list.username}`}>{data.list.username}</Link> · {data.items.length}{" "}
+            {data.items.length === 1 ? "title" : "titles"}
+          </p>
+          {data.list.preamble && <p className="list-preamble">{data.list.preamble}</p>}
+          <ul className="pub-list">
+            {data.items.map((it) => {
+              const src = poster(it.poster);
+              const to = mediaPath(it.type, it.id, it.title);
+              return (
+                <li key={`${it.type}-${it.id}`} className="pub-list-item">
+                  <Link to={to} className="pub-list-poster" aria-label={`View ${it.title}`}>
+                    {src ? (
+                      <img src={src} alt="" loading="lazy" />
+                    ) : (
+                      <div className="poster-fallback">{it.title}</div>
+                    )}
+                  </Link>
+                  <div className="pub-list-body">
+                    <Link to={to} className="pub-list-title">
+                      {it.title}
                     </Link>
-                    <div className="pub-list-body">
-                      <Link to={to} className="pub-list-title">
-                        {it.title}
-                      </Link>
-                      <span className="pub-list-type">{it.type === "show" ? "TV" : "Movie"}</span>
-                      {it.overview && <p className="pub-list-overview">{it.overview}</p>}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-            {data.list.commentsEnabled &&
-              (user ? (
-                <section className="list-comments">
-                  <h2 className="section-title">Comments</h2>
-                  <Comments targetType="list" targetId={data.list.id} />
-                </section>
-              ) : (
-                <p className="settings-hint list-comments-note">
-                  <Link to="/login">Sign in</Link> to read and post comments on this list.
-                </p>
-              ))}
-          </>
-        )}
-      </main>
-      <SiteFooter />
-    </div>
+                    <span className="pub-list-type">{it.type === "show" ? "TV" : "Movie"}</span>
+                    {it.overview && <p className="pub-list-overview">{it.overview}</p>}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          {data.list.commentsEnabled &&
+            (user ? (
+              <section className="list-comments">
+                <h2 className="section-title">Comments</h2>
+                <Comments targetType="list" targetId={data.list.id} />
+              </section>
+            ) : (
+              <p className="settings-hint list-comments-note">
+                <Link to="/login">Sign in</Link> to read and post comments on this list.
+              </p>
+            ))}
+        </>
+      )}
+    </>
   );
 }
