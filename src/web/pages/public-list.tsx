@@ -22,7 +22,16 @@ interface PublicList {
     preamble: string | null;
     commentsEnabled: boolean;
   };
-  items: { type: "show" | "movie"; id: number; title: string; poster: string | null; overview: string | null }[];
+  items: {
+    type: "show" | "movie";
+    id: number;
+    title: string;
+    poster: string | null;
+    overview: string | null;
+    // The list owner's own top-level comment on this title (issue #322), if any:
+    // shown read-only here and linking to the title page where it lives.
+    ownerComment: { body: string; createdAt: string; editedAt: string | null } | null;
+  }[];
 }
 
 export function PublicListPage() {
@@ -91,6 +100,20 @@ export function PublicListPage() {
                     </Link>
                     <span className="pub-list-type">{it.type === "show" ? "TV" : "Movie"}</span>
                     {it.overview && <p className="pub-list-overview">{it.overview}</p>}
+                    {/* The owner's own top-level comment on this title (issue
+                        #322), read-only: no composer, vote, or reply — the whole
+                        block just links to the title page where the comment
+                        lives and where a reader can actually join the thread. */}
+                    {it.ownerComment && (
+                      <Link
+                        to={to}
+                        className="pub-list-comment"
+                        title={`Read ${data.list.username}’s comment on ${it.title}`}
+                      >
+                        <span className="pub-list-comment-body">{it.ownerComment.body}</span>
+                        <span className="pub-list-comment-src mono">— {data.list.username} · view on title ↗</span>
+                      </Link>
+                    )}
                   </div>
                 </li>
               );

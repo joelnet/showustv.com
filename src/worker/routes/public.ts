@@ -290,15 +290,34 @@ pub.get("/lists/:username/:id", async (c) => {
   if (!Number.isInteger(id) || id <= 0) return c.json({ error: "not found" }, 404);
 
   const meta = await c.env.DB.prepare(
-    `SELECT l.id, l.name, l.preamble, l.comments_enabled, u.username
+    `SELECT l.id, l.name, l.preamble, l.comments_enabled, l.user_id AS owner_id, u.username, u.shadow_banned
      FROM custom_lists l JOIN users u ON u.id = l.user_id
      WHERE l.id = ?1 AND u.username = ?2 AND l.is_shared = 1 AND u.deleted_at IS NULL`
   )
     .bind(id, username)
-    .first();
+    .first<{
+      id: number;
+      name: string;
+      preamble: string | null;
+      comments_enabled: number;
+      owner_id: number;
+      username: string;
+      shadow_banned: number;
+    }>();
   if (!meta) return c.json({ error: "not found" }, 404);
 
-  const { results: items } = await c.env.DB.prepare(
+  // Per-item owner comment (issue #322): the list owner's own top-level comment
+  // on each show/movie in the list, surfaced read-only inside .pub-list-item and
+  // linking back to the title page — the source, where a reader can actually
+  // reply. One query for the whole list (the most recent non-deleted top-level
+  // comment per item, ROW_NUMBER-deduped) so there's no N+1. A shadow-banned
+  // owner's comments (issue #18) stay hidden from everyone but themselves, just
+  // as on the title page and the profile's Conversations — otherwise the list
+  // would leak comments the viewer couldn't otherwise see.
+  const viewer = await readSession(c);
+  const showOwnerComments = !meta.shadow_banned || viewer?.u === meta.owner_id;
+
+  const itemsStmt = c.env.DB.prepare(
     `SELECT li.target_type AS type, li.target_id AS id,
             COALESCE(s.title, m.title) AS title, COALESCE(s.poster_url, m.poster_url) AS poster,
             COALESCE(s.overview, m.overview) AS overview
@@ -306,10 +325,36 @@ pub.get("/lists/:username/:id", async (c) => {
      LEFT JOIN shows s ON li.target_type = 'show' AND s.tmdb_id = li.target_id
      LEFT JOIN movies m ON li.target_type = 'movie' AND m.tmdb_id = li.target_id
      WHERE li.list_id = ?1 ORDER BY li.position`
-  )
-    .bind(id)
-    .all();
+  ).bind(id);
+  const ownerCommentsStmt = c.env.DB.prepare(
+    `SELECT type, id, body, created_at, edited_at FROM (
+       SELECT c.target_type AS type, c.target_id AS id, c.body, c.created_at, c.edited_at,
+              ROW_NUMBER() OVER (PARTITION BY c.target_type, c.target_id
+                                 ORDER BY c.created_at DESC, c.id DESC) AS rn
+       FROM comments c
+       JOIN custom_list_items li ON li.list_id = ?1
+         AND li.target_type = c.target_type AND li.target_id = c.target_id
+       WHERE c.user_id = ?2 AND c.parent_id IS NULL AND c.deleted_at IS NULL
+     ) WHERE rn = 1`
+  ).bind(id, meta.owner_id);
 
+  const ownerComments = new Map<string, { body: string; createdAt: string; editedAt: string | null }>();
+  let items: unknown[];
+  if (showOwnerComments) {
+    const [itemsR, cmtsR] = await c.env.DB.batch<any>([itemsStmt, ownerCommentsStmt]);
+    items = itemsR.results;
+    for (const r of cmtsR.results as any[])
+      ownerComments.set(`${r.type}:${r.id}`, { body: r.body, createdAt: r.created_at, editedAt: r.edited_at });
+  } else {
+    items = (await itemsStmt.all()).results;
+  }
+
+  // A shadow-banned owner sees their own inline comments but no one else does,
+  // so this response is viewer-varying: no-store keeps the owner's with-comments
+  // copy out of the service worker's API cache, where it could otherwise replay
+  // to a later anonymous visitor on the same browser (same guard the profile
+  // uses for its viewer-varying payloads).
+  if (meta.shadow_banned) c.header("Cache-Control", "no-store");
   return c.json({
     list: {
       id: meta.id,
@@ -318,6 +363,9 @@ pub.get("/lists/:username/:id", async (c) => {
       username: meta.username,
       commentsEnabled: !!meta.comments_enabled,
     },
-    items,
+    items: (items as any[]).map((it) => ({
+      ...it,
+      ownerComment: ownerComments.get(`${it.type}:${it.id}`) ?? null,
+    })),
   });
 });

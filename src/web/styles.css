@@ -1474,6 +1474,36 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+/* The list owner's own top-level comment on an item (issue #322): a read-only,
+   quote-styled block that links to the title page where the comment lives. */
+.pub-list-comment {
+  display: block;
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  border-left: 3px solid var(--amber);
+  border-radius: 0 6px 6px 0;
+  background: var(--surface-2);
+}
+.pub-list-comment:hover { text-decoration: none; }
+.pub-list-comment:hover .pub-list-comment-src { color: var(--amber); }
+.pub-list-comment-body {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+.pub-list-comment-src {
+  display: block;
+  margin-top: 5px;
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
 /* List preamble (issue #94): the owner's optional note about a list, shown
    here and on the public share page. pre-wrap keeps the line breaks they type. */
 .list-preamble {
