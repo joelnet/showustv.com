@@ -2060,6 +2060,14 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   transform: translateX(36%) rotateZ(10deg);
   transform-origin: 50% 100%;
 }
+/* Desktop / landscape has horizontal room the tight mobile stack lacks
+   (issue #311). Above the phone breakpoint, fan the outer phones out
+   further (~10deg more) and spread them wider so more of their back
+   screens read; the tighter arrangement above still applies below it. */
+@media (min-width: 720px) {
+  .showcase-device--left { transform: translateX(-50%) rotateZ(-20deg); }
+  .showcase-device--right { transform: translateX(50%) rotateZ(20deg); }
+}
 
 .device-frame {
   position: relative;
