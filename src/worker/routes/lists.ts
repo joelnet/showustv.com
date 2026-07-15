@@ -14,12 +14,30 @@ async function ownList(c: any, listId: number): Promise<boolean> {
 
 lists.get("/", async (c) => {
   const uid = c.get("uid");
+  // Optional membership flag for the "Add to list" picker (issue #318): when a
+  // title (?type=show|movie&id=…) is passed, each list also reports whether it
+  // already contains that title, so the picker can render a checked/unchecked
+  // checkbox per list. Without the params this is the plain Lists-page listing.
+  const mType = c.req.query("type");
+  const mId = Number(c.req.query("id"));
+  const withMembership = (mType === "show" || mType === "movie") && Number.isInteger(mId) && mId > 0;
+
+  const listsStmt = withMembership
+    ? c.env.DB.prepare(
+        `SELECT l.id, l.name, l.kind, l.is_shared, COUNT(li.list_id) AS count,
+                EXISTS(SELECT 1 FROM custom_list_items m
+                       WHERE m.list_id = l.id AND m.target_type = ?2 AND m.target_id = ?3) AS has_item
+         FROM custom_lists l LEFT JOIN custom_list_items li ON li.list_id = l.id
+         WHERE l.user_id = ?1 GROUP BY l.id ORDER BY (l.kind = 'favorites') DESC, l.created_at`
+      ).bind(uid, mType, mId)
+    : c.env.DB.prepare(
+        `SELECT l.id, l.name, l.kind, l.is_shared, COUNT(li.list_id) AS count
+         FROM custom_lists l LEFT JOIN custom_list_items li ON li.list_id = l.id
+         WHERE l.user_id = ?1 GROUP BY l.id ORDER BY (l.kind = 'favorites') DESC, l.created_at`
+      ).bind(uid);
+
   const [listsR, itemsR] = await c.env.DB.batch([
-    c.env.DB.prepare(
-      `SELECT l.id, l.name, l.kind, l.is_shared, COUNT(li.list_id) AS count
-       FROM custom_lists l LEFT JOIN custom_list_items li ON li.list_id = l.id
-       WHERE l.user_id = ?1 GROUP BY l.id ORDER BY (l.kind = 'favorites') DESC, l.created_at`
-    ).bind(uid),
+    listsStmt,
     c.env.DB.prepare(
       `SELECT li.list_id, COALESCE(s.poster_url, m.poster_url) AS poster
        FROM custom_list_items li

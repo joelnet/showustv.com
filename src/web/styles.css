@@ -1231,12 +1231,105 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .episode-actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 14px 0 4px; }
 .watched-note { display: block; margin: 8px 0; }
 
-.add-to-list {
+/* Add-to-list picker (issue #318). Trigger button matches the other detail
+   actions; the panel itself is a <dialog> so it escapes the hero's
+   overflow:hidden and sits in the top layer. */
+.add-to-list-trigger { white-space: nowrap; }
+
+.atl-dialog {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 0;
+  width: calc(100vw - 48px);
+  max-width: 360px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+}
+.atl-dialog::backdrop { background: rgba(15, 18, 24, 0.72); }
+
+/* max-height bounds the whole sheet; .atl-scroll takes the flex remainder so
+   the header and create row stay pinned while the list scrolls. */
+.atl-body { display: flex; flex-direction: column; max-height: min(72vh, 560px); }
+.atl-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 15px 16px 9px;
+}
+.atl-head h2 {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.atl-scroll {
+  flex: 1 1 auto;
+  min-height: 0; /* let the scroll area shrink inside the flex column */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 2px 8px;
+}
+.atl-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 8px 8px;
   border-radius: 8px;
-  font-size: 13.5px;
-  padding: 8px 10px;
-  color: var(--muted);
-  max-width: 170px;
+  cursor: pointer;
+}
+.atl-row:hover { background: var(--surface-2); }
+.atl-row input {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  accent-color: var(--amber);
+  cursor: pointer;
+}
+.atl-row input:disabled { cursor: default; opacity: 0.6; }
+.atl-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.atl-count { flex-shrink: 0; }
+.atl-msg { padding: 14px 12px; margin: 0; color: var(--muted); font-size: 14px; }
+
+.atl-create {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px 16px;
+  border-top: 1px solid var(--line);
+}
+.atl-create input {
+  flex: 1;
+  min-width: 0;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 11px;
+  color: var(--text);
+  font-size: 14px;
+}
+.atl-create input:focus { border-color: var(--muted); outline: none; }
+.atl-create .btn { white-space: nowrap; }
+
+/* Phones: dock the picker to the bottom as a full-width sheet (issue #318) —
+   thumb-reachable and immune to viewport-edge overflow. */
+@media (max-width: 719px) {
+  .atl-dialog {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    border-radius: 16px 16px 0 0;
+  }
+  .atl-body { max-height: 82vh; padding-bottom: env(safe-area-inset-bottom); }
+  .atl-create input { font-size: 16px; } /* keep mobile browsers from zooming on focus */
 }
 
 /* ---------- Library ---------- */
@@ -2627,7 +2720,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 
   /* iOS Safari zooms into focused controls with fonts under 16px. */
   input, select { font-size: 16px; }
-  .sort-bar select, .add-to-list { font-size: 16px; }
+  .sort-bar select { font-size: 16px; }
 
   .wn-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px 10px; }
   /* The 38px thumb-sized check needs more reserved body width, and nearly

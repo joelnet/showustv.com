@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useApi, dropCached } from "../hooks";
 import { api, post, put, del } from "../api";
+import { useToast } from "../components/toast";
 import { poster } from "../img";
 import { useAuth } from "../app";
 import { Empty, ErrorNote, PosterCard } from "../components/ui";
@@ -17,6 +18,7 @@ import {
   IconArrowUp,
   IconArrowDown,
   IconComment,
+  IconClose,
 } from "../components/icons";
 import { Comments } from "../components/comments";
 import { ShareButton } from "../components/share";
@@ -30,6 +32,9 @@ interface ListSummary {
   is_shared: number;
   count: number;
   posters: string[];
+  // Only present when /lists is fetched with a title (issue #318): 1 if that
+  // title is already in this list, so the add-to-list picker can pre-check it.
+  has_item?: number;
 }
 interface ListItem {
   type: "show" | "movie";
@@ -422,35 +427,177 @@ export function ListDetailPage() {
   );
 }
 
-// "Add to list" dropdown used on show/movie pages. Lazy-loads the lists on open.
+// "Add to list" picker used on show/movie pages (issue #318). A scrollable,
+// multi-select CHECKBOX menu of the viewer's custom lists — checked means the
+// title is already in that list; toggling adds/removes it immediately
+// (optimistic, with revert-on-error). The Favorites system list is deliberately
+// excluded: favorites are managed by the heart button on the detail page.
+//
+// Built on a native <dialog> (like the confirm dialog) so it lives in the top
+// layer — it can't be clipped by the hero card's overflow:hidden, gets Escape
+// + backdrop-dismiss + focus handling for free, and renders as a compact panel
+// on desktop / a bottom sheet on phones. Replaces the old native <select>,
+// which read as a single-select with an "Add to list…"/"Added ✓" placeholder
+// and native prev/next paging.
 export function AddToList({ type, id }: { type: "show" | "movie"; id: number }) {
+  const toast = useToast();
+  const ref = useRef<HTMLDialogElement>(null);
+  const [open, setOpen] = useState(false);
   const [lists, setLists] = useState<ListSummary[] | null>(null);
-  const [added, setAdded] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [newName, setNewName] = useState("");
+  const [creating, setCreating] = useState(false);
+
+  // Lazy-load on first open, fetching membership for THIS title so each row
+  // renders its checked state. Uses api() (not useApi) — this per-title query
+  // is distinct from the /lists page cache and shouldn't seed it.
+  function load() {
+    setLoadError(false);
+    api<{ lists: ListSummary[] }>(`/lists?type=${type}&id=${id}`)
+      .then((d) => setLists(d.lists))
+      .catch(() => setLoadError(true));
+  }
+
+  function openMenu() {
+    if (lists === null && !loadError) load();
+    setOpen(true);
+  }
+
+  // Mirror the confirm dialog: render the <dialog>, then showModal() once it's
+  // mounted so it enters the top layer with a backdrop + focus trap.
+  useEffect(() => {
+    if (open) ref.current?.showModal();
+  }, [open]);
+
+  // Favorites never appear here — the heart button owns them (issue #318).
+  const custom = (lists ?? []).filter((l) => l.kind !== "favorites");
+
+  async function toggle(l: ListSummary) {
+    if (busyId !== null) return;
+    const has = !!l.has_item;
+    setBusyId(l.id);
+    const flip = (on: boolean) =>
+      setLists((prev) =>
+        prev?.map((x) => (x.id === l.id ? { ...x, has_item: on ? 1 : 0, count: x.count + (on ? 1 : -1) } : x)) ?? prev
+      );
+    flip(!has); // optimistic
+    try {
+      if (has) await del(`/lists/${l.id}/items/${type}/${id}`);
+      else await post(`/lists/${l.id}/items`, { type, id });
+      // These mutations happen away from the Lists pages, so drop their cached
+      // copies — the grid count and the list's items can't render stale (#154).
+      dropCached("/lists");
+      dropCached(`/lists/${l.id}`);
+    } catch {
+      flip(has); // revert
+      toast(has ? "Couldn't remove from list" : "Couldn't add to list", "error");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  // Create a new list and drop the title straight into it — the natural intent
+  // when you make a list from a title's page. Also covers the empty state
+  // (no custom lists yet).
+  async function create(e: React.FormEvent) {
+    e.preventDefault();
+    const name = newName.trim();
+    if (!name || creating) return;
+    setCreating(true);
+    try {
+      const made = (await post("/lists", { name })) as { id: number; name: string };
+      await post(`/lists/${made.id}/items`, { type, id });
+      dropCached("/lists");
+      dropCached(`/lists/${made.id}`);
+      setLists((prev) => [
+        ...(prev ?? []),
+        { id: made.id, name: made.name, kind: "custom", is_shared: 0, count: 1, posters: [], has_item: 1 },
+      ]);
+      setNewName("");
+      toast(`Added to “${made.name}”`);
+    } catch {
+      toast("Couldn't create list", "error");
+    } finally {
+      setCreating(false);
+    }
+  }
 
   return (
-    <select
-      className="add-to-list"
-      aria-label="Add to list"
-      value=""
-      onFocus={() => {
-        if (lists === null) api<{ lists: ListSummary[] }>("/lists").then((d) => setLists(d.lists));
-      }}
-      onChange={async (e) => {
-        const listId = e.target.value;
-        if (!listId) return;
-        await post(`/lists/${listId}/items`, { type, id });
-        // This mutation happens away from the Lists pages, so nothing there
-        // reloads on its own — drop their cached copies so the grid count
-        // and the list's items can't render pre-add (issue #154).
-        dropCached("/lists");
-        dropCached(`/lists/${listId}`);
-        setAdded(listId);
-      }}
-    >
-      <option value="">{added ? "Added ✓" : "Add to list…"}</option>
-      {(lists ?? []).map((l) => (
-        <option key={l.id} value={l.id}>{l.name}</option>
-      ))}
-    </select>
+    <>
+      <button
+        type="button"
+        className="btn btn-ghost add-to-list-trigger"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={openMenu}
+      >
+        <IconList size={16} /> Add to list
+      </button>
+      {open && (
+        <dialog
+          ref={ref}
+          className="atl-dialog"
+          aria-label="Add to lists"
+          onClose={() => setOpen(false)}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) ref.current?.close(); // backdrop tap
+          }}
+        >
+          <div className="atl-body">
+            <div className="atl-head">
+              <h2>Add to lists</h2>
+              <button type="button" className="icon-btn" aria-label="Close" onClick={() => ref.current?.close()}>
+                <IconClose size={18} />
+              </button>
+            </div>
+
+            <div className="atl-scroll">
+              {loadError ? (
+                <p className="atl-msg">
+                  Couldn’t load your lists.{" "}
+                  <button className="link-btn" onClick={load}>
+                    Retry
+                  </button>
+                </p>
+              ) : lists === null ? (
+                <p className="atl-msg">Loading…</p>
+              ) : custom.length === 0 ? (
+                <p className="atl-msg">No lists yet — create one below.</p>
+              ) : (
+                custom.map((l) => (
+                  <label key={l.id} className="atl-row">
+                    <input
+                      type="checkbox"
+                      checked={!!l.has_item}
+                      // Disable every row while one toggle is in flight: a
+                      // controlled checkbox whose onChange no-ops would desync
+                      // from its bound value, and toggles are quick anyway.
+                      disabled={busyId !== null}
+                      onChange={() => toggle(l)}
+                    />
+                    <span className="atl-name">{l.name}</span>
+                    <span className="mono atl-count">{l.count}</span>
+                  </label>
+                ))
+              )}
+            </div>
+
+            <form className="atl-create" onSubmit={create}>
+              <input
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="New list name"
+                maxLength={60}
+                aria-label="New list name"
+              />
+              <button type="submit" className="btn" disabled={creating || !newName.trim()}>
+                <IconPlus size={16} /> Create
+              </button>
+            </form>
+          </div>
+        </dialog>
+      )}
+    </>
   );
 }
