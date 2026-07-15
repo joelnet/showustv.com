@@ -11,7 +11,7 @@ import { ShowPageSkeleton } from "../components/skeleton";
 import { WhereToWatch, type WatchInfo } from "../components/where-to-watch";
 import { Comments } from "../components/comments";
 import { useCelebrate } from "../components/celebration";
-import { IconCheck, IconPlus, IconChevron, IconBookmark, IconHeart, IconHeartOutline, IconEye, IconEyeSlash, IconTrash } from "../components/icons";
+import { IconCheck, IconPlus, IconChevron, IconBookmark, IconHeart, IconHeartOutline, IconHatGlasses, IconTrash } from "../components/icons";
 import { useConfirm } from "../components/dialog";
 import { useToast } from "../components/toast";
 import { ShareButton } from "../components/share";
@@ -576,6 +576,23 @@ export function ShowPage() {
     if (ok) run(() => del(`/shows/${show.id}/remove`), cleared)();
   };
 
+  // Unfollow — and, for a show you're partway through, ABANDON it (issue #314).
+  // The standalone "Abandon show" button is gone, so unfollow carries that flow:
+  // a partially-watched show (some aired regular-season episodes watched but not
+  // caught up — the #258 rule the server re-checks) drops into the abandoned
+  // 'stopped' state and stays in the Library's Abandoned tab, with every season
+  // collapsing (#302, keyed off state 'stopped'). Anything else — nothing
+  // watched, fully caught up, or a hidden row — unfollows outright, dropping the
+  // library row while keeping watch history, exactly as before. The optimistic
+  // update mirrors the server's DELETE /shows/:id/follow branch.
+  const unfollow = () => {
+    const abandons = !mine.hidden && progress.watched > 0 && !isCaughtUp(data);
+    return run(
+      () => del(`/shows/${show.id}/follow`),
+      (d) => (abandons ? withUser(d, { state: "stopped" }) : withUser(d, { followed: false, state: null }))
+    )();
+  };
+
   return (
     <div className="show-page">
       <section
@@ -600,14 +617,14 @@ export function ShowPage() {
               <div className="show-actions">
                 {mine.followed && mine.state !== "watch_later" ? (
                   <>
-                    <button
-                      className="btn btn-ghost"
-                      onClick={run(() => del(`/shows/${show.id}/follow`), (d) => withUser(d, { followed: false, state: null }))}
-                      disabled={busy}
-                    >
+                    <button className="btn btn-ghost" onClick={unfollow} disabled={busy}>
                       Following ✓
                     </button>
-                    {mine.state === "stopped" ? (
+                    {mine.state === "stopped" && (
+                      // A show abandoned by unfollowing (issue #314) reads as
+                      // still followed (state 'stopped'); Resume takes it back to
+                      // 'watching'. There is no separate Abandon button anymore —
+                      // unfollowing a partially-watched show is what abandons it.
                       <button
                         className="btn btn-ghost"
                         onClick={run(() => put(`/shows/${show.id}/state`, { state: "watching" }), (d) => withUser(d, { state: "watching" }))}
@@ -615,22 +632,6 @@ export function ShowPage() {
                       >
                         Resume watching
                       </button>
-                    ) : (
-                      // Abandon is only for shows genuinely in progress (issue
-                      // #258): with nothing watched the right action is Remove
-                      // (below), and with every aired episode watched there's
-                      // nothing left to abandon. Same aired regular-season
-                      // counting as the server's deriveState.
-                      progress.watched > 0 &&
-                      !isCaughtUp(data) && (
-                        <button
-                          className="btn btn-ghost"
-                          onClick={run(() => put(`/shows/${show.id}/state`, { state: "stopped" }), (d) => withUser(d, { state: "stopped" }))}
-                          disabled={busy}
-                        >
-                          Abandon show
-                        </button>
-                      )
                     )}
                   </>
                 ) : (
@@ -666,11 +667,12 @@ export function ShowPage() {
                 >
                   {mine.favorited ? <IconHeart size={18} /> : <IconHeartOutline size={18} />}
                 </button>
-                {/* Privacy eye (issue #260): icon-only like the profile's
-                    privacy toggle (issue #244) — eye = visible on your public
-                    surfaces, slashed eye = hidden. Offered whenever the show
-                    has any trace in the account (inLibrary), since watch
-                    history alone is what leaks on the profile. */}
+                {/* Privacy toggle (issue #260): icon-only like the profile's
+                    privacy toggle (issue #244). The hat-and-glasses "incognito"
+                    glyph (issue #314) reads as hide-from-public; the `is-on`
+                    state + aria-pressed carry hidden vs visible. Offered
+                    whenever the show has any trace in the account (inLibrary),
+                    since watch history alone is what leaks on the profile. */}
                 {inLibrary && (
                   <button
                     className={`hide-btn${mine.hidden ? " is-on" : ""}`}
@@ -688,7 +690,7 @@ export function ShowPage() {
                     disabled={busy}
                     onClick={toggleHidden}
                   >
-                    {mine.hidden ? <IconEyeSlash size={18} /> : <IconEye size={18} />}
+                    <IconHatGlasses size={18} />
                   </button>
                 )}
                 <AddToList type="show" id={show.id} />

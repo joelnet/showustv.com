@@ -1,85 +1,99 @@
-// Font Awesome icon set (tree-shaken SVG imports; no CDN, PWA-safe).
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import type { IconDefinition } from "@fortawesome/fontawesome-svg-core";
+// Icon set — Lucide (https://lucide.dev), stroke-based SVG components imported
+// individually so the bundle only ships the glyphs in use (issue #314). Each
+// IconX keeps its former export name and `{ size }` prop, so the ~30 call
+// sites are unchanged; only the underlying glyph (and the lighter stroke look)
+// swapped over from Font Awesome. Brand marks below stay hand-inlined — Lucide
+// is a UI-icon set, not a logo set.
 import {
-  faPlay,
-  faMagnifyingGlass,
-  faTableCellsLarge,
-  faListUl,
-  faGear,
-  faCheck,
-  faPlus,
-  faChevronRight,
-  faTrashCan,
-  faBookmark,
-  faHeart,
-  faEye,
-  faEyeSlash,
-  faArrowUp,
-  faArrowDown,
-  faChevronLeft,
-  faCalendarDays,
-  faClock,
-  faFilm,
-  faTv,
-  faStar,
-  faUser,
-  faUserGroup,
-  faTriangleExclamation,
-  faDownload,
-  faArrowUpRightFromSquare,
-  faComment,
-  faXmark,
-  faBell,
-  faShareNodes,
-  faLock,
-  faPencil,
-  faHandshake,
-} from "@fortawesome/free-solid-svg-icons";
-import { faHeart as faHeartOutline } from "@fortawesome/free-regular-svg-icons";
+  Play,
+  Search,
+  LayoutGrid,
+  List,
+  Settings,
+  Check,
+  Plus,
+  ChevronRight,
+  ChevronLeft,
+  Trash2,
+  Bookmark,
+  Heart,
+  Eye,
+  EyeOff,
+  ArrowUp,
+  ArrowDown,
+  CalendarDays,
+  Clock,
+  Film,
+  Tv,
+  Star,
+  User,
+  Users,
+  TriangleAlert,
+  Download,
+  ExternalLink,
+  MessageCircle,
+  X,
+  Bell,
+  Share2,
+  Lock,
+  Pencil,
+  Handshake,
+  HatGlasses,
+  type LucideIcon,
+} from "lucide-react";
 
-const wrap = (icon: IconDefinition) => (props: { size?: number }) => (
-  <FontAwesomeIcon icon={icon} style={{ fontSize: props.size ?? 17 }} aria-hidden="true" />
-);
+// The old Font Awesome wrapper defaulted glyphs to 17px; keep that so nothing
+// shifts. `fill` lets the two states of the favorites toggle share one glyph:
+// filled when favorited (IconHeart), outline otherwise (IconHeartOutline).
+const DEFAULT_SIZE = 17;
+const STROKE_WIDTH = 2;
 
-export const IconPlay = wrap(faPlay);
-export const IconSearch = wrap(faMagnifyingGlass);
-export const IconLibrary = wrap(faTableCellsLarge);
-export const IconList = wrap(faListUl);
-export const IconGear = wrap(faGear);
-export const IconCheck = wrap(faCheck);
-export const IconPlus = wrap(faPlus);
-export const IconChevron = wrap(faChevronRight);
-export const IconChevronLeft = wrap(faChevronLeft);
-export const IconTrash = wrap(faTrashCan);
-export const IconBookmark = wrap(faBookmark);
-export const IconHeart = wrap(faHeart);
-export const IconHeartOutline = wrap(faHeartOutline);
-export const IconEye = wrap(faEye);
-export const IconEyeSlash = wrap(faEyeSlash);
-export const IconArrowUp = wrap(faArrowUp);
-export const IconArrowDown = wrap(faArrowDown);
-export const IconCalendar = wrap(faCalendarDays);
-export const IconClock = wrap(faClock);
-export const IconFilm = wrap(faFilm);
-export const IconTv = wrap(faTv);
-export const IconStar = wrap(faStar);
-export const IconUser = wrap(faUser);
-export const IconUsers = wrap(faUserGroup);
-export const IconWarning = wrap(faTriangleExclamation);
-export const IconDownload = wrap(faDownload);
-export const IconExternal = wrap(faArrowUpRightFromSquare);
-export const IconComment = wrap(faComment);
-export const IconClose = wrap(faXmark);
-export const IconBell = wrap(faBell);
-export const IconShare = wrap(faShareNodes);
-export const IconLock = wrap(faLock);
-export const IconPencil = wrap(faPencil);
-export const IconHandshake = wrap(faHandshake);
+const make =
+  (Icon: LucideIcon, fill: string = "none") =>
+  ({ size = DEFAULT_SIZE }: { size?: number }) => (
+    <Icon size={size} strokeWidth={STROKE_WIDTH} fill={fill} aria-hidden="true" />
+  );
 
-// Brand glyphs — not in the Font Awesome free-solid/regular sets, so inlined
-// to avoid pulling in the free-brands package for two icons. `currentColor`
-// lets links style them like text.
+export const IconPlay = make(Play);
+export const IconSearch = make(Search);
+export const IconLibrary = make(LayoutGrid);
+export const IconList = make(List);
+export const IconGear = make(Settings);
+export const IconCheck = make(Check);
+export const IconPlus = make(Plus);
+export const IconChevron = make(ChevronRight);
+export const IconChevronLeft = make(ChevronLeft);
+export const IconTrash = make(Trash2);
+export const IconBookmark = make(Bookmark);
+export const IconHeart = make(Heart, "currentColor"); // filled — favorited / favorites lists
+export const IconHeartOutline = make(Heart); // outline — not favorited
+export const IconEye = make(Eye);
+export const IconEyeSlash = make(EyeOff);
+export const IconArrowUp = make(ArrowUp);
+export const IconArrowDown = make(ArrowDown);
+export const IconCalendar = make(CalendarDays);
+export const IconClock = make(Clock);
+export const IconFilm = make(Film);
+export const IconTv = make(Tv);
+export const IconStar = make(Star);
+export const IconUser = make(User);
+export const IconUsers = make(Users);
+export const IconWarning = make(TriangleAlert);
+export const IconDownload = make(Download);
+export const IconExternal = make(ExternalLink);
+export const IconComment = make(MessageCircle);
+export const IconClose = make(X);
+export const IconBell = make(Bell);
+export const IconShare = make(Share2);
+export const IconLock = make(Lock);
+export const IconPencil = make(Pencil);
+export const IconHandshake = make(Handshake);
+// Per-show hide toggle (issue #260, #314) — the "incognito" hat-and-glasses
+// glyph, matching the privacy affordance's disguise metaphor.
+export const IconHatGlasses = make(HatGlasses);
+
+// Brand glyphs — Lucide is a UI-icon set, not a logo set, so these stay
+// hand-inlined SVG. `currentColor` lets links style them like text.
 export const IconX = ({ size = 17 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
     <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24h-6.66l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
@@ -92,9 +106,9 @@ export const IconDiscord = ({ size = 17 }: { size?: number }) => (
 );
 
 // IMDb & Rotten Tomatoes brand marks for the detail pages' "Elsewhere"
-// off-site links (issue #292). Bundled as inline SVG — neither brand is in the
-// Font Awesome free sets — and drawn in each brand's own colour so they read as
-// logos alongside the streaming-provider logos. Glyph paths from Simple Icons.
+// off-site links (issue #292). Bundled as inline SVG — Lucide carries no brand
+// logos — and drawn in each brand's own colour so they read as logos alongside
+// the streaming-provider logos. Glyph paths from Simple Icons.
 export const IconImdb = ({ size = 30 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="#F5C518" aria-hidden="true">
     <path d="M22.3781 0H1.6218C.7411.0583.0587.7437.0018 1.5953l-.001 20.783c.0585.8761.7125 1.543 1.5559 1.6191A.337.337 0 0 0 1.6016 24h20.7971a.4579.4579 0 0 0 .0437-.002c.8727-.0768 1.5568-.8271 1.5568-1.7085V1.7098c0-.8914-.696-1.6416-1.584-1.7078A.3294.3294 0 0 0 22.3781 0zm0 .496a1.2144 1.2144 0 0 1 1.1252 1.2139v20.5797c0 .6377-.4875 1.1602-1.1045 1.2145H1.6016c-.5967-.0543-1.0645-.5297-1.1053-1.1258V1.6284C.5371 1.0185 1.0184.5364 1.6217.496h20.7564zM4.7954 8.2603v7.3636H2.8899V8.2603h1.9055zm6.5367 0v7.3636H9.6707v-4.9704l-.6711 4.9704H7.813l-.6986-4.8618-.0066 4.8618h-1.668V8.2603h2.468c.0748.4476.1492.9694.2307 1.5734l.2712 1.8713.4407-3.4447h2.4817zm2.9772 1.3289c.0742.0404.122.108.1417.2034.0279.0953.0345.3118.0345.6442v2.8548c0 .4881-.0345.7867-.0955.8954-.0609.1152-.2304.1695-.5018.1695V9.5211c.204 0 .3457.0205.4211.0681zm-.0211 6.0347c.4543 0 .8006-.0265 1.0245-.0742.2304-.0477.4204-.1357.5694-.2648.1556-.1218.2642-.298.3251-.5219.0611-.2238.1021-.6648.1021-1.3224v-2.5832c0-.6986-.0271-1.1668-.0742-1.4039-.041-.237-.1431-.4543-.3126-.6437-.1695-.1973-.4198-.3324-.7456-.421-.3191-.0808-.8542-.1285-1.7694-.1285h-1.4244v7.3636h2.3051zm5.14-1.7827c0 .3523-.0199.5762-.0544.6708-.033.0947-.1894.1424-.3046.1424-.1086 0-.19-.0477-.2238-.1351-.041-.0887-.0609-.2986-.0609-.6238v-1.9469c0-.3324.0199-.5423.0543-.6237.0338-.0808.1086-.122.2171-.122.1153 0 .2709.0412.3114.1425.041.0947.0609.2986.0609.6032v1.8926zm-2.4747-5.5809v7.3636h1.7157l.1152-.4675c.1556.1894.3251.3324.5152.4271.1828.0881.4608.1357.678.1357.3047 0 .5629-.0748.7802-.237.2165-.1562.3589-.3462.4198-.5628.0543-.2173.0887-.543.0887-.9841v-2.0675c0-.4409-.0139-.7324-.0344-.8681-.0199-.1357-.0742-.2781-.1695-.4204-.1021-.1425-.2437-.251-.4272-.3325-.1834-.0742-.3999-.1152-.6576-.1152-.2172 0-.4952.0477-.6846.1285-.1835.0887-.353.2238-.5086.4007V8.2603h-1.8309z" />

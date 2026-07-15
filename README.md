@@ -8,7 +8,7 @@ The whole app is a single Cloudflare Worker: it serves a React SPA as static ass
 
 ## Tech stack
 
-- **Frontend:** React 19 + React Router 7, built with Vite 6 (plain SPA, no SSR), Font Awesome icons
+- **Frontend:** React 19 + React Router 7, built with Vite 6 (plain SPA, no SSR), [Lucide](https://lucide.dev/) icons (brand marks stay hand-inlined SVG)
 - **Backend:** Hono 4 on a Cloudflare Worker (`src/worker/index.ts`)
 - **Database:** Cloudflare D1 (SQLite, STRICT tables), migrations in `migrations/`
 - **External API:** TMDB v3 API (accepts a v4 read token or a v3 API key)

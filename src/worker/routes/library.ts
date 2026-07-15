@@ -303,11 +303,43 @@ library.delete("/shows/:id/follow", async (c) => {
   const id = intParam(c.req.param("id"));
   if (!id) return c.json({ error: "bad id" }, 400);
   const uid = c.get("uid");
-  // Unfollow keeps watch history (user_episodes) — TV Time behavior. A HIDDEN
-  // show (issue #260) can't just drop its row: the privacy flag lives on it,
-  // and the history that stays behind would reappear on the public profile.
-  // Tombstone it instead — the legacy state 'hidden' every read surface
-  // already treats as not-tracked — so unfollow works and the flag survives.
+
+  // Unfollowing a show you're partway through ABANDONS it (issue #314): the
+  // standalone "Abandon show" button is gone, so this endpoint now carries that
+  // flow. "Partially watched" is the exact rule the old PUT /shows/:id/state
+  // abandon guard used and libraryPayload's deriveState uses — some aired
+  // regular-season episodes watched, but not caught up — counted in the viewer's
+  // timezone. Such a show drops into the 'stopped' state (staying in the
+  // Library's Abandoned tab, seasons collapsed per #302) instead of leaving the
+  // library. Hidden rows are excluded — they keep the tombstone path below so
+  // the issue-#260 privacy flag survives the unfollow.
+  const row = await c.env.DB.prepare(
+    `SELECT
+       us.hidden AS hidden,
+       (SELECT COUNT(*) FROM user_episodes ue JOIN episodes e ON e.id = ue.episode_id
+          WHERE ue.user_id = ?1 AND e.show_id = ?2 AND e.season_number > 0) AS watched,
+       (SELECT COUNT(*) FROM episodes e JOIN shows s ON s.tmdb_id = e.show_id
+          WHERE e.show_id = ?2 AND e.season_number > 0 AND ${airedCond("?3", "s")}) AS aired
+     FROM user_shows us WHERE us.user_id = ?1 AND us.show_id = ?2`
+  )
+    .bind(uid, id, todayInTz(c.get("tz")))
+    .first<{ hidden: number; watched: number; aired: number }>();
+  if (row && row.hidden === 0 && row.watched > 0 && row.watched < row.aired) {
+    await c.env.DB.prepare(
+      `UPDATE user_shows SET state = 'stopped', last_state_change = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+       WHERE user_id = ?1 AND show_id = ?2`
+    )
+      .bind(uid, id)
+      .run();
+    return c.json({ ok: true, state: "stopped" });
+  }
+
+  // Otherwise: plain unfollow, which keeps watch history (user_episodes) — TV
+  // Time behavior. A HIDDEN show (issue #260) can't just drop its row: the
+  // privacy flag lives on it, and the history that stays behind would reappear
+  // on the public profile. Tombstone it instead — the legacy state 'hidden'
+  // every read surface already treats as not-tracked — so unfollow works and the
+  // flag survives.
   await c.env.DB.batch([
     c.env.DB.prepare("DELETE FROM user_shows WHERE user_id = ?1 AND show_id = ?2 AND hidden = 0").bind(uid, id),
     c.env.DB.prepare(
