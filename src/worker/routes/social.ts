@@ -40,14 +40,16 @@ async function findUser(c: Context<AppEnv>, username: string): Promise<{ id: num
 // as a CTE prefix. ?1 = uid. Follows are instant and self-granted, so the
 // follow edge alone must not unlock anything (issue #205); a followee's
 // watch/rating activity is served only under the visibility rule from
-// issues #202/#184: they share activity (users.activity_public) AND their
-// profile is visible to this viewer — public, or private-but-mutual (the
-// owner following the viewer back is the deliberate unlock signal).
+// issues #202/#184: their profile is visible to this viewer — public, or
+// private-but-mutual (the owner following the viewer back is the deliberate
+// unlock signal). The separate activity_public gate was dropped (issue #308):
+// #249 removed the eye toggle that set that flag, freezing it, so gating on it
+// permanently hid the activity of any user whose flag was 0 from their
+// followers/mutuals — the exact symptom in that issue.
 const FOLLOWING_CTE = `WITH following(fid) AS (
   SELECT f.followee_id FROM follows f
   JOIN users fu ON fu.id = f.followee_id
   WHERE f.follower_id = ?1 AND f.state = 'active'
-    AND fu.activity_public = 1
     AND (fu.profile_public = 1 OR EXISTS (
       SELECT 1 FROM follows r
       WHERE r.follower_id = f.followee_id AND r.followee_id = ?1 AND r.state = 'active'))

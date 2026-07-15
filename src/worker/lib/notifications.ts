@@ -146,13 +146,15 @@ export async function notifyFollowersOfWatch(
      JOIN users au ON au.id = f.followee_id
      WHERE f.followee_id = ?1 AND f.state = 'active'
        -- "X watched Y" IS the actor's watch activity, so it obeys the same
-       -- visibility rule as the activity feed (issue #205): the actor shares
-       -- activity AND their profile is public or mutual with the recipient.
-       -- And like the feed, a show the ACTOR hid (issue #260) never fans out
-       -- — the notification would broadcast exactly what hiding conceals.
+       -- visibility rule as the activity feed (issue #205): the actor's profile
+       -- is public or mutual with the recipient. And like the feed, a show the
+       -- ACTOR hid (issue #260) never fans out — the notification would
+       -- broadcast exactly what hiding conceals. The separate activity_public
+       -- gate was dropped (issue #308): #249 removed the toggle that set it, so
+       -- gating on that frozen flag permanently silenced watch notifications to
+       -- the followers of any user whose flag was 0.
        AND (?2 != 'show' OR NOT EXISTS (SELECT 1 FROM user_shows ah
                                         WHERE ah.user_id = ?1 AND ah.show_id = ?3 AND ah.hidden = 1))
-       AND au.activity_public = 1
        AND (au.profile_public = 1 OR EXISTS (
              SELECT 1 FROM follows r
              WHERE r.follower_id = f.followee_id AND r.followee_id = f.follower_id AND r.state = 'active'))
@@ -342,9 +344,9 @@ export async function notifyFollowersOfFavorite(
        -- Favorites are profile content: on a private profile the favorites
        -- list is visible to mutuals only (public.ts profileGate), so the
        -- notification obeys the same rule — a follower who couldn't see the
-       -- favorite on the profile doesn't hear about it either. Unlike
-       -- follow_watch there's no activity_public gate: that flag governs the
-       -- watch-activity feed, and favorites aren't part of it.
+       -- favorite on the profile doesn't hear about it either. This is now the
+       -- same visibility rule the watch fan-out uses, after issue #308 dropped
+       -- the old (frozen, unsettable) activity_public gate from that path.
        AND (au.profile_public = 1 OR EXISTS (
              SELECT 1 FROM follows r
              WHERE r.follower_id = f.followee_id AND r.followee_id = f.follower_id AND r.state = 'active'))

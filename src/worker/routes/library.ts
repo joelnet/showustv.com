@@ -164,12 +164,15 @@ library.get("/home", async (c) => {
     c.env.DB.prepare(
       `WITH following(fid) AS (
          -- Only followees whose activity this viewer may see (issue #205),
-         -- mirroring social.ts's FOLLOWING_CTE: activity shared AND profile
-         -- public or mutual — a self-granted follow alone unlocks nothing.
+         -- mirroring social.ts's FOLLOWING_CTE: profile public or mutual — a
+         -- self-granted follow alone unlocks nothing. The separate
+         -- activity_public gate was dropped (issue #308): #249 removed the eye
+         -- toggle that set that flag, freezing it, so gating on it permanently
+         -- hid the activity of any user whose flag was 0 from their followers,
+         -- with no way to turn it back on.
          SELECT f.followee_id FROM follows f
          JOIN users fu ON fu.id = f.followee_id
          WHERE f.follower_id = ?1 AND f.state = 'active'
-           AND fu.activity_public = 1
            AND (fu.profile_public = 1 OR EXISTS (
              SELECT 1 FROM follows r
              WHERE r.follower_id = f.followee_id AND r.followee_id = ?1 AND r.state = 'active'))
