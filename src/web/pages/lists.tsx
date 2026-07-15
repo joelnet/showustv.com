@@ -15,13 +15,11 @@ import {
   IconHeart,
   IconEye,
   IconEyeSlash,
-  IconArrowUp,
-  IconArrowDown,
   IconComment,
   IconClose,
   IconPencil,
 } from "../components/icons";
-import { Comments } from "../components/comments";
+import { ListItems, ListByline, ListComments, type ListViewItem } from "../components/list-view";
 import { ShareButton } from "../components/share";
 import { isAnime } from "../../shared/anime";
 import { useConfirm } from "../components/dialog";
@@ -37,11 +35,11 @@ interface ListSummary {
   // title is already in this list, so the add-to-list picker can pre-check it.
   has_item?: number;
 }
-interface ListItem {
-  type: "show" | "movie";
-  id: number;
-  title: string;
-  poster: string | null;
+// The owner list shares the visitor's rich item shape (issue #325): overview +
+// per-item owner comment (issue #322) come through so the owner sees the same
+// cards a visitor does. `genres_json`/`original_language` are extra fields the
+// favorites Shows/Movies/Anime split needs (issue #103).
+interface ListItem extends ListViewItem {
   // Present for the favorites view's Shows/Movies/Anime split (issue #103).
   genres_json?: string | null;
   original_language?: string | null;
@@ -415,6 +413,11 @@ export function ListDetailPage() {
         />
       )}
 
+      {/* Byline matches the visitor's view (issue #325) — the whole point is
+          that the owner sees the same list a visitor does. Favorites carry no
+          byline (they're organized into sections, not a single share). */}
+      {data.list.kind !== "favorites" && <ListByline username={user!.username} count={data.items.length} />}
+
       <ListPreamble id={id} preamble={data.list.preamble} onSaved={reload} />
 
       {data.list.kind === "favorites" ? (
@@ -475,48 +478,26 @@ export function ListDetailPage() {
       ) : !data.items.length ? (
         <Empty title="This list is empty" hint="Open any show or movie and use “Add to list”." />
       ) : (
-        <ul className="list-items">
-          {data.items.map((it, i) => (
-            <li key={`${it.type}-${it.id}`}>
-              <span className="mono list-pos">{i + 1}</span>
-              <PosterCard to={mediaPath(it.type, it.id, it.title)} posterPath={it.poster} title={it.title} sub={it.type === "show" ? "TV" : "Movie"} />
-              <div className="list-item-actions">
-                <button className="btn btn-ghost" disabled={busy || i === 0} onClick={() => move(i, -1)} aria-label="Move up">
-                  <IconArrowUp size={14} />
-                </button>
-                <button
-                  className="btn btn-ghost"
-                  disabled={busy || i === data.items.length - 1}
-                  onClick={() => move(i, 1)}
-                  aria-label="Move down"
-                >
-                  <IconArrowDown size={14} />
-                </button>
-                <button
-                  className="btn btn-ghost btn-danger"
-                  disabled={busy}
-                  onClick={act(() => del(`/lists/${id}/items/${it.type}/${it.id}`))}
-                  aria-label={`Remove ${it.title}`}
-                >
-                  <IconTrash size={16} />
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
+        // Same rich cards a visitor sees (issue #325) — descriptions and the
+        // per-item owner comment (issue #322) — with the owner's reorder/remove
+        // controls layered on via `controls`.
+        <ListItems
+          items={data.items}
+          username={user!.username}
+          controls={{
+            busy,
+            onMove: move,
+            onRemove: (it) => act(() => del(`/lists/${id}/items/${it.type}/${it.id}`))(),
+          }}
+        />
       )}
 
-      {!!data.list.comments_enabled && !!data.list.is_shared && (
-        <section className="list-comments">
-          <h2 className="section-title">Comments</h2>
-          <Comments targetType="list" targetId={data.list.id} />
-        </section>
-      )}
-      {!!data.list.comments_enabled && !data.list.is_shared && (
-        <p className="settings-hint list-comments-note">
-          Comments are on, but they only appear once this list is public.
-        </p>
-      )}
+      <ListComments
+        id={data.list.id}
+        commentsEnabled={!!data.list.comments_enabled}
+        isShared={!!data.list.is_shared}
+        viewerSignedIn
+      />
     </div>
   );
 }

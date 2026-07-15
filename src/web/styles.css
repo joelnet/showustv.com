@@ -1448,7 +1448,11 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   border-radius: 8px;
   display: block;
 }
-.pub-list-body { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.pub-list-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+/* Owner controls layered onto the shared card (issue #325): reorder/remove sit
+   in a column at the card's trailing edge, only rendered for the list's owner. */
+.pub-list-actions { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; align-self: flex-start; }
+.pub-list-actions .btn-ghost { padding: 5px 10px; }
 .pub-list-title {
   font-family: var(--font-display);
   font-weight: 700;
@@ -2776,7 +2780,9 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   .list-items li { gap: 8px; padding: 8px 10px; }
   .list-pos { width: 16px; }
   .list-item-actions { gap: 4px; }
-  .list-item-actions .btn-ghost { padding: 9px 10px; min-width: 40px; min-height: 40px; }
+  .list-item-actions .btn-ghost,
+  .pub-list-actions .btn-ghost { padding: 9px 10px; min-width: 40px; min-height: 40px; }
+  .pub-list-actions { gap: 4px; }
   .icon-btn,
   .wn-section-toggle { width: 40px; height: 40px; }
 

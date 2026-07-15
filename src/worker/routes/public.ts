@@ -6,6 +6,7 @@ import type { AppEnv } from "../env";
 import { statsQuery, statsFromRow } from "../lib/stats";
 import { readSession } from "../lib/session";
 import { libraryPayload, animeCond } from "../lib/library";
+import { ownerListCommentsStmt, collectOwnerComments, type OwnerComment } from "../lib/list-comments";
 
 export const pub = new Hono<AppEnv>();
 
@@ -326,25 +327,18 @@ pub.get("/lists/:username/:id", async (c) => {
      LEFT JOIN movies m ON li.target_type = 'movie' AND m.tmdb_id = li.target_id
      WHERE li.list_id = ?1 ORDER BY li.position`
   ).bind(id);
-  const ownerCommentsStmt = c.env.DB.prepare(
-    `SELECT type, id, body, created_at, edited_at FROM (
-       SELECT c.target_type AS type, c.target_id AS id, c.body, c.created_at, c.edited_at,
-              ROW_NUMBER() OVER (PARTITION BY c.target_type, c.target_id
-                                 ORDER BY c.created_at DESC, c.id DESC) AS rn
-       FROM comments c
-       JOIN custom_list_items li ON li.list_id = ?1
-         AND li.target_type = c.target_type AND li.target_id = c.target_id
-       WHERE c.user_id = ?2 AND c.parent_id IS NULL AND c.deleted_at IS NULL
-     ) WHERE rn = 1`
-  ).bind(id, meta.owner_id);
-
-  const ownerComments = new Map<string, { body: string; createdAt: string; editedAt: string | null }>();
+  // Same per-item owner-comment query the owner's own list endpoint uses,
+  // shared in lib/list-comments (issue #325) so the two unified views can't
+  // drift. Only run it when this viewer may see the owner's comments.
+  let ownerComments = new Map<string, OwnerComment>();
   let items: unknown[];
   if (showOwnerComments) {
-    const [itemsR, cmtsR] = await c.env.DB.batch<any>([itemsStmt, ownerCommentsStmt]);
+    const [itemsR, cmtsR] = await c.env.DB.batch<any>([
+      itemsStmt,
+      ownerListCommentsStmt(c.env.DB, id, meta.owner_id),
+    ]);
     items = itemsR.results;
-    for (const r of cmtsR.results as any[])
-      ownerComments.set(`${r.type}:${r.id}`, { body: r.body, createdAt: r.created_at, editedAt: r.edited_at });
+    ownerComments = collectOwnerComments(cmtsR.results as any[]);
   } else {
     items = (await itemsStmt.all()).results;
   }

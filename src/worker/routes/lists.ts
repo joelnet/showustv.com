@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { AppEnv } from "../env";
 import { ensureShow, ensureMovie } from "../lib/tmdb";
 import { notifyFollowersOfFavorite } from "../lib/notifications";
+import { ownerListCommentsStmt, collectOwnerComments } from "../lib/list-comments";
 
 export const lists = new Hono<AppEnv>();
 
@@ -72,13 +73,18 @@ lists.post("/", async (c) => {
 lists.get("/:id", async (c) => {
   const id = Number(c.req.param("id"));
   if (!(await ownList(c, id))) return c.json({ error: "not found" }, 404);
-  const [metaR, itemsR] = await c.env.DB.batch([
+  const uid = c.get("uid");
+  const [metaR, itemsR, cmtsR] = await c.env.DB.batch([
     c.env.DB.prepare(
       "SELECT id, name, kind, is_shared, profile_position, preamble, comments_enabled FROM custom_lists WHERE id = ?1"
     ).bind(id),
+    // `overview` is served so the owner's cards read like the visitor's shared
+    // view (issue #325); `genres_json`/`original_language` still feed the
+    // favorites Shows/Movies/Anime split (issue #103).
     c.env.DB.prepare(
       `SELECT li.target_type AS type, li.target_id AS id, li.position,
               COALESCE(s.title, m.title) AS title, COALESCE(s.poster_url, m.poster_url) AS poster,
+              COALESCE(s.overview, m.overview) AS overview,
               COALESCE(s.genres_json, m.genres_json) AS genres_json,
               COALESCE(s.original_language, m.original_language) AS original_language
        FROM custom_list_items li
@@ -86,8 +92,20 @@ lists.get("/:id", async (c) => {
        LEFT JOIN movies m ON li.target_type = 'movie' AND m.tmdb_id = li.target_id
        WHERE li.list_id = ?1 ORDER BY li.position`
     ).bind(id),
+    // The owner's own top-level comment per item (issue #322), the same query
+    // the public share uses (shared in lib/list-comments so they can't drift).
+    // The author is always the list owner (this route is owner-only), so
+    // there's no shadow-ban gating to do: an owner always sees their own.
+    ownerListCommentsStmt(c.env.DB, id, uid),
   ]);
-  return c.json({ list: metaR.results[0], items: itemsR.results });
+  const ownerComments = collectOwnerComments(cmtsR.results as any[]);
+  return c.json({
+    list: metaR.results[0],
+    items: (itemsR.results as any[]).map((it) => ({
+      ...it,
+      ownerComment: ownerComments.get(`${it.type}:${it.id}`) ?? null,
+    })),
+  });
 });
 
 lists.put("/:id", async (c) => {
