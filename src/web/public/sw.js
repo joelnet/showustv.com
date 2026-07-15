@@ -26,11 +26,12 @@
 // them when connectivity returns.
 //
 // The app also warms these caches proactively (src/web/precache.ts): when
-// Watch Next loads, it fetches each Continue Watching show's detail payload
-// and hero art through this worker (issue #139), and after sign-in a
-// background pass warms the user's entire library — index payloads, every
+// Watch Next loads, it fills any missing or stale Continue Watching detail
+// payloads and hero art through this worker (issue #139), and after sign-in
+// a background pass warms the user's entire library — index payloads, every
 // show/movie detail, and their posters (issue #183) — so the whole library
-// browses offline. Comments are deliberately never precached (space); they
+// browses offline. Both passes skip whatever Cache Storage already holds
+// fresh, so a warm client re-fetches nothing on reload. Comments are deliberately never precached (space); they
 // are only readable offline when normal browsing already cached them.
 
 // Replaced at build time (sw-build-id plugin, vite.config.ts) with a hash of

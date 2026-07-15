@@ -7,9 +7,14 @@
 //
 //   - precacheContinueWatching (issue #139): when /home data arrives, warm
 //     each Continue Watching show's detail payload + hero art (poster AND
-//     w1280 backdrop) and seed the parsed payload into the in-memory page
-//     cache (hooks.ts, issue #154 follow-up) so an ONLINE tap paints the
-//     detail page instantly.
+//     w1280 backdrop). Since issue #183 the library pass covers CW payloads
+//     too, so this pass only fills what Cache Storage is missing (or holds
+//     stale) — its remaining unique jobs are the w1280 backdrops (the
+//     library pass deliberately never warms those) and covering a CW title
+//     before the slower library pass reaches it. When it does fetch, the
+//     parsed payload is seeded into the in-memory page cache (hooks.ts,
+//     issue #154 follow-up); already-cached titles need no seed — useApi
+//     paints them straight from the SW cache (issue #183).
 //   - precacheLibrary (issue #183): shortly after a signed-in session is
 //     known (app.tsx), warm the index payloads (/library, /watchlist,
 //     /lists, /home) and EVERY library title's detail payload + w342 poster
@@ -27,10 +32,11 @@
 // offline mutation queue (offline.ts) to sync on reconnect.
 //
 // Bounds: CW warms only the front of the row (MAX_SHOWS); the library pass
-// caps at LIBRARY_MAX titles and — because Cache Storage is shared between
-// the SW and the page — skips anything already cached fresh (detail payloads
-// younger than DETAIL_FRESH_MS, posters at all), so repeat passes fetch only
-// new and expired titles instead of re-downloading the library every boot.
+// caps at LIBRARY_MAX titles. Because Cache Storage is shared between the
+// SW and the page, BOTH passes skip anything already cached fresh (detail
+// payloads younger than DETAIL_FRESH_MS, images by presence), so repeat
+// passes — including every Watch Next reload — fetch only new and expired
+// titles instead of re-downloading them every boot.
 // Each URL also re-warms at most once per FRESH_MS per page load (warmedAt).
 // Fetches run sequentially so warming never competes with the page for
 // bandwidth. The SW's cache caps (MAX_API/MAX_IMG, trimmed oldest-first)
@@ -50,8 +56,10 @@ export interface PrecacheItem {
 const MAX_SHOWS = 12;
 const FRESH_MS = 15 * 60 * 1000;
 
-// URL → when it was last successfully warmed. Module state, so a fresh page
-// load warms once more — cheap, and it keeps the cached copies current.
+// URL → when it was last successfully warmed. A cheap in-memory short-circuit
+// within one page load (mid-session /home revalidations, queued reruns);
+// across loads the Cache Storage checks (freshInCache/cachedAt) are the real
+// guard against re-fetching what's already cached.
 const warmedAt = new Map<string, number>();
 
 const isFresh = (url: string) => {
@@ -164,15 +172,23 @@ export function precacheContinueWatching(items: PrecacheItem[]): void {
           // The page cache keys on the api path WITHOUT the /api prefix (that
           // is what api.ts prepends), so seed `base` while warming `/api+base`.
           const base = `/${item.kind === "movie" ? "movies" : "shows"}/${item.id}`;
-          if (!(await warmSeed(`/api${base}`, base))) return; // session ended — stop warming
+          // Skip payloads already cached fresh — same policy as the library
+          // pass. An ONLINE tap paints from the SW cache regardless (useApi's
+          // readApiCache seed, issue #183), so refetching every page load
+          // bought nothing but traffic; this pass now only fills gaps the
+          // library pass hasn't covered yet (a new CW title, a trimmed entry).
+          if (!(await freshInCache(SW_API_CACHE, `/api${base}`, DETAIL_FRESH_MS))) {
+            if (!(await warmSeed(`/api${base}`, base))) return; // session ended — stop warming
+          }
           // The detail page's hero art. Built with the same img.ts helpers
           // (and sizes) the page uses, so its <img> URLs hit these cache
           // entries. no-cors matches how <img> loads them — the SW stores
-          // the opaque response in its image cache.
+          // the opaque response in its image cache. Cache-first in the SW,
+          // so presence is enough — no age check.
           const p = poster(item.poster);
-          if (p) await warm(p, { mode: "no-cors" });
+          if (p && (await cachedAt(SW_IMG_CACHE, p)) === undefined) await warm(p, { mode: "no-cors" });
           const b = backdrop(item.backdrop);
-          if (b) await warm(b, { mode: "no-cors" });
+          if (b && (await cachedAt(SW_IMG_CACHE, b)) === undefined) await warm(b, { mode: "no-cors" });
         }
         batch = queued;
         queued = null;
@@ -191,10 +207,11 @@ export function precacheContinueWatching(items: PrecacheItem[]): void {
 // everything else runtime browsing caches.
 const LIBRARY_MAX = 500;
 
-// A detail payload cached within the last day is "warm enough" for offline —
+// A detail payload cached within the last week is "warm enough" for offline —
 // normal browsing (network-first) and the post-sync revalidation keep pages
-// the user actually opens fresher than this anyway.
-const DETAIL_FRESH_MS = 24 * 60 * 60 * 1000;
+// the user actually opens fresher than this anyway. Sized to keep background
+// re-warm traffic low: a full library pass refetches at most weekly.
+const DETAIL_FRESH_MS = 7 * 24 * 60 * 60 * 1000;
 
 // When `url`'s cached copy landed, by its response Date header: undefined =
 // no entry at all, null = an entry whose date can't be read (opaque no-cors
@@ -399,7 +416,7 @@ async function libraryPass(): Promise<void> {
   for (const item of items) {
     if (!navigator.onLine || cacheGeneration() !== gen) return;
     const url = `/api/${item.kind === "movie" ? "movies" : "shows"}/${item.id}`;
-    // Skip payloads cached in the last day (by normal browsing, the CW pass,
+    // Skip payloads cached in the last week (by normal browsing, the CW pass,
     // or a previous library pass); a 401 ends the session — stop warming.
     if (!(await freshInCache(SW_API_CACHE, url, DETAIL_FRESH_MS))) {
       if (!(await warm(url))) return;
