@@ -64,7 +64,7 @@ function ListItemCard({
         {item.ownerComment && (
           <Link to={to} className="pub-list-comment" title={`Read ${username}’s comment on ${item.title}`}>
             <span className="pub-list-comment-body">{item.ownerComment.body}</span>
-            <span className="pub-list-comment-src mono">— {username} · view on title ↗</span>
+            <span className="pub-list-comment-src mono">more</span>
           </Link>
         )}
       </div>
