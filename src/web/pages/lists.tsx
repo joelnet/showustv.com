@@ -19,6 +19,7 @@ import {
   IconArrowDown,
   IconComment,
   IconClose,
+  IconPencil,
 } from "../components/icons";
 import { Comments } from "../components/comments";
 import { ShareButton } from "../components/share";
@@ -170,6 +171,75 @@ function ListPreamble({ id, preamble, onSaved }: { id: string; preamble: string 
   );
 }
 
+// Rename a list inline (issue #321), mirroring the profile's username editor
+// (profile.tsx): the pencil in the list header mounts just this form while
+// editing, so the input and any error start fresh each open. `busy` lives in
+// the parent so the pencil can't unmount the form (and eat the error)
+// mid-save. On success the parent reloads /lists/:id, which re-runs the
+// canonicalize effect and rewrites the URL slug (issue #319) to the new name.
+function ListTitleEditor({
+  id,
+  name,
+  reload,
+  close,
+  busy,
+  setBusy,
+}: {
+  id: string;
+  name: string;
+  reload: () => void;
+  close: () => void;
+  busy: boolean;
+  setBusy: (b: boolean) => void;
+}) {
+  const [value, setValue] = useState(name);
+  const [err, setErr] = useState<string | null>(null);
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const next = value.trim();
+    if (!next) return;
+    if (next === name) {
+      close();
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    try {
+      await put(`/lists/${id}`, { name: next });
+      // The /lists grid predates the rename — drop it so it can't repaint the
+      // old name when the reader navigates back (issue #154).
+      dropCached("/lists");
+      close();
+      reload();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Something went wrong");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form className="username-form" onSubmit={save}>
+      <input
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        maxLength={60}
+        aria-label="List title"
+        autoFocus
+        required
+      />
+      <button type="submit" className="btn" disabled={busy}>
+        Save
+      </button>
+      <button type="button" className="btn btn-ghost" disabled={busy} onClick={close}>
+        Cancel
+      </button>
+      {err && <span className="email-err">{err}</span>}
+    </form>
+  );
+}
+
 export function ListDetailPage() {
   // The URL is /u/:username/lists/:id-slug now (issue #319); only the leading
   // digits identify the list — the slug is advisory (see paths.ts).
@@ -191,6 +261,8 @@ export function ListDetailPage() {
     items: ListItem[];
   }>(`/lists/${id}`);
   const [busy, setBusy] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleBusy, setTitleBusy] = useState(false);
 
   // Canonicalize the address bar to the owner's slugged URL once the name is
   // known — this also finishes the /lists/:id redirect (which lands here
@@ -273,6 +345,19 @@ export function ListDetailPage() {
               path={publicListPath(user!.username, data.list.id, data.list.name)}
             />
           )}
+          {/* Rename the list inline (issue #321), same pencil affordance as the
+              profile's username editor (profile.tsx). Owner-only: this whole
+              page is the owner view — visitors get PublicListPage instead. */}
+          <button
+            className="icon-btn"
+            disabled={titleBusy}
+            aria-label="Edit list title"
+            title="Edit list title"
+            aria-expanded={editingTitle}
+            onClick={() => setEditingTitle((v) => !v)}
+          >
+            <IconPencil size={15} />
+          </button>
         </div>
         <div className="list-head-actions">
           <button
@@ -318,6 +403,17 @@ export function ListDetailPage() {
           </button>
         </div>
       </div>
+
+      {editingTitle && (
+        <ListTitleEditor
+          id={id}
+          name={data.list.name}
+          reload={reload}
+          close={() => setEditingTitle(false)}
+          busy={titleBusy}
+          setBusy={setTitleBusy}
+        />
+      )}
 
       <ListPreamble id={id} preamble={data.list.preamble} onSaved={reload} />
 
