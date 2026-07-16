@@ -145,6 +145,7 @@ interface NotificationPrefs {
   trackedComment: boolean;
   followFavorite: boolean;
   newFollower: boolean;
+  listCreated: boolean;
   pushPublicKey: string | null;
 }
 
@@ -166,6 +167,7 @@ function NotificationSettings({ prefs, reload }: { prefs: NotificationPrefs; rel
     trackedComment?: boolean;
     followFavorite?: boolean;
     newFollower?: boolean;
+    listCreated?: boolean;
   }) => {
     setBusy(true);
     setErr(null);
@@ -222,6 +224,21 @@ function NotificationSettings({ prefs, reload }: { prefs: NotificationPrefs; rel
         <span>
           Someone you follow favorited a show
           <span className="settings-hint">Get a notification when people you follow favorite shows and movies.</span>
+        </span>
+      </label>
+
+      <label className="settings-toggle">
+        <input
+          type="checkbox"
+          checked={prefs.listCreated}
+          disabled={busy}
+          onChange={() => togglePref({ listCreated: !prefs.listCreated })}
+        />
+        <span>
+          Someone you follow created a list
+          <span className="settings-hint">
+            Get a notification when people you follow publish a new list on their profile.
+          </span>
         </span>
       </label>
 

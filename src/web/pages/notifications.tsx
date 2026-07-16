@@ -13,14 +13,14 @@ import { fmtAgo, fmtDateTime, epCode } from "../format";
 import { Empty, ErrorNote } from "../components/ui";
 import { IconPlus } from "../components/icons";
 import { PushToggle } from "../components/push-toggle";
-import { mediaPath } from "../paths";
+import { mediaPath, publicListPath } from "../paths";
 import { RowListSkeleton } from "../components/skeleton";
 
 interface NotificationItem {
   id: number;
   type: string;
   actor: string | null; // null when the account has since been deleted
-  targetType: "show" | "movie" | null;
+  targetType: "show" | "movie" | "list" | null;
   targetId: number | null;
   title: string | null;
   poster: string | null;
@@ -62,8 +62,21 @@ function NotificationBody({ n }: { n: NotificationItem }) {
     return <>sent a test notification</>;
   }
 
+  // New-list rows (issue #331): the actor (the list owner) IS the URL owner, so
+  // the link goes to their shared list page. Falls back to a plain label if the
+  // list was since deleted or the owner's account is gone.
+  if (n.type === "list_created") {
+    const listLink =
+      n.actor && n.targetId != null ? (
+        <Link to={publicListPath(n.actor, n.targetId, n.title)}>{n.title ?? "a list"}</Link>
+      ) : (
+        <span>{n.title ?? "a list"}</span>
+      );
+    return <>created a new list {listLink}</>;
+  }
+
   const targetLink =
-    n.targetType && n.targetId != null ? (
+    n.targetType && n.targetType !== "list" && n.targetId != null ? (
       <Link to={mediaPath(n.targetType, n.targetId, n.title)}>{n.title ?? `a ${n.targetType}`}</Link>
     ) : (
       <span>{n.title ?? "something"}</span>
@@ -208,7 +221,7 @@ export function NotificationsPage() {
       {!items.length ? (
         <Empty
           title="No notifications yet"
-          hint="When someone follows you, comments on a show or movie you track, or someone you follow watches, favorites, or comments, you'll hear about it here."
+          hint="When someone follows you, comments on a show or movie you track, or someone you follow watches, favorites, comments, or creates a list, you'll hear about it here."
         />
       ) : (
         <>

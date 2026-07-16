@@ -385,6 +385,80 @@ export async function notifyFollowersOfFavorite(
   });
 }
 
+// Same fan-out cap as favorites (lowest follower ids win, deterministically) —
+// a list published by a big account still writes at most this many rows in one
+// invocation. The push cap above still applies on top.
+const MAX_LIST_FANOUT = 500;
+
+// New-list fan-out (issue #331). When a user's custom list first becomes BOTH
+// public (custom_lists.is_shared = 1) AND pinned to their profile
+// (profile_position IS NOT NULL), their followers hear about it — "X created a
+// new list: <name>" — linking to the list. The two callers (the visibility
+// endpoint publishing an already-pinned list, and the profile-pin endpoint
+// pinning an already-public list) invoke this only on the transition INTO that
+// combined state, so populating a list first and sharing it later is exactly
+// one notification. The list is genuinely public content (the /lists/:u/:id
+// share endpoint gates on is_shared alone, ignoring profile privacy), so —
+// unlike the favorite/watch fan-outs — there is no profile_public visibility
+// gate here: any follower can open the linked list. Deduped per
+// (recipient, actor, list) over 24 hours, absorbing pin/publish flapping and
+// the two-endpoint "make public and pin in one action" path (whichever
+// transition lands second is deduped away).
+export async function notifyFollowersOfListCreated(
+  env: Env,
+  actorId: number,
+  listId: number
+): Promise<void> {
+  const since = new Date(Date.now() - DEDUPE_WINDOW_MS).toISOString();
+
+  // One statement, mirroring the favorite fan-out: active followers only (self
+  // can't appear — follows CHECKs follower != followee), deleted recipients
+  // skipped, list_created pref gated (default on when no prefs row), and
+  // deduped per (recipient, actor, list) over 24 hours. The `au` join drops the
+  // whole fan-out when the list owner is deleted or shadow-banned — their
+  // profile reads as gone to everyone else, so a notification would advertise
+  // (and link) content nobody should be pointed at.
+  const { results: created } = await env.DB.prepare(
+    `INSERT INTO notifications (user_id, type, actor_id, target_type, target_id)
+     SELECT f.follower_id, 'list_created', ?1, 'list', ?2
+     FROM follows f
+     JOIN users au ON au.id = f.followee_id AND au.deleted_at IS NULL AND au.shadow_banned = 0
+     JOIN users ru ON ru.id = f.follower_id AND ru.deleted_at IS NULL
+     WHERE f.followee_id = ?1 AND f.state = 'active'
+       AND COALESCE((SELECT np.list_created FROM notification_prefs np
+                     WHERE np.user_id = f.follower_id AND np.show_id = 0), 1) = 1
+       AND NOT EXISTS (SELECT 1 FROM notifications n
+                       WHERE n.user_id = f.follower_id AND n.type = 'list_created'
+                         AND n.actor_id = ?1 AND n.target_id = ?2
+                         AND n.created_at >= ?3)
+     ORDER BY f.follower_id
+     LIMIT ?4
+     RETURNING user_id`
+  )
+    .bind(actorId, listId, since, MAX_LIST_FANOUT)
+    .all<{ user_id: number }>();
+  if (!created.length || !vapidConfigured(env)) return;
+
+  // Push copy, resolved here so the routes' hook stays one line. Short title
+  // (`<user> created a list`), the list name in the body, deep link to the
+  // shared list page (the numeric id resolves without the slug — the page
+  // canonicalizes the URL once the name loads).
+  const [actorR, listR] = await env.DB.batch([
+    env.DB.prepare("SELECT username FROM users WHERE id = ?1 AND deleted_at IS NULL").bind(actorId),
+    env.DB.prepare("SELECT name FROM custom_lists WHERE id = ?1").bind(listId),
+  ]);
+  const actor = (actorR.results[0] as { username: string } | undefined)?.username;
+  const name = (listR.results[0] as { name: string } | undefined)?.name;
+  if (!actor || !name) return;
+
+  await pushToRecipients(env, created.map((r) => r.user_id), {
+    title: `${actor} created a list`,
+    body: name,
+    url: `/u/${actor}/lists/${listId}`,
+    tag: `flist-${actorId}-${listId}`,
+  });
+}
+
 // Follow notification (issue #273). When A follows B, B hears about it —
 // "A followed you", or "A followed you back" when B already follows A (A's
 // follow reciprocated one of B's). Single recipient, not a fan-out. The row

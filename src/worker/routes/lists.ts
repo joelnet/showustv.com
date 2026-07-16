@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../env";
 import { ensureShow, ensureMovie } from "../lib/tmdb";
-import { notifyFollowersOfFavorite } from "../lib/notifications";
+import { notifyFollowersOfFavorite, notifyFollowersOfListCreated } from "../lib/notifications";
 import { ownerListCommentsStmt, collectOwnerComments } from "../lib/list-comments";
 
 export const lists = new Hono<AppEnv>();
@@ -145,16 +145,31 @@ lists.put("/:id/visibility", async (c) => {
   const body = await c.req.json().catch(() => ({}));
   if (typeof body.public !== "boolean") return c.json({ error: "bad request" }, 400);
   if (!(await ownList(c, id))) return c.json({ error: "not found" }, 404);
-  // Making a list private also unpins it from the profile (issue #33): a
-  // private list can never appear there, so the two states stay consistent
-  // even if the client forgets to warn.
-  await c.env.DB.prepare(
-    body.public
-      ? "UPDATE custom_lists SET is_shared = 1 WHERE id = ?1"
-      : "UPDATE custom_lists SET is_shared = 0, profile_position = NULL WHERE id = ?1"
-  )
-    .bind(id)
-    .run();
+  if (body.public) {
+    // Publishing. The `is_shared = 0` guard makes this a no-op RETURNING nothing
+    // when the list was already public, so the notification below fires only on
+    // the actual private→public transition. RETURNING profile_position then
+    // tells us whether the list is now BOTH public AND pinned — the combined
+    // state that fans out a list_created notification (issue #331). This is
+    // scenario B ("list is on the profile, then made public").
+    const row = await c.env.DB.prepare(
+      "UPDATE custom_lists SET is_shared = 1 WHERE id = ?1 AND is_shared = 0 RETURNING profile_position"
+    )
+      .bind(id)
+      .first<{ profile_position: number | null }>();
+    if (row && row.profile_position != null) {
+      c.executionCtx.waitUntil(
+        notifyFollowersOfListCreated(c.env, c.get("uid"), id).catch((e) => console.error("notify failed", e))
+      );
+    }
+  } else {
+    // Making a list private also unpins it from the profile (issue #33): a
+    // private list can never appear there, so the two states stay consistent
+    // even if the client forgets to warn.
+    await c.env.DB.prepare("UPDATE custom_lists SET is_shared = 0, profile_position = NULL WHERE id = ?1")
+      .bind(id)
+      .run();
+  }
   return c.json({ ok: true });
 });
 

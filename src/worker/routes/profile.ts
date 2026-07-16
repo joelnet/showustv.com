@@ -7,6 +7,7 @@ import { statsQuery, statsFromRow } from "../lib/stats";
 import { sendEmail, sha256Hex, brandedEmailHtml } from "../lib/email";
 import { nowIso } from "../lib/dates";
 import { USERNAME_RE, USERNAME_RULES } from "../lib/username";
+import { notifyFollowersOfListCreated } from "../lib/notifications";
 
 export const profile = new Hono<AppEnv>();
 
@@ -170,19 +171,31 @@ profile.post("/lists", async (c) => {
   const listId = Number(body.id);
   if (!Number.isInteger(listId) || listId <= 0) return c.json({ error: "bad request" }, 400);
   const uid = c.get("uid");
-  const { meta } = await c.env.DB.prepare(
+  // RETURNING is_shared fires only on the actual not-pinned→pinned transition
+  // (the WHERE requires profile_position IS NULL), so a re-pin returns nothing.
+  // When the newly pinned list is already public, it has just entered the
+  // combined (public AND on-profile) state and its followers get a list_created
+  // notification (issue #331) — scenario A ("list is public, then added to the
+  // profile"). The 24h dedupe in the fan-out absorbs re-pin flapping and the
+  // parallel make-public path.
+  const pinned = await c.env.DB.prepare(
     `UPDATE custom_lists
      SET profile_position = (SELECT COALESCE(MAX(profile_position) + 1, 0)
                              FROM custom_lists WHERE user_id = ?1)
-     WHERE id = ?2 AND user_id = ?1 AND profile_position IS NULL`
+     WHERE id = ?2 AND user_id = ?1 AND profile_position IS NULL
+     RETURNING is_shared`
   )
     .bind(uid, listId)
-    .run();
-  if (!meta.changes) {
+    .first<{ is_shared: number }>();
+  if (!pinned) {
     const owned = await c.env.DB.prepare("SELECT 1 FROM custom_lists WHERE id = ?1 AND user_id = ?2")
       .bind(listId, uid)
       .first();
     if (!owned) return c.json({ error: "not found" }, 404);
+  } else if (pinned.is_shared === 1) {
+    c.executionCtx.waitUntil(
+      notifyFollowersOfListCreated(c.env, uid, listId).catch((e) => console.error("notify failed", e))
+    );
   }
   return c.json({ ok: true });
 });

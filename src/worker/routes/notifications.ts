@@ -33,7 +33,10 @@ notifications.get("/", async (c) => {
   const { results } = await c.env.DB.prepare(
     `SELECT n.id, n.type, n.target_type, n.target_id, n.episode_id, n.read_at, n.created_at,
             u.username AS actor,
-            COALESCE(s.title, m.title) AS title,
+            -- List rows (issue #331) resolve their name the same way — live at
+            -- read time, so a renamed list shows through and a since-deleted one
+            -- degrades to "a list". The URL uses the actor (the list owner).
+            COALESCE(s.title, m.title, cl.name) AS title,
             COALESCE(s.poster_url, m.poster_url) AS poster,
             e.season_number AS ep_season, e.number AS ep_number, e.title AS ep_title,
             -- Follow rows (issue #273) carry whether the recipient follows the
@@ -49,6 +52,7 @@ notifications.get("/", async (c) => {
      LEFT JOIN users u ON u.id = n.actor_id AND u.deleted_at IS NULL
      LEFT JOIN shows s ON n.target_type = 'show' AND s.tmdb_id = n.target_id
      LEFT JOIN movies m ON n.target_type = 'movie' AND m.tmdb_id = n.target_id
+     LEFT JOIN custom_lists cl ON n.target_type = 'list' AND cl.id = n.target_id
      LEFT JOIN episodes e ON e.id = n.episode_id
      WHERE n.user_id = ?1 AND (?2 IS NULL OR n.id < ?2)
      ORDER BY n.id DESC
@@ -58,7 +62,7 @@ notifications.get("/", async (c) => {
     .all<{
       id: number;
       type: string;
-      target_type: "show" | "movie" | null;
+      target_type: "show" | "movie" | "list" | null;
       target_id: number | null;
       episode_id: number | null;
       read_at: string | null;
@@ -134,7 +138,7 @@ notifications.post("/read-all", async (c) => {
 // accordingly.
 notifications.get("/prefs", async (c) => {
   const row = await c.env.DB.prepare(
-    "SELECT follow_watch, follow_comment, tracked_comment, follow_favorite, new_follower FROM notification_prefs WHERE user_id = ?1 AND show_id = 0"
+    "SELECT follow_watch, follow_comment, tracked_comment, follow_favorite, new_follower, list_created FROM notification_prefs WHERE user_id = ?1 AND show_id = 0"
   )
     .bind(c.get("uid"))
     .first<{
@@ -143,6 +147,7 @@ notifications.get("/prefs", async (c) => {
       tracked_comment: number;
       follow_favorite: number;
       new_follower: number;
+      list_created: number;
     }>();
   return c.json({
     // Defaults on when no row, matching the fan-outs' COALESCE.
@@ -151,6 +156,7 @@ notifications.get("/prefs", async (c) => {
     trackedComment: row ? !!row.tracked_comment : true,
     followFavorite: row ? !!row.follow_favorite : true,
     newFollower: row ? !!row.new_follower : true,
+    listCreated: row ? !!row.list_created : true,
     pushPublicKey: vapidConfigured(c.env) ? c.env.VAPID_PUBLIC_KEY! : null,
   });
 });
@@ -165,25 +171,28 @@ notifications.put("/prefs", async (c) => {
   const trackedComment = typeof body.trackedComment === "boolean" ? (body.trackedComment ? 1 : 0) : null;
   const followFavorite = typeof body.followFavorite === "boolean" ? (body.followFavorite ? 1 : 0) : null;
   const newFollower = typeof body.newFollower === "boolean" ? (body.newFollower ? 1 : 0) : null;
+  const listCreated = typeof body.listCreated === "boolean" ? (body.listCreated ? 1 : 0) : null;
   if (
     followWatch == null &&
     followComment == null &&
     trackedComment == null &&
     followFavorite == null &&
-    newFollower == null
+    newFollower == null &&
+    listCreated == null
   )
     return c.json({ error: "bad request" }, 400);
   await c.env.DB.prepare(
-    `INSERT INTO notification_prefs (user_id, show_id, follow_watch, follow_comment, tracked_comment, follow_favorite, new_follower)
-     VALUES (?1, 0, COALESCE(?2, 1), COALESCE(?3, 1), COALESCE(?4, 1), COALESCE(?5, 1), COALESCE(?6, 1))
+    `INSERT INTO notification_prefs (user_id, show_id, follow_watch, follow_comment, tracked_comment, follow_favorite, new_follower, list_created)
+     VALUES (?1, 0, COALESCE(?2, 1), COALESCE(?3, 1), COALESCE(?4, 1), COALESCE(?5, 1), COALESCE(?6, 1), COALESCE(?7, 1))
      ON CONFLICT (user_id, show_id) DO UPDATE SET
        follow_watch = COALESCE(?2, follow_watch),
        follow_comment = COALESCE(?3, follow_comment),
        tracked_comment = COALESCE(?4, tracked_comment),
        follow_favorite = COALESCE(?5, follow_favorite),
-       new_follower = COALESCE(?6, new_follower)`
+       new_follower = COALESCE(?6, new_follower),
+       list_created = COALESCE(?7, list_created)`
   )
-    .bind(c.get("uid"), followWatch, followComment, trackedComment, followFavorite, newFollower)
+    .bind(c.get("uid"), followWatch, followComment, trackedComment, followFavorite, newFollower, listCreated)
     .run();
   return c.json({ ok: true });
 });
