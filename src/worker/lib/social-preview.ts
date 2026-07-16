@@ -50,6 +50,7 @@ interface PreviewMeta {
   ogType: string;
   url: string; // canonical URL with fresh slug
   image: Artwork | null; // null → leave the landing og.png tags in place
+  feedUrl?: string; // public profiles only: RSS autodiscovery target (issue #330)
 }
 
 // Every title- and profile-page request lands here (all methods —
@@ -107,6 +108,21 @@ export async function serveSocialPreview(req: Request, env: Env): Promise<Respon
         .on('meta[name="twitter:image"]', content(meta.image.url))
         .on('meta[name="twitter:image:alt"]', content(meta.image.alt));
     }
+    if (meta.feedUrl) {
+      // RSS autodiscovery (issue #330). Unlike the meta rewrites above,
+      // el.append() with { html: true } does NOT auto-escape — so href/title
+      // are run through attr() by hand. Both derive from the request origin
+      // and a [A-Za-z0-9_] username, but escaping keeps the invariant local.
+      const feedTitle = attr(`${meta.name} — Show Us TV`);
+      const feedHref = attr(meta.feedUrl);
+      rewriter = rewriter.on("head", {
+        element(el) {
+          el.append(`<link rel="alternate" type="application/rss+xml" title="${feedTitle}" href="${feedHref}">`, {
+            html: true,
+          });
+        },
+      });
+    }
 
     const out = rewriter.transform(shell);
     const headers = new Headers(out.headers);
@@ -130,6 +146,16 @@ function content(value: string) {
       el.setAttribute("content", value);
     },
   };
+}
+
+// Escape a double-quoted HTML attribute value for the one spot that bypasses
+// HTMLRewriter's built-in escaping (the RSS <link> append above).
+function attr(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 interface ShowRow {
@@ -241,6 +267,10 @@ async function lookupUserMeta(env: Env, username: string, origin: string): Promi
     ogType: "profile",
     url: `${origin}/u/${row.username}`,
     image: null, // users have no avatars — the landing og.png stays in place
+    // Autodiscovery target for feed readers/browsers (issue #330). Only set
+    // for public profiles — the same gate as this whole function — so a
+    // private profile's shell never advertises a feed.
+    feedUrl: `${origin}/u/${row.username}/feed.xml`,
   };
 }
 
