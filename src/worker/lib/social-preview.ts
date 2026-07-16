@@ -2,19 +2,21 @@
 // /episode/* (issue #211) plus /u/* (issue #219) to the Worker, which serves
 // the SPA shell with the <head> rewritten for that specific page so link
 // unfurlers (Discord, Slack, iMessage, Twitter/X, Facebook) render the
-// title's name, overview, and artwork — or a public profile's username —
-// instead of the generic landing-page card. Real visitors get the same shell
-// — the SPA hydrates regardless of what's in <head> — so there is no crawler
-// user-agent sniffing to keep in sync.
+// title's name, overview, and artwork, a public profile's username, or a
+// shared list's name and cover (issue #335) — instead of the generic
+// landing-page card. Real visitors get the same shell — the SPA hydrates
+// regardless of what's in <head> — so there is no crawler user-agent
+// sniffing to keep in sync.
 //
-// Security: TMDB-sourced text (titles, overviews) and usernames are injected
-// exclusively through HTMLRewriter's setAttribute()/setInnerContent(), which
-// HTML-escape their input. Nothing is string-concatenated into markup.
-// Private profiles get the untouched landing shell — identical to an unknown
-// username — so a preview can neither leak a private profile's data nor
-// confirm that it exists.
+// Security: TMDB-sourced text (titles, overviews), usernames, and
+// user-authored list names/preambles are injected exclusively through
+// HTMLRewriter's setAttribute()/setInnerContent(), which HTML-escape their
+// input. Nothing is string-concatenated into markup. Private profiles — and
+// private/unshared lists — get the untouched landing shell, identical to an
+// unknown username or id, so a preview can neither leak their data nor confirm
+// that they exist.
 
-import { mediaPath, type MediaType } from "../../web/paths";
+import { mediaPath, publicListPath, type MediaType } from "../../web/paths";
 import type { Env } from "../env";
 
 // Only the leading digits identify the record; any "-slug" suffix is advisory
@@ -24,9 +26,16 @@ const TITLE_PATH_RE = /^\/(show|movie|episode)\/(\d+)(?:-[^/]*)?\/?$/;
 
 // Profile pages: exactly /u/:username (issue #219). The charset mirrors
 // USERNAME_RE (src/worker/lib/username.ts) — anything else can't be a real
-// username, and sub-paths like /u/:username/achievements or
-// /u/:username/lists/:id keep the landing card.
+// username. Shared-list sub-paths get their own card (LIST_PATH_RE below);
+// other sub-paths like /u/:username/library or /u/:username/achievements keep
+// the landing card.
 const USER_PATH_RE = /^\/u\/([A-Za-z0-9_]{3,20})\/?$/;
+
+// Public list pages: /u/:username/lists/:id-slug (issue #319, preview #335).
+// Like TITLE_PATH_RE, only the leading digits identify the list; the "-slug"
+// is advisory. Anchored to the exact SPA route (/u/:username/lists/:id, see
+// src/web/app.tsx) so deeper sub-paths never get a list card.
+const LIST_PATH_RE = /^\/u\/([A-Za-z0-9_]{3,20})\/lists\/(\d+)(?:-[^/]*)?\/?$/;
 
 export function isSocialPreviewPath(pathname: string): boolean {
   return /^\/(show|movie|episode|u)\//.test(pathname);
@@ -68,14 +77,18 @@ export async function serveSocialPreview(req: Request, env: Env): Promise<Respon
     // localhost keeps its scheme/port so `wrangler dev` links stay clickable.
     const origin = /^(localhost|127\.\d+\.\d+\.\d+)$/.test(url.hostname) ? url.origin : `https://${url.host}`;
     const title = TITLE_PATH_RE.exec(url.pathname);
-    const user = title ? null : USER_PATH_RE.exec(url.pathname);
+    const list = title ? null : LIST_PATH_RE.exec(url.pathname);
+    const user = title || list ? null : USER_PATH_RE.exec(url.pathname);
     const meta = title
       ? await lookupMeta(env, title[1] as MediaType, Number(title[2]), origin)
-      : user
-        ? await lookupUserMeta(env, user[1], origin)
-        : null;
-    // Unknown title (not in D1 yet), unknown username, private profile, or a
-    // sub-path → generic landing card, byte-identical in every case.
+      : list
+        ? await lookupListMeta(env, list[1], Number(list[2]), origin)
+        : user
+          ? await lookupUserMeta(env, user[1], origin)
+          : null;
+    // Unknown title (not in D1 yet), unknown/private list, unknown username,
+    // private profile, or an unhandled sub-path → generic landing card,
+    // byte-identical in every case.
     if (!meta) return fallback();
 
     // Fetch the shell with a bare request: forwarding the client's
@@ -274,6 +287,67 @@ async function lookupUserMeta(env: Env, username: string, origin: string): Promi
   };
 }
 
+interface ListRow {
+  name: string;
+  preamble: string | null;
+  username: string; // DB casing — the URL's may differ (COLLATE NOCASE)
+  count: number;
+  poster: string | null; // first item's poster, or NULL for an empty/art-less list
+}
+
+// Public list preview (issue #335). The gate is baked into the WHERE, mirroring
+// GET /api/public/lists/:username/:id (src/worker/routes/public.ts): a list is
+// previewable only when is_shared = 1 and its owner isn't deleted — the exact
+// server-side rule the shared-list page itself enforces. A private/unshared
+// list, a wrong owner, or an unknown id returns null, so its card is the
+// untouched landing shell: a preview pushed unsolicited into a chat must never
+// leak an unshared list's name/cover or confirm it exists. Only the list name,
+// owner username, item count, an optional owner-written preamble, and the first
+// item's poster leave this function — all already public on the shared page.
+// The poster subquery correlates on l.id and so only runs once the outer row
+// has passed the share gate — a private list's items are never read.
+async function lookupListMeta(env: Env, username: string, id: number, origin: string): Promise<PreviewMeta | null> {
+  const row = await env.DB.prepare(
+    `SELECT l.name, l.preamble, u.username,
+            (SELECT COUNT(*) FROM custom_list_items WHERE list_id = l.id) AS count,
+            (SELECT COALESCE(s.poster_url, m.poster_url)
+             FROM custom_list_items li
+             LEFT JOIN shows s ON li.target_type = 'show' AND s.tmdb_id = li.target_id
+             LEFT JOIN movies m ON li.target_type = 'movie' AND m.tmdb_id = li.target_id
+             WHERE li.list_id = l.id AND COALESCE(s.poster_url, m.poster_url) IS NOT NULL
+             ORDER BY li.position LIMIT 1) AS poster
+     FROM custom_lists l JOIN users u ON u.id = l.user_id
+     WHERE l.id = ?1 AND u.username = ?2 AND l.is_shared = 1 AND u.deleted_at IS NULL`
+  )
+    .bind(id, username)
+    .first<ListRow>();
+  if (!row) return null;
+  const owner = row.username;
+  const noun = row.count === 1 ? "title" : "titles";
+  const preamble = (row.preamble ?? "").trim();
+  return {
+    name: row.name,
+    tab: row.name,
+    // The owner's note when they wrote one (issue #94), else attribution + size,
+    // mirroring the app's own share text ("A list by <owner> on Show Us TV.").
+    description: preamble ? clamp(preamble) : `A list by @${owner} — ${row.count} ${noun} on Show Us TV.`,
+    ogType: "website", // Open Graph has no list/collection type
+    url: origin + publicListPath(owner, id, row.name),
+    // A representative poster (portrait → summary card); NULL leaves the landing
+    // og.png tags in place for an empty or art-less list.
+    image: row.poster
+      ? {
+          url: `${env.TMDB_IMG_BASE}/w500${row.poster}`,
+          width: 500,
+          height: 750,
+          type: "image/jpeg",
+          alt: `Cover art for the list ${row.name}`,
+          card: "summary",
+        }
+      : null,
+  };
+}
+
 function withYear(title: string, date: string | null): string {
   const year = /^\d{4}/.exec(date ?? "")?.[0];
   return year ? `${title} (${year})` : title;
@@ -282,6 +356,11 @@ function withYear(title: string, date: string | null): string {
 function describe(overview: string | null, title: string): string {
   const text = (overview ?? "").trim();
   if (!text) return `Track ${title} on Show Us TV — air dates, watch progress, and full history.`;
+  return clamp(text);
+}
+
+// Trim already-trimmed text to ≤300 chars on a word boundary, with an ellipsis.
+function clamp(text: string): string {
   if (text.length <= 300) return text;
   const cut = text.slice(0, 299);
   const lastSpace = cut.lastIndexOf(" ");

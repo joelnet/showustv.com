@@ -247,12 +247,15 @@ async function shellNetworkFirst(req) {
   const cache = await caches.open(STATIC_CACHE);
   try {
     const res = await fetch(req);
-    // Every route serves the same SPA HTML — except title pages, whose
-    // <head> the Worker rewrites with per-title social meta (issue #211).
-    // Skip those so one show's tags can't become the offline boot shell
-    // for every route; install() already caches the generic "/" copy.
-    const perTitle = /^\/(show|movie|episode)\//.test(new URL(req.url).pathname);
-    if (res.ok && !perTitle) await cache.put(SHELL_KEY, res.clone());
+    // Every route serves the same SPA HTML — except the pages whose <head>
+    // the Worker rewrites with per-page social meta: title pages (issue #211)
+    // and, under /u/, public profiles (issue #219) and shared lists (issue
+    // #335). Skip those so one show's/profile's/list's tags can't become the
+    // offline boot shell for every route; install() already caches the generic
+    // "/" copy. (/u/ sub-paths the Worker leaves untouched serve that same
+    // generic shell, so skipping them here changes nothing but the source.)
+    const rewritten = /^\/(show|movie|episode|u)\//.test(new URL(req.url).pathname);
+    if (res.ok && !rewritten) await cache.put(SHELL_KEY, res.clone());
     return res;
   } catch {
     const hit = await cache.match(SHELL_KEY);

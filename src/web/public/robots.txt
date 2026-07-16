@@ -17,10 +17,14 @@ Disallow: /
 
 # Social link unfurlers (issue #211): several of these honor robots.txt when
 # fetching a shared URL for its card (Twitterbot, facebookexternalhit,
-# Slackbot notably), so without their own group the per-title previews on
-# /show, /movie, and /episode links would never render there. Same rules as
-# the "*" group above plus the shareable title pages — everything else
-# (API, profiles, app surfaces) stays off-limits to them too (issue #208).
+# Slackbot notably), so without their own group the per-page previews would
+# never render there. Same rules as the "*" group above plus the shareable
+# pages the Worker rewrites: title pages (/show, /movie, /episode — issue
+# #211) and everything under /u/ — public profiles (issue #219) and shared
+# lists (issue #335). Allowing all of /u/ is safe: the Worker serves the
+# generic landing card for a private/unknown profile or an unshared/unknown
+# list, so an unfurler can't confirm or leak one. Everything else (API and the
+# signed-in app surfaces) stays off-limits to them too (issue #208).
 User-agent: Twitterbot
 User-agent: facebookexternalhit
 User-agent: Facebot
@@ -34,6 +38,7 @@ Allow: /?
 Allow: /show/
 Allow: /movie/
 Allow: /episode/
+Allow: /u/
 Allow: /assets/
 Allow: /icons/
 Allow: /og.png
