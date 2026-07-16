@@ -1462,10 +1462,9 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   font-size: 13.5px;
   line-height: 1.5;
   margin: 2px 0 0;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  /* Full description, wrapped (issue #337): no line-clamp so long overviews
+     read in their entirety; break-word keeps stray long tokens in bounds. */
+  overflow-wrap: break-word;
 }
 /* The list owner's own top-level comment on an item (issue #322): a read-only,
    quote-styled block that links to the title page where the comment lives. */
