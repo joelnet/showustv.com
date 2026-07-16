@@ -1549,15 +1549,15 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .danger-zone-title { margin-top: 0; color: var(--red); }
 .danger-zone-title::before { background: var(--red); }
 .danger-zone-hint { margin: 0 0 14px; }
-.danger-zone-label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 8px; }
-.danger-zone-label strong { color: var(--text); font-family: var(--font-mono); letter-spacing: 0.06em; }
-.danger-zone-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+/* The typed "DELETE" confirmation now lives inside the delete modal (issue #336
+   follow-up); mono + spacing makes the required word easy to read as you type. */
 .danger-zone-input {
-  flex: 1 1 200px;
+  width: 100%;
+  margin-bottom: 20px;
   font-family: var(--font-mono);
   letter-spacing: 0.06em;
 }
-.danger-zone-row .btn-danger { flex-shrink: 0; }
+.dialog-body strong { color: var(--text); font-family: var(--font-mono); letter-spacing: 0.06em; }
 
 /* Favorites split into Shows / Movies / Anime sections (issue #103). */
 .fav-section { margin-bottom: 10px; }

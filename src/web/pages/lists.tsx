@@ -239,22 +239,39 @@ function ListTitleEditor({
 }
 
 // Owner-only "Danger zone" at the very bottom of the list (issue #336):
-// deleting is irreversible, so it's guarded by a typed confirmation — the
-// Delete button stays disabled until the owner types exactly "DELETE" (all
-// caps). onConfirm navigates away on success, so this only resets busy on
-// failure.
+// deleting is irreversible, so the Delete button opens a confirmation modal
+// (issue #336 follow-up) rather than deleting inline. The modal is built on the
+// same native <dialog> chrome as the site-wide useConfirm dialog so it matches
+// the rest of the site, and it stays a no-op until the owner types exactly
+// "DELETE" (all caps) — that arms the destructive button. Escape, a backdrop
+// click, and Cancel all close it without deleting, and the typed input resets
+// every time it reopens. onConfirm navigates away on success, so we only reset
+// busy on failure.
 function DangerZone({ name, onConfirm }: { name: string; onConfirm: () => Promise<void> }) {
+  const ref = useRef<HTMLDialogElement>(null);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const armed = text === "DELETE"; // exact, case-sensitive match
+
+  const open = () => {
+    setText(""); // fresh confirmation every time the modal opens
+    setBusy(false);
+    ref.current?.showModal();
+  };
+
+  const close = () => {
+    if (busy) return; // don't abandon an in-flight delete
+    ref.current?.close();
+  };
 
   const submit = async () => {
     if (!armed || busy) return;
     setBusy(true);
     try {
       await onConfirm();
+      // Success unmounts this page (navigates away); nothing else to do.
     } catch {
-      // Success unmounts this page; only a failed delete keeps us here.
+      // A failed delete keeps us here — reset so the owner can retry.
       setBusy(false);
     }
   };
@@ -267,19 +284,36 @@ function DangerZone({ name, onConfirm }: { name: string; onConfirm: () => Promis
       <p className="settings-hint danger-zone-hint">
         Deleting “{name}” can’t be undone. The shows and movies in it are unaffected.
       </p>
-      <form
-        className="danger-zone-form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          submit();
+      <button type="button" className="btn btn-ghost btn-danger" onClick={open}>
+        <IconTrash size={15} /> Delete
+      </button>
+
+      <dialog
+        ref={ref}
+        className="dialog"
+        onClose={() => {
+          setText("");
+          setBusy(false);
+        }}
+        onCancel={(e) => {
+          if (busy) e.preventDefault(); // block Escape mid-delete
+        }}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) close(); // backdrop click = cancel
         }}
       >
-        <label className="danger-zone-label" htmlFor="danger-delete-confirm">
-          Type <strong>DELETE</strong> to confirm
-        </label>
-        <div className="danger-zone-row">
+        <form
+          className="dialog-body"
+          onSubmit={(e) => {
+            e.preventDefault();
+            submit();
+          }}
+        >
+          <h2>Delete “{name}”?</h2>
+          <p>
+            This can’t be undone. Type <strong>DELETE</strong> to confirm.
+          </p>
           <input
-            id="danger-delete-confirm"
             className="danger-zone-input"
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -289,12 +323,18 @@ function DangerZone({ name, onConfirm }: { name: string; onConfirm: () => Promis
             autoCorrect="off"
             spellCheck={false}
             aria-label="Type DELETE in capitals to confirm deletion"
+            autoFocus
           />
-          <button type="submit" className="btn btn-ghost btn-danger" disabled={!armed || busy}>
-            <IconTrash size={15} /> Delete
-          </button>
-        </div>
-      </form>
+          <div className="dialog-actions">
+            <button type="button" className="btn btn-ghost" onClick={close} disabled={busy}>
+              Cancel
+            </button>
+            <button type="submit" className="btn btn-solid-danger" disabled={!armed || busy}>
+              <IconTrash size={15} /> Delete
+            </button>
+          </div>
+        </form>
+      </dialog>
     </section>
   );
 }
