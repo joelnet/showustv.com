@@ -145,7 +145,7 @@ export function WatchNext() {
               </Link>
               <button
                 type="button"
-                className="btn btn-ghost wn-section-toggle"
+                className="icon-btn"
                 aria-expanded={!isHidden}
                 aria-label={isHidden ? `Show ${s.label}` : `Hide ${s.label}`}
                 title={isHidden ? `Show ${s.label}` : `Hide ${s.label}`}

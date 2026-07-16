@@ -841,17 +841,6 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
    issue #250): same type as the linked heads, but no hover amber — nothing
    here is clickable. */
 .wn-section-head.is-static:hover h2 { color: var(--text); }
-/* The eye toggle: compact icon-only button, muted so it doesn't compete with
-   the heading (issue #185). Sized like the profile privacy toggle. */
-.wn-section-toggle {
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  justify-content: center;
-  flex-shrink: 0;
-  color: var(--muted);
-}
-.wn-section-toggle:hover { color: var(--text); }
 /* A hidden section keeps its header as the restore handle, dimmed; its row is
    gone entirely. The header link still works (and still ambers on hover). */
 .wn-section.is-hidden .wn-section-head h2,
@@ -2783,8 +2772,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   .list-item-actions .btn-ghost,
   .pub-list-actions .btn-ghost { padding: 9px 10px; min-width: 40px; min-height: 40px; }
   .pub-list-actions { gap: 4px; }
-  .icon-btn,
-  .wn-section-toggle { width: 40px; height: 40px; }
+  .icon-btn { width: 40px; height: 40px; }
 
   .import-actions { flex-wrap: wrap; }
 
