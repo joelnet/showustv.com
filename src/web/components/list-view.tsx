@@ -10,7 +10,7 @@ import { Link } from "react-router-dom";
 import { poster } from "../img";
 import { mediaPath } from "../paths";
 import { Comments } from "../components/comments";
-import { IconArrowUp, IconArrowDown, IconTrash } from "./icons";
+import { IconArrowUp, IconArrowDown, IconTrash, IconEye, IconEyeSlash } from "./icons";
 
 export interface ListViewItem {
   type: "show" | "movie";
@@ -139,36 +139,99 @@ export function ListByline({ username, count }: { username: string; count: numbe
   );
 }
 
-// The list comments section (issue #98), unified across both routes. Comments
-// only surface on a public list; the owner viewing a private list sees the note
-// instead, and a signed-out visitor is prompted to sign in. This mirrors the
-// exact gating both pages used before they were merged.
+// The list comments section (issue #98), unified across both routes. The list
+// owner controls visibility from an icon-only eye toggle right here by the
+// comments (issue #336): eye = comments on (visitors can read and post),
+// eye-off = comments hidden. When off, only the owner still sees this section —
+// with the composer disabled — so they can turn it back on; visitors see
+// nothing at all. When on, the usual gating applies: comments surface on a
+// public list, a private list shows the owner a "make it public" note, and a
+// signed-out visitor is prompted to sign in.
 export function ListComments({
   id,
   commentsEnabled,
   isShared,
   viewerSignedIn,
+  isOwner = false,
+  commentsBusy = false,
+  onToggleComments,
 }: {
   id: number;
   commentsEnabled: boolean;
   isShared: boolean;
   viewerSignedIn: boolean;
+  // Owner-only affordances (issue #336): the eye toggle and the always-visible
+  // section. Omitted on the public route, which is never the owner.
+  isOwner?: boolean;
+  commentsBusy?: boolean;
+  onToggleComments?: () => void;
 }) {
-  if (!commentsEnabled) return null;
-  if (!isShared)
+  // Visitors (non-owners): the section only exists when comments are on; off
+  // hides it from them entirely (issue #336). The server enforces this too —
+  // /comments/list/:id returns closed for a comments-off (or private) list.
+  if (!isOwner) {
+    if (!commentsEnabled) return null;
+    if (!viewerSignedIn)
+      return (
+        <p className="settings-hint list-comments-note">
+          <Link to="/login">Sign in</Link> to read and post comments on this list.
+        </p>
+      );
     return (
-      <p className="settings-hint list-comments-note">Comments are on, but they only appear once this list is public.</p>
+      <section className="list-comments">
+        <h2 className="section-title">Comments</h2>
+        <Comments targetType="list" targetId={id} />
+      </section>
     );
-  if (!viewerSignedIn)
-    return (
-      <p className="settings-hint list-comments-note">
-        <Link to="/login">Sign in</Link> to read and post comments on this list.
-      </p>
-    );
+  }
+
+  // Owner view: the section always renders so the eye toggle stays reachable
+  // even while comments are off.
   return (
     <section className="list-comments">
-      <h2 className="section-title">Comments</h2>
-      <Comments targetType="list" targetId={id} />
+      <div className="list-comments-head">
+        <h2 className="section-title">Comments</h2>
+        <button
+          type="button"
+          className="icon-btn list-comments-toggle"
+          disabled={commentsBusy}
+          aria-pressed={commentsEnabled}
+          aria-label={commentsEnabled ? "Comments visible" : "Comments hidden"}
+          title={
+            commentsEnabled
+              ? "Comments are on — click to hide them from visitors"
+              : "Comments are hidden — click to let visitors read and post"
+          }
+          onClick={onToggleComments}
+        >
+          {commentsEnabled ? <IconEye size={18} /> : <IconEyeSlash size={18} />}
+        </button>
+      </div>
+      {!commentsEnabled ? (
+        <>
+          <p className="settings-hint list-comments-note">
+            Comments are hidden. Only you can see this — turn them on with the eye so visitors can read and post.
+          </p>
+          {/* Inputs disabled while off (issue #336): the composer shows but is
+              inert, a preview of what visitors get once comments are on. */}
+          <form className="comment-composer" aria-hidden="true" onSubmit={(e) => e.preventDefault()}>
+            <textarea rows={3} placeholder="Comments are off" disabled />
+            <div className="composer-foot">
+              <div className="composer-actions">
+                <button type="button" className="btn" disabled>
+                  Comment
+                </button>
+              </div>
+            </div>
+          </form>
+        </>
+      ) : !isShared ? (
+        <p className="settings-hint list-comments-note">
+          Comments are on, but they only appear to visitors once this list is public.
+        </p>
+      ) : (
+        <Comments targetType="list" targetId={id} />
+      )}
     </section>
   );
 }

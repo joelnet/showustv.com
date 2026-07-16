@@ -15,9 +15,9 @@ import {
   IconHeart,
   IconEye,
   IconEyeSlash,
-  IconComment,
   IconClose,
   IconPencil,
+  IconWarning,
 } from "../components/icons";
 import { ListItems, ListByline, ListComments, type ListViewItem } from "../components/list-view";
 import { ShareButton } from "../components/share";
@@ -238,6 +238,67 @@ function ListTitleEditor({
   );
 }
 
+// Owner-only "Danger zone" at the very bottom of the list (issue #336):
+// deleting is irreversible, so it's guarded by a typed confirmation — the
+// Delete button stays disabled until the owner types exactly "DELETE" (all
+// caps). onConfirm navigates away on success, so this only resets busy on
+// failure.
+function DangerZone({ name, onConfirm }: { name: string; onConfirm: () => Promise<void> }) {
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const armed = text === "DELETE"; // exact, case-sensitive match
+
+  const submit = async () => {
+    if (!armed || busy) return;
+    setBusy(true);
+    try {
+      await onConfirm();
+    } catch {
+      // Success unmounts this page; only a failed delete keeps us here.
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="danger-zone">
+      <h2 className="section-title danger-zone-title">
+        <IconWarning size={14} /> Danger zone
+      </h2>
+      <p className="settings-hint danger-zone-hint">
+        Deleting “{name}” can’t be undone. The shows and movies in it are unaffected.
+      </p>
+      <form
+        className="danger-zone-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          submit();
+        }}
+      >
+        <label className="danger-zone-label" htmlFor="danger-delete-confirm">
+          Type <strong>DELETE</strong> to confirm
+        </label>
+        <div className="danger-zone-row">
+          <input
+            id="danger-delete-confirm"
+            className="danger-zone-input"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="DELETE"
+            autoComplete="off"
+            autoCapitalize="characters"
+            autoCorrect="off"
+            spellCheck={false}
+            aria-label="Type DELETE in capitals to confirm deletion"
+          />
+          <button type="submit" className="btn btn-ghost btn-danger" disabled={!armed || busy}>
+            <IconTrash size={15} /> Delete
+          </button>
+        </div>
+      </form>
+    </section>
+  );
+}
+
 export function ListDetailPage() {
   // The URL is /u/:username/lists/:id-slug now (issue #319); only the leading
   // digits identify the list — the slug is advisory (see paths.ts).
@@ -245,6 +306,7 @@ export function ListDetailPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const confirm = useConfirm();
+  const toast = useToast();
   const { user } = useAuth();
   const { data, loading, error, reload } = useApi<{
     list: {
@@ -261,6 +323,13 @@ export function ListDetailPage() {
   const [busy, setBusy] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleBusy, setTitleBusy] = useState(false);
+  // The comments eye-toggle updates optimistically (issue #336): flip locally,
+  // then settle on the server. The override is cleared whenever fresh list data
+  // lands (below), so a successful toggle + reload leaves the server's value in
+  // charge and a failed one reverts.
+  const [commentsBusy, setCommentsBusy] = useState(false);
+  const [commentsOverride, setCommentsOverride] = useState<boolean | null>(null);
+  useEffect(() => setCommentsOverride(null), [data]);
 
   // Canonicalize the address bar to the owner's slugged URL once the name is
   // known — this also finishes the /lists/:id redirect (which lands here
@@ -323,6 +392,36 @@ export function ListDetailPage() {
     }
   }
 
+  // Optimistic comments on/off (issue #336): flip the eye immediately, then
+  // settle on the server; revert with a toast if the write fails.
+  const commentsEnabled = commentsOverride ?? !!data.list.comments_enabled;
+  async function toggleComments() {
+    const next = !commentsEnabled;
+    setCommentsOverride(next);
+    setCommentsBusy(true);
+    try {
+      await put(`/lists/${id}/comments`, { enabled: next });
+      toast(next ? "Comments are on" : "Comments are hidden");
+      reload();
+    } catch {
+      setCommentsOverride(null); // back to the server's value
+      toast("Couldn’t update comments", "error");
+    } finally {
+      setCommentsBusy(false);
+    }
+  }
+
+  async function deleteList() {
+    await del(`/lists/${id}`);
+    // Mutate-then-navigate: the cached /lists grid (and this list's own entry)
+    // predate the delete — drop them so the grid we land on can't flash the
+    // deleted list (issue #154).
+    dropCached("/lists");
+    dropCached(`/lists/${id}`);
+    toast("List deleted");
+    navigate("/lists");
+  }
+
   return (
     <div>
       <Link to="/lists" className="crumb">‹ Lists</Link>
@@ -357,6 +456,10 @@ export function ListDetailPage() {
             <IconPencil size={15} />
           </button>
         </div>
+        {/* Visibility stays at the top (issue #336): whether the list is public
+            is the first decision, and it gates everything below it. Comments
+            (an eye toggle) moved down by the comments; delete lives in the
+            bottom Danger zone. */}
         <div className="list-head-actions">
           <button
             className="btn btn-ghost"
@@ -367,37 +470,6 @@ export function ListDetailPage() {
           >
             {data.list.is_shared ? <IconEye size={15} /> : <IconEyeSlash size={15} />}
             {data.list.is_shared ? "Public" : "Private"}
-          </button>
-          <button
-            className="btn btn-ghost"
-            disabled={busy}
-            aria-pressed={!!data.list.comments_enabled}
-            title={data.list.comments_enabled ? "Comments are on for this list" : "Comments are off"}
-            onClick={act(() => put(`/lists/${id}/comments`, { enabled: !data.list.comments_enabled }))}
-          >
-            <IconComment size={15} /> {data.list.comments_enabled ? "Comments on" : "Comments off"}
-          </button>
-          <button
-            className="btn btn-ghost btn-danger"
-            disabled={busy}
-            onClick={async () => {
-              const ok = await confirm({
-                title: `Delete “${data.list.name}”?`,
-                message: "The shows and movies in it are unaffected.",
-                confirmLabel: "Delete list",
-                danger: true,
-              });
-              if (!ok) return;
-              await del(`/lists/${id}`);
-              // Mutate-then-navigate: the cached /lists grid (and this
-              // list's own entry) predate the delete — drop them so the
-              // grid we land on can't flash the deleted list (issue #154).
-              dropCached("/lists");
-              dropCached(`/lists/${id}`);
-              navigate("/lists");
-            }}
-          >
-            <IconTrash size={15} /> Delete list
           </button>
         </div>
       </div>
@@ -494,10 +566,15 @@ export function ListDetailPage() {
 
       <ListComments
         id={data.list.id}
-        commentsEnabled={!!data.list.comments_enabled}
+        commentsEnabled={commentsEnabled}
         isShared={!!data.list.is_shared}
         viewerSignedIn
+        isOwner
+        commentsBusy={commentsBusy}
+        onToggleComments={toggleComments}
       />
+
+      <DangerZone name={data.list.name} onConfirm={deleteList} />
     </div>
   );
 }

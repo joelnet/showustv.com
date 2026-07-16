@@ -1529,6 +1529,36 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .list-comments { margin-top: 34px; }
 .list-comments-note { margin-top: 24px; }
 
+/* The owner's comments section leads with the icon-only eye toggle (issue
+   #336), pushed to the far right of the "Comments" heading — eye = visible to
+   visitors, eye-off = hidden. The head owns the section-title's block spacing
+   so the glyph centres against the heading text. */
+.list-comments-head { display: flex; align-items: center; gap: 10px; margin: 28px 0 12px; }
+.list-comments-head .section-title { margin: 0; }
+.list-comments-toggle { margin-left: auto; }
+
+/* Owner-only "Danger zone" at the very bottom of a list (issue #336): a
+   red-tinted panel whose Delete stays disabled until the owner types DELETE. */
+.danger-zone {
+  margin-top: 48px;
+  padding: 16px 18px;
+  border: 1px solid rgba(255, 77, 61, 0.35);
+  border-radius: var(--radius);
+  background: rgba(255, 77, 61, 0.05);
+}
+.danger-zone-title { margin-top: 0; color: var(--red); }
+.danger-zone-title::before { background: var(--red); }
+.danger-zone-hint { margin: 0 0 14px; }
+.danger-zone-label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+.danger-zone-label strong { color: var(--text); font-family: var(--font-mono); letter-spacing: 0.06em; }
+.danger-zone-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.danger-zone-input {
+  flex: 1 1 200px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.06em;
+}
+.danger-zone-row .btn-danger { flex-shrink: 0; }
+
 /* Favorites split into Shows / Movies / Anime sections (issue #103). */
 .fav-section { margin-bottom: 10px; }
 .fav-card { gap: 6px; }
