@@ -64,11 +64,21 @@ export function useUnreadNotifications(): number {
     void refreshUnread();
     const onFocus = () => void refreshUnread();
     window.addEventListener("focus", onFocus);
+    // The service worker announces each push it displayed, carrying the
+    // payload's exact unread count — without this the bell trails the OS
+    // notification by up to a full poll interval.
+    const onSwMessage = (e: MessageEvent) => {
+      if (e.data?.type !== "PUSH_RECEIVED") return;
+      if (typeof e.data.unread === "number") setUnread(e.data.unread);
+      else void refreshUnread();
+    };
+    if ("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("message", onSwMessage);
     const t = setInterval(() => {
       if (document.visibilityState === "visible") void refreshUnread();
     }, POLL_MS);
     return () => {
       window.removeEventListener("focus", onFocus);
+      if ("serviceWorker" in navigator) navigator.serviceWorker.removeEventListener("message", onSwMessage);
       clearInterval(t);
     };
   }, []);
@@ -113,6 +123,9 @@ async function checkPushNudge(): Promise<void> {
   const gen = nudgeGen;
   const stale = () => gen !== nudgeGen;
   if (!pushSupported()) return setPushNudge(false);
+  // Permission denied means the toggle can't enable anything — a (1)
+  // pointing there would be a dead end, not a nudge.
+  if (Notification.permission === "denied") return setPushNudge(false);
   try {
     const sub = await getPushSubscription();
     if (stale()) return;
@@ -250,18 +263,41 @@ export async function enablePush(publicKey: string): Promise<void> {
   setPushNudge(false); // this device now gets pushes — the bell's (1) nudge goes away
 }
 
-// Drop this device's subscription, server-side and browser-side — in that
-// order. Once the server row is gone no more pushes are sent even if the
-// browser-side unsubscribe fails; the reverse order could strand a live row
-// pointing at a subscription we can no longer name.
+// Drop this device's subscription, server-side and browser-side —
+// independently, because either alone stops delivery: without the server row
+// nothing more is sent, and after a browser-side unsubscribe the push
+// service 410s the next send so the row gets pruned. Sequencing them
+// (server first) let an offline sign-out skip the browser half entirely —
+// the signed-out shared device kept showing the account's pushes.
 export async function disablePush(): Promise<void> {
   const sub = await getPushSubscription();
   if (!sub) return;
-  await post("/notifications/push/unsubscribe", { endpoint: sub.endpoint });
-  const gone = await sub.unsubscribe().catch(() => false);
+  const [local, remote] = await Promise.allSettled([
+    sub.unsubscribe(),
+    post("/notifications/push/unsubscribe", { endpoint: sub.endpoint }),
+  ]);
+  const locallyGone = local.status === "fulfilled" && local.value === true;
+  if (!locallyGone && remote.status === "rejected") throw new Error("Couldn't turn off push notifications");
   // Nudge again only if the browser-side unsubscribe really happened —
   // that's what makes this device off-but-enable-able per the detection
   // above (a surviving subscription would contradict the (1), and the
   // discover toggle wouldn't show either).
-  setPushNudge(gone);
+  setPushNudge(locallyGone);
+}
+
+// Re-register this device's existing subscription with the server under the
+// CURRENT session — the subscribe route's ON CONFLICT (endpoint) upsert moves
+// the row to whoever is signed in now. Without this, a shared browser where
+// account A enabled push keeps delivering A's notifications after B signs
+// in, until someone happens to touch the toggle. Idempotent and cheap, so
+// the app calls it on every signed-in boot; it doubles as a self-heal for
+// rows lost server-side.
+export async function syncPushSubscription(): Promise<void> {
+  try {
+    const sub = await getPushSubscription();
+    if (!sub) return;
+    await post("/notifications/push/subscribe", sub.toJSON());
+  } catch {
+    // offline or signed out — the next signed-in boot retries
+  }
 }

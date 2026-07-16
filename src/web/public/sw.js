@@ -55,6 +55,7 @@ const STATIC_EXTRAS = [
   "/manifest.webmanifest",
   "/icons/icon.svg",
   "/icons/icon-192.png",
+  "/icons/badge-96.png",
   "/icons/icon-512.png",
   "/icons/icon-maskable-512.png",
   "/icons/apple-touch-icon.png",
@@ -324,32 +325,57 @@ function trim(cache, max) {
 // writers converge instead of fighting.
 
 self.addEventListener("push", (event) => {
-  let data = {};
+  let raw = {};
   try {
-    data = event.data ? event.data.json() : {};
+    raw = event.data ? event.data.json() : {};
   } catch {
     // non-JSON payload (test push) — fall through to the defaults
   }
+  // The Worker sends the Declarative Web Push envelope ({ web_push: 8030,
+  // notification: {...} }): Safari 18.4+ renders it without waking this
+  // worker; Chrome/Firefox deliver the whole JSON here instead. The flat
+  // fields are the legacy shape — pushes from a Worker deployed before the
+  // envelope, read by this handler until every sender is updated.
+  const n = raw.web_push === 8030 && raw.notification ? raw.notification : raw;
+  // Clamp before display: the payload is ours end-to-end, but a decrypted
+  // blob is still remote input to the lock screen — cap lengths and types.
+  const str = (v, max) => (typeof v === "string" && v ? v.slice(0, max) : undefined);
+  const title = str(n.title, 120) || "Show Us TV";
+  const body = str(n.body, 240) || "";
+  const tag = str(n.tag, 64);
+  const url = str(n.navigate, 2048) || str(raw.url, 2048) || "/notifications";
+  // app_badge is stringified on the declarative path (WebKit payload format);
+  // `unread` is the legacy number. Either way: a non-negative integer or bust.
+  const count = n.app_badge !== undefined ? Number(n.app_badge) : raw.unread;
+  const unread = Number.isSafeInteger(count) && count >= 0 ? count : undefined;
   event.waitUntil(
     (async () => {
       // Badge first, notification second — but the badge is best-effort
       // (Badging API missing, PWA not installed, promise rejection) and must
       // never block the mandatory showNotification.
-      if (typeof data.unread === "number" && "setAppBadge" in navigator) {
+      if (unread !== undefined && "setAppBadge" in navigator) {
         try {
-          if (data.unread > 0) await navigator.setAppBadge(data.unread);
+          if (unread > 0) await navigator.setAppBadge(unread);
           else await navigator.clearAppBadge();
         } catch {
           // no badge on this platform — the notification itself still lands
         }
       }
-      await self.registration.showNotification(data.title || "Show Us TV", {
-        body: data.body || "",
+      await self.registration.showNotification(title, {
+        body,
         icon: "/icons/icon-192.png",
-        badge: "/icons/icon-192.png",
-        tag: data.tag || undefined,
-        data: { url: data.url || "/notifications" },
+        // Monochrome white-on-transparent glyph: Android status-bar badges
+        // keep only the alpha channel, so the full-color app icon renders as
+        // a formless blob there.
+        badge: "/icons/badge-96.png",
+        tag: tag || undefined,
+        timestamp: typeof n.timestamp === "number" ? n.timestamp : Date.now(),
+        data: { url },
       });
+      // Tell open pages now — the bell otherwise waits for its next poll
+      // (up to 90s) while the OS notification is already on screen.
+      const pages = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      for (const page of pages) page.postMessage({ type: "PUSH_RECEIVED", unread: unread !== undefined ? unread : null });
     })()
   );
 });
@@ -447,11 +473,14 @@ self.addEventListener("notificationclick", (event) => {
   event.waitUntil(
     (async () => {
       const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-      for (const client of wins) {
-        if (client.url.startsWith(self.location.origin) && "focus" in client) {
-          if ("navigate" in client) await client.navigate(url).catch(() => {});
-          return client.focus();
-        }
+      const same = wins.filter((c) => c.url.startsWith(self.location.origin) && "focus" in c);
+      // Prefer the window the user is actually in, then a visible one, then
+      // any — navigating a background tab in some other window while the
+      // active app sits untouched reads as a dead click.
+      const target = same.find((c) => c.focused) || same.find((c) => c.visibilityState === "visible") || same[0];
+      if (target) {
+        if ("navigate" in target) await target.navigate(url).catch(() => {});
+        return target.focus();
       }
       return self.clients.openWindow(url);
     })()

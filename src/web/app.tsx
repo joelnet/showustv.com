@@ -12,7 +12,7 @@ import { CelebrationProvider } from "./components/celebration";
 import { ToastProvider } from "./components/toast";
 import { IconPlay, IconSearch, IconLibrary, IconList, IconGear, IconUser, IconUsers, IconDownload, IconBell } from "./components/icons";
 import { useInstallPrompt, isStandalone, useUpdateReady, applyUpdate } from "./pwa";
-import { useUnreadNotifications, usePushNudge, setUnread } from "./notifications";
+import { useUnreadNotifications, usePushNudge, setUnread, syncPushSubscription } from "./notifications";
 import { Landing } from "./pages/landing";
 import { Login } from "./pages/login";
 import { WelcomePage } from "./pages/welcome";
@@ -467,6 +467,15 @@ export function App() {
   useEffect(() => {
     setOfflineUser(user?.id ?? null);
   }, [user]);
+
+  // Push subscriptions are per-account too: re-register this device's
+  // subscription under whoever is signed in now, so a shared browser stops
+  // delivering the previous account's pushes on the next boot instead of
+  // whenever someone touches the toggle. Keyed on id — profile edits don't
+  // re-trigger it.
+  useEffect(() => {
+    if (user) void syncPushSubscription();
+  }, [user?.id]);
 
   // Warm the offline cache for the whole library (issue #183) once a
   // signed-in, onboarded session is known — delayed so boot traffic (auth,

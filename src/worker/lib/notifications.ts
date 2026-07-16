@@ -11,7 +11,7 @@
 // activity_log middleware — so fan-out cost never sits on the response path.
 
 import type { Env } from "../env";
-import { sendPush, vapidConfigured, type StoredSubscription } from "./push";
+import { sendPush, vapidConfigured, type PushUrgency, type StoredSubscription } from "./push";
 
 const DEDUPE_WINDOW_MS = 24 * 3600 * 1000;
 
@@ -36,7 +36,10 @@ const MAX_PUSHES_PER_EVENT = 30;
 async function pushToRecipients(
   env: Env,
   recipients: number[],
-  data: { title: string; body: string; url: string; tag: string }
+  data: { title: string; body: string; url: string; tag: string },
+  // "low" for passive follower fan-out (someone you follow did a thing) lets
+  // phones batch the wake-up; events aimed at the recipient stay "normal".
+  urgency: PushUrgency = "normal"
 ): Promise<void> {
   const subs: (StoredSubscription & { user_id: number })[] = [];
   for (let i = 0; i < recipients.length; i += IN_CHUNK) {
@@ -97,7 +100,7 @@ async function pushToRecipients(
   for (const sub of sendOrder.slice(0, MAX_PUSHES_PER_EVENT)) {
     const unread = unreadByUser.get(sub.user_id);
     const payload = unread !== undefined ? { ...data, unread } : data;
-    if ((await sendPush(env, sub, payload)) === "gone") gone.push(sub.id);
+    if ((await sendPush(env, sub, payload, urgency)) === "gone") gone.push(sub.id);
   }
   // Expired/unsubscribed endpoints (404/410 from the push service) are dead
   // forever — prune them so future fan-outs stop paying for them.
@@ -196,7 +199,7 @@ export async function notifyFollowersOfWatch(
     body: pushBody(targetType, title, ep),
     url: `/${targetType}/${targetId}`,
     tag: `fw-${actorId}-${targetType.charAt(0)}-${targetId}`,
-  });
+  }, "low");
 }
 
 // Comment fan-out (issue #141). When a user comments on a show, movie, or
@@ -382,7 +385,7 @@ export async function notifyFollowersOfFavorite(
     body: title,
     url: `/${targetType}/${targetId}`,
     tag: `ffav-${actorId}-${targetType.charAt(0)}-${targetId}`,
-  });
+  }, "low");
 }
 
 // Same fan-out cap as favorites (lowest follower ids win, deterministically) —
@@ -456,7 +459,7 @@ export async function notifyFollowersOfListCreated(
     body: name,
     url: `/u/${actor}/lists/${listId}`,
     tag: `flist-${actorId}-${listId}`,
-  });
+  }, "low");
 }
 
 // Follow notification (issue #273). When A follows B, B hears about it —
