@@ -57,16 +57,6 @@ function ListItemCard({
         </Link>
         <span className="pub-list-type">{item.type === "show" ? "TV" : "Movie"}</span>
         {item.overview && <p className="pub-list-overview">{item.overview}</p>}
-        {/* The owner's own top-level comment on this title (issue #322),
-            read-only: no composer, vote, or reply — the whole block just links
-            to the title page where the comment lives and where a reader can
-            actually join the thread. */}
-        {item.ownerComment && (
-          <Link to={to} className="pub-list-comment" title={`Read ${username}’s comment on ${item.title}`}>
-            <span className="pub-list-comment-body">{item.ownerComment.body}</span>
-            <span className="pub-list-comment-src mono">more</span>
-          </Link>
-        )}
       </div>
       {controls && (
         <div className="pub-list-actions">
@@ -95,6 +85,17 @@ function ListItemCard({
             <IconTrash size={16} />
           </button>
         </div>
+      )}
+      {/* The owner's own top-level comment on this title (issue #322), read-only:
+          no composer, vote, or reply — the whole block just links to the title
+          page where the comment lives and where a reader can actually join the
+          thread. It renders full-width below the poster/content (issue #345),
+          spanning the whole card rather than being boxed into the body column. */}
+      {item.ownerComment && (
+        <Link to={to} className="pub-list-comment" title={`Read ${username}’s comment on ${item.title}`}>
+          <span className="pub-list-comment-body">{item.ownerComment.body}</span>
+          <span className="pub-list-comment-src mono">more</span>
+        </Link>
       )}
     </li>
   );

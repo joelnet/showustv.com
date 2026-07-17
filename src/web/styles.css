@@ -1421,7 +1421,14 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
    like a recommendation, not a bare thumbnail wall (issue #87). */
 .pub-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
 .pub-list-item {
+  /* Flex row that wraps so the owner's per-item comment can drop onto its own
+     full-width line beneath the poster/content (issue #345): poster | body |
+     (owner controls) across the top, then the comment (flex-basis:100%) wrapping
+     to span the whole card below. flex-wrap keeps the top row's widths intact
+     while letting the comment claim a new line, and the cross-axis gap supplies
+     the spacing above it — no dead trailing column as a fixed grid would leave. */
   display: flex;
+  flex-wrap: wrap;
   gap: 14px;
   background: var(--surface);
   border: 1px solid var(--line);
@@ -1467,10 +1474,14 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   overflow-wrap: break-word;
 }
 /* The list owner's own top-level comment on an item (issue #322): a read-only,
-   quote-styled block that links to the title page where the comment lives. */
+   quote-styled block that links to the title page where the comment lives. Its
+   flex-basis of 100% wraps it onto a new full-width line below the poster/content
+   (issue #345) rather than boxing it into the right-of-poster body column; the
+   card's cross-axis gap supplies the spacing above it. */
 .pub-list-comment {
   display: block;
-  margin: 6px 0 0;
+  flex-basis: 100%;
+  margin: 0;
   padding: 8px 10px;
   border-left: 3px solid var(--amber);
   border-radius: 0 6px 6px 0;
