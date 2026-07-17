@@ -205,10 +205,6 @@ pub.get("/profile/:username", async (c) => {
     .slice(0, HISTORY_ROW_LIMIT)
     .map((a) => a.item);
 
-  // Comment bodies are a signed-in surface (thread pages sit behind auth,
-  // and episode snippets are spoiler-prone) — anonymous visitors get the
-  // conversation metadata only: title, episode slate, when.
-  const signedIn = !!viewer;
   // Shadow ban (issue #18): the banned user still sees their own
   // conversations here; everyone else sees none — same invisibility their
   // comments get on thread pages, so the profile can't out the ban.
@@ -245,7 +241,14 @@ pub.get("/profile/:username", async (c) => {
     },
     comments: (hideComments ? [] : (commentsR.results as any[])).map((r) => ({
       // Snippet only — profiles tease the conversation, the thread holds it.
-      body: signedIn ? (r.body.length > 240 ? r.body.slice(0, 239) + "…" : r.body) : null,
+      // Shown to every viewer the profile is, signed-out included (issue
+      // #349): these are comments on public titles, whose full threads a
+      // signed-out visitor already reads on the title page (issue #159), so
+      // withholding the body from anonymous viewers only made the owner's own
+      // profile preview differ from what visitors actually saw. Hidden-show
+      // (#260) and shadow-ban (#18) gating still apply above, so nothing the
+      // viewer couldn't otherwise see leaks.
+      body: r.body.length > 240 ? r.body.slice(0, 239) + "…" : r.body,
       createdAt: r.created_at,
       target: {
         type: r.target_type,

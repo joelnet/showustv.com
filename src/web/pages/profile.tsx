@@ -206,7 +206,11 @@ export function ProfileHistory({ history, base }: { history: ProfileHistoryData;
 }
 
 export interface ProfileComment {
-  body: string | null; // null for anonymous visitors — metadata only
+  // The comment snippet, shown to every viewer the profile is — signed-out
+  // visitors included (issue #349). Still nullable only to tolerate pre-#349
+  // cached payloads that withheld it from anonymous viewers; the render below
+  // degrades to metadata-only for those.
+  body: string | null;
   createdAt: string;
   target: {
     type: MediaType;
@@ -219,8 +223,10 @@ export interface ProfileComment {
 }
 
 // Recent comment activity (issue #16): what shows this user is talking
-// about, each row linking into the thread's page. Anonymous visitors see
-// metadata only (no bodies — the server withholds them).
+// about, each row linking into the thread's page. Bodies are public to every
+// viewer the profile is (issue #349) — a signed-out visitor sees the same
+// snippets the owner does; the `c.body != null` guards below only cover
+// legacy cached payloads that withheld them from anonymous viewers.
 export function ProfileComments({ comments }: { comments: ProfileComment[] }) {
   if (!comments.length) return null;
   return (
