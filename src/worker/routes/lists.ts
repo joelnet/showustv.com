@@ -175,7 +175,15 @@ lists.put("/:id/visibility", async (c) => {
 
 lists.delete("/:id", async (c) => {
   const id = Number(c.req.param("id"));
-  if (!(await ownList(c, id))) return c.json({ error: "not found" }, 404);
+  // The Favorites list is a system/auto-list (kind='favorites', issue #266)
+  // created when a user favorites items — it isn't user-managed and must never
+  // be deleted (issue #351). Read the kind alongside ownership so a direct API
+  // call can't delete it either; the client also hides its Danger Zone.
+  const list = await c.env.DB.prepare("SELECT kind FROM custom_lists WHERE id = ?1 AND user_id = ?2")
+    .bind(id, c.get("uid"))
+    .first<{ kind: string }>();
+  if (!list) return c.json({ error: "not found" }, 404);
+  if (list.kind === "favorites") return c.json({ error: "Favorites can't be deleted" }, 403);
   await c.env.DB.prepare("DELETE FROM custom_lists WHERE id = ?1").bind(id).run();
   return c.json({ ok: true });
 });

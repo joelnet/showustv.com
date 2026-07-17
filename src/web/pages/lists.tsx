@@ -614,7 +614,9 @@ export function ListDetailPage() {
         onToggleComments={toggleComments}
       />
 
-      <DangerZone name={data.list.name} onConfirm={deleteList} />
+      {/* The Favorites system list is auto-created and can't be deleted (issue
+          #351) — no Danger Zone for it; the server rejects its deletion too. */}
+      {data.list.kind !== "favorites" && <DangerZone name={data.list.name} onConfirm={deleteList} />}
     </div>
   );
 }
