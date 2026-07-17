@@ -325,9 +325,14 @@ async function lookupListMeta(env: Env, username: string, id: number, origin: st
   const owner = row.username;
   const noun = row.count === 1 ? "title" : "titles";
   const preamble = (row.preamble ?? "").trim();
+  // Attribute the shared card to its owner in the title itself (issue #344):
+  // "<list name> by <owner>". HTMLRewriter escapes both the og:title/
+  // twitter:title attribute and the <title> text, so the user-authored list
+  // name is safe here as everywhere else in this file.
+  const shareTitle = `${row.name} by ${owner}`;
   return {
-    name: row.name,
-    tab: row.name,
+    name: shareTitle,
+    tab: shareTitle,
     // The owner's note when they wrote one (issue #94), else attribution + size,
     // mirroring the app's own share text ("A list by <owner> on Show Us TV.").
     description: preamble ? clamp(preamble) : `A list by @${owner} — ${row.count} ${noun} on Show Us TV.`,
