@@ -183,6 +183,69 @@ Covers the audit log (`activity`), account lookup and flags
 (`users`/`user`/`admin`/`ban`), instance `stats`, and a read-only `sql` escape
 hatch. (Note the `--` so npm passes flags through to the tool.)
 
+## Discord notifications (host cron)
+
+Two Node scripts under `scripts/` run unattended from the host's user crontab
+and post to a Discord webhook. These are **host cron jobs**, separate from the
+Cloudflare Worker's own scheduled trigger (the 06:00 UTC show re-sync — see
+[Architecture notes](#architecture-notes)). Both read production data through
+the [Admin CLI](#admin-cli) (`--remote`), and both take their config from the
+environment, falling back to a gitignored `.env.local` in the repo root:
+
+```sh
+# .env.local (gitignored) — used by the cron scripts, not the Worker
+DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
+CLOUDFLARE_API_TOKEN=<token that can read production D1>
+```
+
+`DISCORD_WEBHOOK_URL` is where both scripts post. `CLOUDFLARE_API_TOKEN`
+authenticates Wrangler for the `--remote` D1 reads under cron's bare environment
+(Wrangler and the scripts both auto-load `.env.local`). State files and logs
+live outside the repo (under `~/.local/state/showustv/`) to keep the tree clean.
+
+### Nightly daily summary — `scripts/daily-summary.mjs`
+
+Posts a once-a-day Discord embed summarizing the day that just ended: new
+signups, shows followed, episodes watched, movies watched, new ratings,
+comments, new user follows, lists created, PWA installs, and active users (each
+compared with the previous day), plus the running total user count. It gets
+these aggregates from `scripts/admin.mjs dailystats --remote` — it never touches
+D1 directly.
+
+"The day" is a calendar day in `TIME_ZONE` (default `America/Los_Angeles`); the
+script always summarizes the most recently **completed** local day, so schedule
+it shortly after that zone's midnight. Example user crontab entry:
+
+```sh
+# CRON_TZ fires cron at Pacific midnight; run a few minutes past it so the day
+# is fully over. daily-summary.mjs uses TIME_ZONE for its own day boundaries.
+CRON_TZ=America/Los_Angeles
+10 0 * * * cd /path/to/showustv.com && /path/to/node scripts/daily-summary.mjs >> ~/.local/state/showustv/daily-summary.log 2>&1
+```
+
+A state file (`~/.local/state/showustv/daily-summary.json`) records the last day
+posted so a rerun won't double-post. The script exits 0 on success (or when the
+day was already sent) and 1 on any error, and it does **not** write state on
+error, so a later rerun still posts that day.
+
+Environment (all optional except the webhook, which is required to post):
+
+- `DISCORD_WEBHOOK_URL` — webhook to post to.
+- `TIME_ZONE` — IANA zone that defines "the day" (default `America/Los_Angeles`).
+- `TARGET` — `remote` (default) or `local`; which D1 to query.
+- `STATE_FILE` — where the last-posted day is recorded (default
+  `~/.local/state/showustv/daily-summary.json`).
+- `DRY_RUN=1` — compute and log the payload without posting or writing state.
+- `FORCE=1` — post even if this day's summary was already sent.
+
+### Hourly new-signup ping — `scripts/notify-new-users.mjs`
+
+Runs hourly (`0 * * * *`), asks the Admin CLI (`usercount --remote`) for the
+current production active-user count, compares it to the previous run's count
+(`~/.local/state/showustv/user-count.json`), and posts to the same webhook when
+the number goes up. Uses the same `.env.local`; `TARGET`, `DRY_RUN`, and
+`STATE_FILE` overrides apply the same way.
+
 ## Architecture notes
 
 - **One Worker for everything.** Static assets from `dist/client` answer all requests with SPA fallback (`not_found_handling: "single-page-application"`); only `/api/*` runs the Worker first (`run_worker_first`). The Hono app is mounted at `/api` and returns JSON 404s for unknown API paths.
