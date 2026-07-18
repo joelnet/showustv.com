@@ -146,7 +146,16 @@ library.get("/home", async (c) => {
   // still resolve by username first; only then, within the credited watcher's
   // rows (a bulk mark-watched stamps many episodes with one timestamp), does
   // the furthest episode win — the followee's actual progress point.
-  const [histEp, histMov, friendsR] = await c.env.DB.batch([
+  //
+  // Movies join the same rail (issue #353): a parallel query, deduped one tile
+  // per movie by most-recent watcher, is merged with the episode tiles below
+  // and sorted by watch time within the shared cap — the same episode+movie
+  // merge the History rail already does. user_movies carries no hidden flag
+  // (the issue-#260 privacy toggle is show-only, and the watch-notification
+  // fan-out likewise hidden-filters shows only), so movies need no hidden
+  // exclusion — just the same followee-visibility gate and follow window.
+  const followSince = new Date(Date.now() - FOLLOWING_WINDOW_MS).toISOString();
+  const [histEp, histMov, friendsR, friendsMovR] = await c.env.DB.batch([
     c.env.DB.prepare(
       `SELECT e.show_id AS id, s.title AS show_title, s.poster_url, s.backdrop_url, e.still_url,
               e.season_number, e.number, e.title AS episode_title,
@@ -192,7 +201,7 @@ library.get("/home", async (c) => {
            AND NOT EXISTS (SELECT 1 FROM user_shows h
                            WHERE h.user_id = ue.user_id AND h.show_id = e.show_id AND h.hidden = 1)
        )
-       SELECT f.show_id, f.username, f.episode_id, f.season_number, f.number, f.episode_title,
+       SELECT f.show_id, f.username, f.episode_id, f.season_number, f.number, f.episode_title, f.ts,
               s.title AS show_title, s.poster_url, s.backdrop_url
        FROM (SELECT *, ROW_NUMBER() OVER (
                PARTITION BY show_id
@@ -202,7 +211,35 @@ library.get("/home", async (c) => {
        WHERE f.rn = 1
        ORDER BY f.ts DESC
        LIMIT 30`
-    ).bind(uid, new Date(Date.now() - FOLLOWING_WINDOW_MS).toISOString()),
+    ).bind(uid, followSince),
+    c.env.DB.prepare(
+      `WITH following(fid) AS (
+         -- The same followee-visibility gate as the episode rail above (issue
+         -- #205): profile public or mutual, post-#308 (no activity_public).
+         SELECT f.followee_id FROM follows f
+         JOIN users fu ON fu.id = f.followee_id
+         WHERE f.follower_id = ?1 AND f.state = 'active'
+           AND (fu.profile_public = 1 OR EXISTS (
+             SELECT 1 FROM follows r
+             WHERE r.follower_id = f.followee_id AND r.followee_id = ?1 AND r.state = 'active'))
+       ),
+       fwm AS (
+         SELECT um.movie_id, u.username, um.watched_at AS ts
+         FROM user_movies um
+         JOIN following fo ON fo.fid = um.user_id
+         JOIN users u ON u.id = um.user_id AND u.deleted_at IS NULL
+         WHERE um.state = 'watched' AND um.watched_at IS NOT NULL AND um.watched_at >= ?2
+       )
+       SELECT f.movie_id, f.username, f.ts, m.title, m.poster_url
+       FROM (SELECT *, ROW_NUMBER() OVER (
+               PARTITION BY movie_id
+               ORDER BY ts DESC, username) AS rn
+             FROM fwm) f
+       JOIN movies m ON m.tmdb_id = f.movie_id
+       WHERE f.rn = 1
+       ORDER BY f.ts DESC
+       LIMIT 30`
+    ).bind(uid, followSince),
   ]);
   const history: any[] = [
     ...(histEp.results as any[]).map((r) => ({
@@ -230,19 +267,38 @@ library.get("/home", async (c) => {
     .sort((a, b) => (a.watchedAt < b.watchedAt ? 1 : -1))
     .slice(0, 30);
 
-  const friendsWatched = (friendsR.results as any[]).map((r) => ({
-    kind: "show" as const,
-    id: r.show_id,
-    title: r.show_title,
-    poster: r.poster_url,
-    backdrop: r.backdrop_url,
-    still: null,
-    username: r.username,
-    episodeId: r.episode_id,
-    season: r.season_number,
-    number: r.number,
-    episodeTitle: r.episode_title,
-  }));
+  // Episode and movie tiles share one rail, newest first, capped as the
+  // section always was (issue #353) — the same merge/sort/slice the History
+  // rail uses. Movie tiles carry no episode fields, so the client's generic
+  // Tile links them to /movie/:id and still shows "Watched by <user>".
+  const friendsWatched: any[] = [
+    ...(friendsR.results as any[]).map((r) => ({
+      kind: "show" as const,
+      id: r.show_id,
+      title: r.show_title,
+      poster: r.poster_url,
+      backdrop: r.backdrop_url,
+      still: null,
+      username: r.username,
+      episodeId: r.episode_id,
+      season: r.season_number,
+      number: r.number,
+      episodeTitle: r.episode_title,
+      watchedAt: r.ts,
+    })),
+    ...(friendsMovR.results as any[]).map((r) => ({
+      kind: "movie" as const,
+      id: r.movie_id,
+      title: r.title,
+      poster: r.poster_url,
+      backdrop: null,
+      still: null,
+      username: r.username,
+      watchedAt: r.ts,
+    })),
+  ]
+    .sort((a, b) => (a.watchedAt < b.watchedAt ? 1 : -1))
+    .slice(0, 30);
 
   return c.json({ continueWatching, upcoming, havenWatched, notStarted, history, friendsWatched });
 });
