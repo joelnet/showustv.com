@@ -24,10 +24,16 @@
   "triggers": { "crons": ["0 6 * * *"] },
 
   // Serve on the apex. custom_domain makes Wrangler create the proxied DNS
-  // record + route and manage TLS. Adding routes disables the *.workers.dev
-  // URL by default, so keep it explicitly as a fallback.
+  // record + route and manage TLS.
   "routes": [{ "pattern": "showustv.com", "custom_domain": true }],
-  "workers_dev": true,
+  // Single front door: kill the *.workers.dev URL and per-version Preview URLs
+  // so showustv.com is the ONLY public origin (issue #357). Otherwise
+  // showustv.workers.dev serves the full prod app + API against the SAME prod
+  // D1, but as a second origin that bypasses the zone-level WAF / rate-limiting
+  // / Access rules attached only to showustv.com, disables the Cache API
+  // (burning TMDB quota), and mints session cookies on a *.workers.dev origin.
+  "workers_dev": false,
+  "preview_urls": false,
 
   "d1_databases": [
     {
