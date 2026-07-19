@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
 import type { AppEnv, Env } from "../env";
-import { hashPassword, verifyPassword, DUMMY_PW_HASH } from "../lib/password";
+import { hashPassword, verifyPassword, needsRehash, DUMMY_PW_HASH } from "../lib/password";
 import { issueSession, clearSession, readSession, requireAuth } from "../lib/session";
 import { isValidTz, nowIso } from "../lib/dates";
 import { sendEmail, sha256Hex, brandedEmailHtml } from "../lib/email";
@@ -54,6 +54,27 @@ const loginKeys = (c: Context<AppEnv>, identifier: string) => ({
   ipKey: `login:ip:${clientIp(c)}`,
   idKey: `login:id:${identifier.toLowerCase().slice(0, 254)}`,
 });
+
+// Transparently upgrade a legacy (lower work-factor) password hash after a
+// SUCCESSFUL login (issue #359). Called only once the password has verified, so
+// `password` is known-correct for this account. Best-effort and OFF the response
+// path: the re-derive (a full PBKDF2 at the new count) runs in waitUntil so the
+// login response isn't slowed, and any failure is swallowed — a hiccup on the
+// upgrade write must never fail an otherwise valid login. The UPDATE is a
+// compare-and-swap on the exact hash we just verified, so a password change that
+// races in between (e.g. a reset) is never clobbered by a re-hash of the old
+// password, and a since-deleted account is skipped.
+function upgradeHashOnLogin(c: Context<AppEnv>, userId: number, storedHash: string, password: string): void {
+  if (!needsRehash(storedHash)) return;
+  c.executionCtx.waitUntil(
+    (async () => {
+      const upgraded = await hashPassword(password);
+      await c.env.DB.prepare("UPDATE users SET pw_hash = ?2 WHERE id = ?1 AND pw_hash = ?3 AND deleted_at IS NULL")
+        .bind(userId, upgraded, storedHash)
+        .run();
+    })().catch((e) => console.error("login: pw_hash upgrade failed", e))
+  );
+}
 
 // Sign-up asks only for an email (issue #23); the account gets a random,
 // human-friendly handle it can rename later on the profile page. Kept short
@@ -110,6 +131,7 @@ async function signInExistingUser(c: Context<AppEnv>, email: string, password: s
     return null;
   }
   await clearAttempts(c.env.DB, [idKey]); // correct password ends the account's failure window
+  upgradeHashOnLogin(c, user.id, user.pw_hash, password); // best-effort work-factor upgrade (#359)
 
   await issueSession(c, user.id, user.tz);
   c.set("uid", user.id); // attribute this request in the activity log
@@ -247,6 +269,7 @@ auth.post("/login", async (c) => {
     return c.json({ error: "Wrong email or password" }, 401);
   }
   await clearAttempts(c.env.DB, [idKey]); // correct password ends the account's failure window
+  upgradeHashOnLogin(c, user.id, user.pw_hash, password); // best-effort work-factor upgrade (#359)
 
   await issueSession(c, user.id, user.tz);
   c.set("uid", user.id); // attribute this request in the activity log
