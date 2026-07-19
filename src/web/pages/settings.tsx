@@ -33,14 +33,20 @@ function EmailVerification({ data, reload }: { data: EmailData; reload: () => vo
   // Only relevant when already verified: the input stays hidden behind a
   // "Change email" affordance so a settled address is never re-validated.
   const [changing, setChanging] = useState(false);
+  // Re-authentication (issue #358): moving an ALREADY-VERIFIED address requires
+  // the account password, so a hijacked session can't silently change the email.
+  // First-time verification (no verified address yet) needs no password.
+  const needsPassword = data.emailVerified;
+  const [password, setPassword] = useState("");
 
   const send = async () => {
     setBusy(true);
     setErr(null);
     setNote(null);
     try {
-      await post("/profile/email", { email: email.trim() });
+      await post("/profile/email", needsPassword ? { email: email.trim(), password } : { email: email.trim() });
       setNote(`Verification link sent to ${email.trim()}. Check your inbox.`);
+      setPassword("");
       // Success starts a fresh pending verification (reload surfaces it). Fold
       // the change form away so the new pending state — not a stale open input —
       // is what the user sees.
@@ -55,6 +61,7 @@ function EmailVerification({ data, reload }: { data: EmailData; reload: () => vo
 
   const openChange = () => {
     setEmail("");
+    setPassword("");
     setNote(null);
     setErr(null);
     setChanging(true);
@@ -62,13 +69,14 @@ function EmailVerification({ data, reload }: { data: EmailData; reload: () => vo
 
   const cancelChange = () => {
     setEmail("");
+    setPassword("");
     setErr(null);
     setChanging(false);
   };
 
   const emailForm = (label: string) => (
     <form
-      className="email-form"
+      className={needsPassword ? "email-form has-password" : "email-form"}
       onSubmit={(e) => {
         e.preventDefault();
         send();
@@ -83,7 +91,18 @@ function EmailVerification({ data, reload }: { data: EmailData; reload: () => vo
         autoFocus={changing}
         required
       />
-      <button type="submit" className="btn" disabled={busy || !email.trim()}>
+      {needsPassword && (
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="Current password"
+          aria-label="Current password"
+          autoComplete="current-password"
+          required
+        />
+      )}
+      <button type="submit" className="btn" disabled={busy || !email.trim() || (needsPassword && !password)}>
         {label}
       </button>
     </form>

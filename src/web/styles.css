@@ -2983,6 +2983,10 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   padding: 8px 12px;
   font: inherit;
 }
+/* With the re-auth password field (issue #358) the row would be cramped, so
+   stack email + password + button and let the inputs fill the width. */
+.email-form.has-password { flex-direction: column; align-items: stretch; }
+.email-form.has-password button { align-self: flex-start; }
 .email-change { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .email-flag { color: var(--muted); }
 .email-flag.is-ok { color: var(--green); }

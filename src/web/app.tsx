@@ -17,6 +17,7 @@ import { Landing } from "./pages/landing";
 import { Login } from "./pages/login";
 import { WelcomePage } from "./pages/welcome";
 import { VerifyEmailPage } from "./pages/verify-email";
+import { RevertEmailPage } from "./pages/revert-email";
 import { ForgotPasswordPage, ResetPasswordPage } from "./pages/forgot-password";
 import { WatchNext, WatchSectionPage } from "./pages/watchnext";
 import { SearchPage } from "./pages/search";
@@ -543,6 +544,10 @@ export function App() {
               visitors go to /login, onboarded users into the app. */}
           <Route path="/welcome" element={<WelcomePage />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
+          {/* Email-change revert (issue #358) — public like /verify-email: the
+              clicker's sessions were revoked by the change, so they're logged
+              out by definition; the emailed token is the proof. */}
+          <Route path="/revert-email" element={<RevertEmailPage />} />
           {/* Forgot-password flow (issue #216) — public like /verify-email:
               the reset-link clicker is logged out by definition. */}
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />

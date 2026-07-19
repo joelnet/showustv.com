@@ -9,6 +9,7 @@ import { USERNAME_RE, USERNAME_RULES } from "../lib/username";
 import { isRateLimited, recordAttempt, clearAttempts } from "../lib/rate-limit";
 import { readJson } from "../lib/body";
 import { dispatchEmailVerification } from "../lib/verify-email";
+import { notifyEmailChanged } from "../lib/email-revert";
 
 export const auth = new Hono<AppEnv>();
 
@@ -39,6 +40,9 @@ const REGISTER_EMAIL = { limit: 5, windowMs: 60 * 60_000 };
 const FORGOT_IP = { limit: 5, windowMs: 60 * 60_000 };
 const FORGOT_EMAIL = { limit: 3, windowMs: 60 * 60_000 };
 const RESET_IP = { limit: 10, windowMs: 15 * 60_000 };
+// Revert-email (issue #358): failures-only per IP, like reset — the token is an
+// unguessable 128-bit digest, this just keeps anyone from trying at volume.
+const REVERT_IP = { limit: 10, windowMs: 15 * 60_000 };
 const RATE_LIMITED = { error: "Too many attempts. Please try again later" };
 
 const RESET_TTL_MS = 30 * 60_000;
@@ -329,6 +333,13 @@ auth.post("/verify-email", async (c) => {
   await c.env.DB.prepare("DELETE FROM email_verifications WHERE user_id = ?1").bind(row.user_id).run();
   if (row.expires_at < nowIso()) return status("expired");
 
+  // The address being replaced — captured BEFORE the swap so the OLD mailbox
+  // can be notified below (issue #358). UPDATE ... RETURNING gives the new
+  // value, so this must be a separate read.
+  const before = await c.env.DB.prepare("SELECT email FROM users WHERE id = ?1")
+    .bind(row.user_id)
+    .first<{ email: string | null }>();
+
   try {
     // Swap in the verified address AND bump session_epoch in one write (issue
     // #355). Verifying an email is the pre-hijacking cut point: any session
@@ -343,6 +354,21 @@ auth.post("/verify-email", async (c) => {
     // Someone verified this address in the window since the pre-check.
     if (String(e.message).includes("UNIQUE")) return status("taken");
     throw e;
+  }
+
+  // Notify the PREVIOUS address that the account email changed, with a
+  // single-use revert link (issue #358) — so a takeover always leaves a signal
+  // the rightful owner can act on. Only when the address actually changed (a
+  // first-time verify of the signup email has old == new and needs no notice).
+  // Off the response path: a mail hiccup must not fail the verification.
+  const oldEmail = before?.email;
+  if (oldEmail && oldEmail.toLowerCase() !== row.email.toLowerCase()) {
+    const origin = new URL(c.req.url).origin;
+    c.executionCtx.waitUntil(
+      notifyEmailChanged(c.env, origin, row.user_id, oldEmail, row.email).catch((e) =>
+        console.error("verify-email: change notice failed", e)
+      )
+    );
   }
 
   // Keep the acting device signed in: if this confirm request carries a valid
@@ -482,6 +508,59 @@ auth.post("/reset", async (c) => {
     .first<{ email: string | null }>();
   if (u?.email) await clearAttempts(c.env.DB, [`login:id:${u.email.toLowerCase().slice(0, 254)}`]);
   return status("ok");
+});
+
+// Consume a revert token and restore the previous email (issue #358). The
+// emailed security notice lands on the SPA page /revert-email; like
+// /verify-email and /reset, nothing is consumed until the user presses the
+// button there, so a mail scanner prefetching the GET link can't burn the
+// token. The token alone is the proof (the clicker's other sessions were
+// revoked by the change that prompted this notice, so they're logged out by
+// definition), so no requireAuth. Single-use: the row is deleted on first
+// presentation, valid or expired.
+auth.post("/revert-email", async (c) => {
+  const rj = await readJson(c); // byte cap before parsing (issue #217)
+  if (!rj) return c.json({ error: "payload too large" }, 413);
+  const token = String(rj.body.token ?? "");
+  const status = (s: string) => c.json({ status: s });
+  if (!/^[a-f0-9]{32}$/.test(token)) return status("invalid");
+
+  // Failures-only brake per IP, like reset: a 128-bit token is unguessable,
+  // this just keeps anyone from trying at volume.
+  const ipKey = `revert:ip:${clientIp(c)}`;
+  if (await isRateLimited(c.env.DB, [{ key: ipKey, ...REVERT_IP }])) return c.json(RATE_LIMITED, 429);
+
+  const row = await c.env.DB.prepare("SELECT user_id, prev_email, expires_at FROM email_reverts WHERE token = ?1")
+    .bind(await sha256Hex(token))
+    .first<{ user_id: number; prev_email: string; expires_at: string }>();
+  if (!row) {
+    await recordAttempt(c.env.DB, [ipKey]);
+    return status("invalid");
+  }
+  c.set("uid", row.user_id); // attribute this request in the activity log
+  await c.env.DB.prepare("DELETE FROM email_reverts WHERE user_id = ?1").bind(row.user_id).run();
+  if (row.expires_at < nowIso()) return status("expired");
+
+  try {
+    // Restore the previous address, mark it verified again, AND bump
+    // session_epoch (issues #355/#358): reverting a hijacker's email change
+    // must also kill every session that change left alive. Clicking this link
+    // proves control of prev_email (the notice was mailed there), so re-marking
+    // it verified is warranted. No session is re-issued — like the reset flow,
+    // the owner signs in fresh afterward, so any session the attacker still
+    // holds dies with the bump.
+    const { meta } = await c.env.DB.prepare(
+      "UPDATE users SET email = ?2, email_verified_at = ?3, session_epoch = session_epoch + 1 WHERE id = ?1 AND deleted_at IS NULL"
+    )
+      .bind(row.user_id, row.prev_email, nowIso())
+      .run();
+    if (!(meta.changes ?? 0)) return status("invalid"); // account deleted since the notice went out
+  } catch (e: any) {
+    // prev_email was claimed by another account in the window since the change.
+    if (String(e.message).includes("UNIQUE")) return status("taken");
+    throw e;
+  }
+  return status("reverted");
 });
 
 auth.put("/settings", requireAuth, async (c) => {

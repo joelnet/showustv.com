@@ -8,11 +8,19 @@ import { nowIso } from "../lib/dates";
 import { USERNAME_RE, USERNAME_RULES } from "../lib/username";
 import { notifyFollowersOfListCreated } from "../lib/notifications";
 import { dispatchEmailVerification } from "../lib/verify-email";
+import { verifyPassword } from "../lib/password";
+import { isRateLimited, recordAttempt, clearAttempts } from "../lib/rate-limit";
 
 export const profile = new Hono<AppEnv>();
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const RESEND_GAP_MS = 60_000;
+// Failures-only brake on the email-change password re-auth (issue #358), in the
+// spirit of /login: a live session must not become an unthrottled oracle for
+// guessing the account password. Per IP and per account; only wrong passwords
+// are counted (see below), so a legitimate change never trips it.
+const EMAIL_PW_IP = { limit: 10, windowMs: 15 * 60_000 };
+const EMAIL_PW_UID = { limit: 5, windowMs: 15 * 60_000 };
 
 profile.get("/", async (c) => {
   const uid = c.get("uid");
@@ -91,7 +99,30 @@ profile.post("/email", async (c) => {
   const uid = c.get("uid");
   const body = await c.req.json().catch(() => ({}));
   const email = String(body.email ?? "").trim().toLowerCase();
+  const password = String(body.password ?? "");
   if (!EMAIL_RE.test(email) || email.length > 254) return c.json({ error: "That doesn't look like an email address" }, 400);
+
+  // Re-authenticate before moving an ALREADY-VERIFIED address (issue #358): a
+  // live session must prove the account password before it can point the
+  // account at a new email, so a hijacked session can't silently start a
+  // takeover. Gated on an existing verified address only — first-time
+  // verification of the signup email (no verified address yet) stays
+  // frictionless, and that path is already covered by the epoch bump on verify
+  // (#355) plus the old-address notification the swap sends (this issue).
+  const acct = await c.env.DB.prepare("SELECT pw_hash, email_verified_at FROM users WHERE id = ?1")
+    .bind(uid)
+    .first<{ pw_hash: string | null; email_verified_at: string | null }>();
+  if (acct?.email_verified_at && acct.pw_hash) {
+    const ipKey = `email:ip:${c.req.header("cf-connecting-ip") ?? "unknown"}`;
+    const uidKey = `email:uid:${uid}`;
+    if (await isRateLimited(c.env.DB, [{ key: ipKey, ...EMAIL_PW_IP }, { key: uidKey, ...EMAIL_PW_UID }]))
+      return c.json({ error: "Too many attempts. Please try again later" }, 429);
+    if (!password || !(await verifyPassword(password, acct.pw_hash))) {
+      await recordAttempt(c.env.DB, [ipKey, uidKey]); // count only wrong passwords
+      return c.json({ error: "That password is incorrect" }, 401);
+    }
+    await clearAttempts(c.env.DB, [uidKey]); // a correct password ends the account's failure window
+  }
 
   // Verified-email uniqueness is enforced at claim time too (0001 UNIQUE),
   // but failing fast here beats a dead link in someone's inbox.
