@@ -348,8 +348,29 @@ self.addEventListener("push", (event) => {
   // `unread` is the legacy number. Either way: a non-negative integer or bust.
   const count = n.app_badge !== undefined ? Number(n.app_badge) : raw.unread;
   const unread = Number.isSafeInteger(count) && count >= 0 ? count : undefined;
+  // Push-delivery diagnostics: for admin test pushes only (the `test-` tag,
+  // worker lib/notifications.ts), report each stage back to the server so
+  // Workers Logs shows how far a push got on THIS device — the admin test
+  // button's server-side receipt. The /api/push-diag route deliberately
+  // doesn't exist: the 404'd invocation log line (URL + user-agent, carrying
+  // stage and the SW's own Notification.permission) IS the signal. Real
+  // users' pushes never beacon, and requests made from the SW bypass its own
+  // fetch handler, so nothing is cached or intercepted. Proven in the
+  // 2026-07-18 hunt: "received"+"shown" with nothing on screen pinned a
+  // Brave-bound WebAPK swallowing Chrome's display at the Android channel
+  // layer — unobservable from the server side any other way.
+  const diag = (stage) =>
+    tag && tag.startsWith("test-")
+      ? fetch(
+          "/api/push-diag?stage=" +
+            encodeURIComponent(stage) +
+            "&perm=" +
+            encodeURIComponent((self.Notification && Notification.permission) || "unknown")
+        ).catch(() => {})
+      : Promise.resolve();
   event.waitUntil(
     (async () => {
+      await diag("received");
       // Badge first, notification second — but the badge is best-effort
       // (Badging API missing, PWA not installed, promise rejection) and must
       // never block the mandatory showNotification.
@@ -361,17 +382,25 @@ self.addEventListener("push", (event) => {
           // no badge on this platform — the notification itself still lands
         }
       }
-      await self.registration.showNotification(title, {
-        body,
-        icon: "/icons/icon-192.png",
-        // Monochrome white-on-transparent glyph: Android status-bar badges
-        // keep only the alpha channel, so the full-color app icon renders as
-        // a formless blob there.
-        badge: "/icons/badge-96.png",
-        tag: tag || undefined,
-        timestamp: typeof n.timestamp === "number" ? n.timestamp : Date.now(),
-        data: { url },
-      });
+      try {
+        await self.registration.showNotification(title, {
+          body,
+          icon: "/icons/icon-192.png",
+          // Monochrome white-on-transparent glyph: Android status-bar badges
+          // keep only the alpha channel, so the full-color app icon renders as
+          // a formless blob there.
+          badge: "/icons/badge-96.png",
+          tag: tag || undefined,
+          timestamp: typeof n.timestamp === "number" ? n.timestamp : Date.now(),
+          data: { url },
+        });
+      } catch (e) {
+        // Diagnostics only — see diag() above. Rethrown: a swallowed
+        // showNotification failure would break the userVisibleOnly contract.
+        await diag("show-failed-" + ((e && e.name) || "Error"));
+        throw e;
+      }
+      await diag("shown");
       // Tell open pages now — the bell otherwise waits for its next poll
       // (up to 90s) while the OS notification is already on screen.
       const pages = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
