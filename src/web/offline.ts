@@ -312,7 +312,10 @@ async function flushLoop(): Promise<void> {
         res = await fetch("/api" + op.path, {
           method: op.method,
           credentials: "same-origin",
-          headers: op.body ? { "content-type": "application/json" } : undefined,
+          // Queued ops are always mutations (isQueueable gates non-GET only), so
+          // declare JSON unconditionally for the server CSRF check (issue #360) —
+          // including no-body ops like a queued DELETE.
+          headers: { "content-type": "application/json" },
           body: op.body ?? undefined,
         });
       } catch {

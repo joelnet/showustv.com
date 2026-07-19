@@ -20,12 +20,21 @@ export async function api<T = any>(path: string, init?: RequestInit & { allow401
     return { ok: true, queued: true } as T;
   }
 
+  // Unsafe methods always declare JSON so the server's CSRF content-type check
+  // (issue #360) passes — including empty-body mutations like logout and
+  // del(), which previously sent no Content-Type at all. Caller-supplied
+  // headers still win via the spread below.
+  const unsafe = method !== "GET" && method !== "HEAD";
+
   let res: Response;
   try {
     res = await fetch("/api" + path, {
       credentials: "same-origin",
-      headers: init?.body ? { "content-type": "application/json" } : undefined,
       ...init,
+      headers: {
+        ...(unsafe ? { "content-type": "application/json" } : {}),
+        ...(init?.headers as Record<string, string> | undefined),
+      },
     });
   } catch (e) {
     if (queueable) {

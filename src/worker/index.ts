@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import type { AppEnv, Env } from "./env";
 import { requireAuth } from "./lib/session";
+import { csrfGuard } from "./lib/csrf";
 import { checkAchievements } from "./lib/achievements";
 import { TmdbError, ensureShow, ensureMovie } from "./lib/tmdb";
 import { isSocialPreviewPath, serveSocialPreview } from "./lib/social-preview";
@@ -38,6 +39,12 @@ app.use("*", async (c, next) => {
     if (!threw) logMutation(c, c.res.status);
   }
 });
+
+// CSRF defense-in-depth (issue #360). Runs after the audit middleware so a
+// blocked cross-site / non-JSON mutation is still recorded in activity_log,
+// but before requireAuth and every route handler, so the check gates the whole
+// /api surface (authed or not) from a single place. See lib/csrf.ts.
+app.use("*", csrfGuard);
 
 function logMutation(c: Context<AppEnv>, status: number): void {
   const method = c.req.method;
