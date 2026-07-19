@@ -4,15 +4,14 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../env";
 import { statsQuery, statsFromRow } from "../lib/stats";
-import { sendEmail, sha256Hex, brandedEmailHtml } from "../lib/email";
 import { nowIso } from "../lib/dates";
 import { USERNAME_RE, USERNAME_RULES } from "../lib/username";
 import { notifyFollowersOfListCreated } from "../lib/notifications";
+import { dispatchEmailVerification } from "../lib/verify-email";
 
 export const profile = new Hono<AppEnv>();
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const VERIFY_TTL_MS = 24 * 3600 * 1000;
 const RESEND_GAP_MS = 60_000;
 
 profile.get("/", async (c) => {
@@ -105,34 +104,7 @@ profile.post("/email", async (c) => {
   if (prev && Date.now() - Date.parse(prev.sent_at) < RESEND_GAP_MS)
     return c.json({ error: "Verification email just sent. Give it a minute" }, 429);
 
-  // The raw token exists only in the email; the DB keeps its digest. The
-  // link lands on the SPA confirm page — verification is consumed by an
-  // explicit POST there, never by fetching the link (mail scanners prefetch
-  // GET links, which must not verify anything).
-  const token = crypto.randomUUID().replace(/-/g, "");
-  await c.env.DB.prepare(
-    `INSERT INTO email_verifications (user_id, email, token, sent_at, expires_at) VALUES (?1, ?2, ?3, ?4, ?5)
-     ON CONFLICT (user_id) DO UPDATE SET
-       email = excluded.email, token = excluded.token, sent_at = excluded.sent_at, expires_at = excluded.expires_at`
-  )
-    .bind(uid, email, await sha256Hex(token), nowIso(), new Date(Date.now() + VERIFY_TTL_MS).toISOString())
-    .run();
-
-  const link = `${new URL(c.req.url).origin}/verify-email?token=${token}`;
-  const sent = await sendEmail(
-    c.env,
-    email,
-    "Verify your email: Show Us TV",
-    `Confirm this email address for your Show Us TV account:\n\n${link}\n\nThe link expires in 24 hours. If you didn't request this, ignore it.`,
-    brandedEmailHtml({
-      preheader: "Confirm this email address for your Show Us TV account.",
-      heading: "Verify your email",
-      intro: "Confirm this email address for your Show Us TV account.",
-      buttonLabel: "Verify email",
-      buttonUrl: link,
-      footnote: "This link expires in 24 hours. If you didn't request this, you can safely ignore this email.",
-    })
-  );
+  const sent = await dispatchEmailVerification(c.env, new URL(c.req.url).origin, uid, email);
   if (!sent) {
     // Clear the pending row so the retry isn't stuck behind the cooldown.
     await c.env.DB.prepare("DELETE FROM email_verifications WHERE user_id = ?1").bind(uid).run();

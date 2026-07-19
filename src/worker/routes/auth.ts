@@ -8,6 +8,7 @@ import { sendEmail, sha256Hex, brandedEmailHtml } from "../lib/email";
 import { USERNAME_RE, USERNAME_RULES } from "../lib/username";
 import { isRateLimited, recordAttempt, clearAttempts } from "../lib/rate-limit";
 import { readJson } from "../lib/body";
+import { dispatchEmailVerification } from "../lib/verify-email";
 
 export const auth = new Hono<AppEnv>();
 
@@ -170,6 +171,19 @@ auth.post("/register", async (c) => {
         .first<{ id: number }>();
       c.set("uid", row!.id); // attribute this request in the activity log
       await issueSession(c, row!.id, tz);
+      // Pre-hijacking mitigation (issue #355): the account is created with the
+      // email UNVERIFIED (email_verified_at stays NULL) and a verification mail
+      // goes out immediately, so the third-party address is never treated as
+      // trusted. Best-effort and off the response path — a mail hiccup must not
+      // fail signup, and the user can resend from their profile. Verifying the
+      // address later bumps session_epoch (POST /verify-email), which kills any
+      // session an attacker opened before the address was proven — closing the
+      // pre-hijacking chain even though signup still issues a usable session.
+      c.executionCtx.waitUntil(
+        dispatchEmailVerification(c.env, new URL(c.req.url).origin, row!.id, email).catch((e) =>
+          console.error("register: verification dispatch failed", e)
+        )
+      );
       // onboarded: false routes the fresh account to the preferences step
       // (issue #160), where it confirms this handle and timezone.
       return c.json({
@@ -316,7 +330,13 @@ auth.post("/verify-email", async (c) => {
   if (row.expires_at < nowIso()) return status("expired");
 
   try {
-    await c.env.DB.prepare("UPDATE users SET email = ?2, email_verified_at = ?3 WHERE id = ?1")
+    // Swap in the verified address AND bump session_epoch in one write (issue
+    // #355). Verifying an email is the pre-hijacking cut point: any session
+    // opened before the address was proven — including one an attacker created
+    // by pre-registering the victim's email — is revoked here.
+    await c.env.DB.prepare(
+      "UPDATE users SET email = ?2, email_verified_at = ?3, session_epoch = session_epoch + 1 WHERE id = ?1"
+    )
       .bind(row.user_id, row.email, nowIso())
       .run();
   } catch (e: any) {
@@ -324,6 +344,15 @@ auth.post("/verify-email", async (c) => {
     if (String(e.message).includes("UNIQUE")) return status("taken");
     throw e;
   }
+
+  // Keep the acting device signed in: if this confirm request carries a valid
+  // session cookie for the same account (the common case — the user clicked the
+  // link in the browser they're logged into), re-issue a fresh cookie AFTER the
+  // bump so it carries the new epoch. Clicks from a logged-out device or a
+  // different account touch no cookie here and simply require a fresh login.
+  const clicker = await readSession(c);
+  if (clicker && clicker.u === row.user_id) await issueSession(c, row.user_id, clicker.tz);
+
   return status("verified");
 });
 
@@ -430,7 +459,15 @@ auth.post("/reset", async (c) => {
   if (row.expires_at < nowIso()) return status("expired");
 
   const pwHash = await hashPassword(password);
-  const { meta } = await c.env.DB.prepare("UPDATE users SET pw_hash = ?2 WHERE id = ?1 AND deleted_at IS NULL")
+  // Set the new password AND bump session_epoch in one write (issue #355), so a
+  // reset revokes every session issued before it — including an attacker's, the
+  // whole point of "a password reset should invalidate existing sessions". The
+  // reset flow has no logged-in actor to preserve (the user reached it from the
+  // emailed link and is sent to /login afterward to sign in fresh), so nothing
+  // is re-issued here — every old session, the resetter's included, must die.
+  const { meta } = await c.env.DB.prepare(
+    "UPDATE users SET pw_hash = ?2, session_epoch = session_epoch + 1 WHERE id = ?1 AND deleted_at IS NULL"
+  )
     .bind(row.user_id, pwHash)
     .run();
   if (!(meta.changes ?? 0)) return status("invalid"); // account deleted since the email went out

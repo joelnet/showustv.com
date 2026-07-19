@@ -1,0 +1,20 @@
+-- Session revocation (issue #355). Sessions are self-contained 30-day HMAC
+-- cookies (lib/session.ts) with no server-side record, so nothing could revoke
+-- one before it expired: a password reset, an email change, or a soft-deleted
+-- account all left previously issued cookies fully alive.
+--
+-- session_epoch is a per-user revocation counter. The signed cookie carries the
+-- epoch it was minted with; requireAuth honors a cookie only while that epoch
+-- still equals users.session_epoch. Incrementing this column (on password
+-- reset and on email verification — see routes/auth.ts) therefore invalidates
+-- every session issued before the bump in a single write.
+--
+-- DEFAULT 0 so every existing row is immediately valid, and cookies minted
+-- before this change carry no epoch field — lib/session.ts reads a missing
+-- epoch as 0, which matches this default — so deploying the migration does NOT
+-- force-log-out anyone who is currently signed in (only a real bump does).
+--
+-- ⚠️ MUST be applied before/with the deploy of this change: requireAuth reads
+-- users.session_epoch on every authenticated request, so auth breaks if the
+-- column is missing.
+ALTER TABLE users ADD COLUMN session_epoch INTEGER NOT NULL DEFAULT 0;

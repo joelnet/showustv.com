@@ -4,7 +4,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import type { AppEnv } from "../env";
 import { statsQuery, statsFromRow } from "../lib/stats";
-import { readSession } from "../lib/session";
+import { readValidSession } from "../lib/session";
 import { libraryPayload, animeCond } from "../lib/library";
 import { ownerListCommentsStmt, collectOwnerComments, type OwnerComment } from "../lib/list-comments";
 
@@ -19,7 +19,7 @@ interface ProfileOwner {
 type ProfileGate =
   | { kind: "missing" }
   | { kind: "teaser"; user: ProfileOwner }
-  | { kind: "full"; user: ProfileOwner; viewer: Awaited<ReturnType<typeof readSession>> };
+  | { kind: "full"; user: ProfileOwner; viewer: Awaited<ReturnType<typeof readValidSession>> };
 
 // The one visibility gate for every /u/:username surface served here — the
 // profile and the public library (issue #245) must agree on who sees what,
@@ -48,7 +48,11 @@ async function profileGate(c: Context<AppEnv>, username: string): Promise<Profil
     .first<ProfileOwner>();
   if (!user) return { kind: "missing" };
 
-  const viewer = await readSession(c);
+  // Validated viewer (issue #355): a revoked or soft-deleted session is treated
+  // as anonymous here, so it can't be used to reach a private profile (own or
+  // mutual-follow). The mutual-follow query below keeps its own deleted_at
+  // re-check as defence in depth.
+  const viewer = await readValidSession(c);
 
   if (!user.profile_public && viewer?.u !== user.id) {
     const mutual =
@@ -318,7 +322,7 @@ pub.get("/lists/:username/:id", async (c) => {
   // owner's comments (issue #18) stay hidden from everyone but themselves, just
   // as on the title page and the profile's Conversations — otherwise the list
   // would leak comments the viewer couldn't otherwise see.
-  const viewer = await readSession(c);
+  const viewer = await readValidSession(c);
   const showOwnerComments = !meta.shadow_banned || viewer?.u === meta.owner_id;
 
   const itemsStmt = c.env.DB.prepare(

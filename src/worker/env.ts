@@ -37,8 +37,9 @@ export interface EmailBinding {
   }): Promise<unknown>;
 }
 
-// Set by the auth middleware. tz rides in the session cookie so authenticated
-// requests cost zero D1 reads.
+// Set by the auth middleware. tz rides in the session cookie; requireAuth adds
+// a single indexed users read to verify the session_epoch + account state
+// (issue #355), the price of server-side session revocation.
 export interface Vars {
   uid: number;
   tz: string;

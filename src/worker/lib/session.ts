@@ -1,5 +1,8 @@
-// Stateless sessions: HMAC-SHA256-signed cookie, zero storage ops per request.
-// Payload carries uid + tz; changing tz in settings reissues the cookie.
+// HMAC-SHA256-signed session cookie. The signature is verified with zero
+// storage ops, but the cookie is no longer blindly trusted: it carries a
+// per-user session_epoch that requireAuth checks against the DB so a session
+// can be revoked server-side before its 30-day expiry (issue #355). Payload
+// carries uid + tz + epoch; changing tz in settings reissues the cookie.
 
 import type { Context, Next } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
@@ -11,6 +14,11 @@ const TTL_SECONDS = 30 * 24 * 3600;
 interface SessionPayload {
   u: number;
   tz: string;
+  // Per-user revocation counter (issue #355). Absent on cookies minted before
+  // #355 — readSession leaves it undefined and the DB check treats that as 0,
+  // matching the users.session_epoch column default, so no mass logout on
+  // deploy. Present (as `e`) on every cookie minted since.
+  e?: number;
   exp: number; // unix seconds
 }
 
@@ -33,7 +41,22 @@ async function sign(secret: string, data: string): Promise<Uint8Array> {
 }
 
 export async function issueSession(c: Context<AppEnv>, uid: number, tz: string): Promise<void> {
-  const payload: SessionPayload = { u: uid, tz, exp: Math.floor(Date.now() / 1000) + TTL_SECONDS };
+  // Embed the user's CURRENT session_epoch (issue #355) so the cookie is
+  // revocable: bumping users.session_epoch invalidates every cookie minted
+  // before the bump. The authoritative value is read here rather than trusted
+  // from the caller, so a freshly minted cookie always carries the live epoch —
+  // in particular, when the acting user changes their own password/email we
+  // bump the epoch FIRST and then re-issue here, so their current device stays
+  // signed in while every other session dies.
+  const row = await c.env.DB.prepare("SELECT session_epoch FROM users WHERE id = ?1")
+    .bind(uid)
+    .first<{ session_epoch: number }>();
+  const payload: SessionPayload = {
+    u: uid,
+    tz,
+    e: row?.session_epoch ?? 0,
+    exp: Math.floor(Date.now() / 1000) + TTL_SECONDS,
+  };
   const body = b64url(enc.encode(JSON.stringify(payload)));
   const token = `${body}.${b64url(await sign(c.env.SESSION_SECRET, body))}`;
   setCookie(c, COOKIE, token, {
@@ -70,9 +93,51 @@ export async function readSession(c: Context<AppEnv>): Promise<SessionPayload | 
   return payload;
 }
 
+// Server-side session authority (issue #355). A cryptographically valid cookie
+// is honored only while BOTH hold:
+//   (a) the account still exists and is not soft-deleted/disabled
+//       (deleted_at IS NULL) — so a banned/deleted account's cookie stops
+//       working immediately, with no epoch bump needed; and
+//   (b) the cookie's epoch matches the user's current session_epoch — so a
+//       password reset or email change (which increment session_epoch) revokes
+//       every session minted before it.
+// One indexed primary-key read. Backward-compatible: a legacy cookie with no
+// `e` field is read as epoch 0, which equals the column default, so existing
+// sessions survive deploy unless their epoch has actually been bumped.
+export async function sessionAccountValid(
+  db: D1Database,
+  payload: SessionPayload
+): Promise<boolean> {
+  const row = await db
+    .prepare("SELECT session_epoch FROM users WHERE id = ?1 AND deleted_at IS NULL")
+    .bind(payload.u)
+    .first<{ session_epoch: number }>();
+  if (!row) return false; // unknown or soft-deleted/disabled account
+  return (payload.e ?? 0) === row.session_epoch;
+}
+
+// readSession + server-side authority (issue #355) in one call, for public
+// routes that compute "viewer" state directly (routes/public.ts) rather than
+// through requireAuth/optionalAuth. Returns the payload only when the account
+// is live and the cookie's epoch is current, so a revoked or soft-deleted
+// session is treated as anonymous — the revocation guarantee holds on public
+// authorization decisions (e.g. private-profile visibility) too, not just on
+// the authenticated API.
+export async function readValidSession(c: Context<AppEnv>): Promise<SessionPayload | null> {
+  const session = await readSession(c);
+  return session && (await sessionAccountValid(c.env.DB, session)) ? session : null;
+}
+
 export async function requireAuth(c: Context<AppEnv>, next: Next) {
   const session = await readSession(c);
   if (!session) return c.json({ error: "unauthorized" }, 401);
+  // Enforce server-side revocation + account state (issue #355). A revoked or
+  // deleted account's cookie is cleared so the browser stops resending a dead
+  // credential, then rejected.
+  if (!(await sessionAccountValid(c.env.DB, session))) {
+    clearSession(c);
+    return c.json({ error: "unauthorized" }, 401);
+  }
   c.set("uid", session.u);
   c.set("tz", session.tz);
   await next();
@@ -85,7 +150,10 @@ export async function requireAuth(c: Context<AppEnv>, next: Next) {
 // mutation or a user-scoped read — those stay behind requireAuth.
 export async function optionalAuth(c: Context<AppEnv>, next: Next) {
   const session = await readSession(c);
-  if (session) {
+  // Same server-side authority as requireAuth (issue #355): a revoked or
+  // deleted session must not be treated as "the viewer" even on a public read.
+  // Never 401s — a stale cookie just falls through as anonymous.
+  if (session && (await sessionAccountValid(c.env.DB, session))) {
     c.set("uid", session.u);
     c.set("tz", session.tz);
   }
