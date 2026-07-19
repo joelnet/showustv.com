@@ -7,6 +7,7 @@ import { checkAchievements } from "./lib/achievements";
 import { TmdbError, ensureShow, ensureMovie } from "./lib/tmdb";
 import { isSocialPreviewPath, serveSocialPreview } from "./lib/social-preview";
 import { FEED_PATH_RE, serveUserFeed } from "./lib/user-feed";
+import { withSecurityHeaders } from "./lib/security";
 import { auth } from "./routes/auth";
 import { pub } from "./routes/public";
 import { catalog, titles } from "./routes/catalog";
@@ -221,20 +222,29 @@ async function scheduled(_event: ScheduledEvent, env: Env, _ctx: ExecutionContex
 }
 
 export default {
-  fetch(req: Request, env: Env, ctx: ExecutionContext): Response | Promise<Response> {
-    const pathname = new URL(req.url).pathname;
-    // Per-user RSS feed (issue #330): /u/:username/feed.xml. Checked before
-    // the social-preview handler, which also owns /u/* but would treat this
-    // sub-path as a non-profile page and fall through to the shell.
-    const feed = FEED_PATH_RE.exec(pathname);
-    if (feed) return serveUserFeed(req, env, feed[1]);
-    // Shareable pages: run_worker_first routes /show/*, /movie/*, /episode/*
-    // (issue #211) and /u/* (issue #219) here so the SPA shell can be served
-    // with per-title or per-profile OG/Twitter meta. Everything it declines
-    // (non-GET, unknown ids, private profiles) falls through to the
-    // static-asset server; all other paths are API traffic for the Hono app.
-    if (isSocialPreviewPath(pathname)) return serveSocialPreview(req, env);
-    return app.fetch(req, env, ctx);
+  // Every response the Worker returns (RSS feed, social-preview shells, the
+  // whole /api surface) is wrapped with the security headers (issue #356). The
+  // static-asset server applies the same set to assets it serves without the
+  // Worker via src/web/public/_headers, so the SPA shell + JS + CSS + fonts +
+  // images all carry them on both paths.
+  async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    return withSecurityHeaders(await route(req, env, ctx));
   },
   scheduled,
 };
+
+function route(req: Request, env: Env, ctx: ExecutionContext): Response | Promise<Response> {
+  const pathname = new URL(req.url).pathname;
+  // Per-user RSS feed (issue #330): /u/:username/feed.xml. Checked before
+  // the social-preview handler, which also owns /u/* but would treat this
+  // sub-path as a non-profile page and fall through to the shell.
+  const feed = FEED_PATH_RE.exec(pathname);
+  if (feed) return serveUserFeed(req, env, feed[1]);
+  // Shareable pages: run_worker_first routes /show/*, /movie/*, /episode/*
+  // (issue #211) and /u/* (issue #219) here so the SPA shell can be served
+  // with per-title or per-profile OG/Twitter meta. Everything it declines
+  // (non-GET, unknown ids, private profiles) falls through to the
+  // static-asset server; all other paths are API traffic for the Hono app.
+  if (isSocialPreviewPath(pathname)) return serveSocialPreview(req, env);
+  return app.fetch(req, env, ctx);
+}

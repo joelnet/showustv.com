@@ -1,0 +1,21 @@
+# Security headers for static assets (issue #356). Cloudflare's static-asset
+# server applies these to everything served WITHOUT the Worker: the SPA shell
+# on a cold navigation (/, /library, /settings…), the hashed /assets/* JS+CSS,
+# /sw.js, icons, /manifest.webmanifest, and /og.png. The Worker adds the SAME
+# set to the responses it returns itself (src/worker/lib/security.ts) — the RSS
+# feed, the per-title/profile social-preview shells, and the /api surface.
+#
+# The Content-Security-Policy below MUST stay byte-identical to
+# CONTENT_SECURITY_POLICY in src/worker/lib/security.ts. See that file for the
+# rationale behind each directive (script-src 'self' with no eval/inline; Google
+# Fonts style/font origins; image.tmdb.org for img + connect + the SW's own
+# re-fetch; object-src/base-uri/frame-ancestors/frame-src locked down).
+#
+# Cloudflare config file — never served as content.
+/*
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; frame-src 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://image.tmdb.org; connect-src 'self' https://image.tmdb.org https://fonts.googleapis.com https://fonts.gstatic.com; worker-src 'self'; manifest-src 'self'; upgrade-insecure-requests
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
