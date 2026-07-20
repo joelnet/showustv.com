@@ -6,7 +6,7 @@
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { post } from "../api";
-import { Wordmark } from "../components/ui";
+import { AccountPage } from "../components/auth-card";
 
 const RESULT_MSG: Record<string, string> = {
   reverted: "Your email address has been restored ✓, and every other session has been signed out. Sign in to continue.",
@@ -33,12 +33,12 @@ export function RevertEmailPage() {
   };
 
   return (
-    <div className="verify-email-page">
-      <Wordmark />
-      <h1>Restore your email</h1>
+    <AccountPage title="Restore your email">
       {result ? (
         <>
-          <p className={result === "reverted" ? "email-flag is-ok" : "email-flag"}>{RESULT_MSG[result] ?? RESULT_MSG.invalid}</p>
+          <p className={result === "reverted" ? "login-tag email-flag is-ok" : "error-note"}>
+            {RESULT_MSG[result] ?? RESULT_MSG.invalid}
+          </p>
           {result === "reverted" ? (
             <Link className="btn" to="/login">
               Sign in
@@ -51,7 +51,7 @@ export function RevertEmailPage() {
         </>
       ) : (
         <>
-          <p className="email-flag">
+          <p className="login-tag">
             Didn&rsquo;t change your email? Press the button to restore your previous address and sign every other
             session out of your account.
           </p>
@@ -60,6 +60,6 @@ export function RevertEmailPage() {
           </button>
         </>
       )}
-    </div>
+    </AccountPage>
   );
 }

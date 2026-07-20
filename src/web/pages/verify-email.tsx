@@ -6,7 +6,7 @@
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { post } from "../api";
-import { Wordmark } from "../components/ui";
+import { AccountPage } from "../components/auth-card";
 
 const RESULT_MSG: Record<string, string> = {
   verified: "Email verified ✓. You're all set.",
@@ -33,12 +33,12 @@ export function VerifyEmailPage() {
   };
 
   return (
-    <div className="verify-email-page">
-      <Wordmark />
-      <h1>Confirm your email</h1>
+    <AccountPage title="Confirm your email">
       {result ? (
         <>
-          <p className={result === "verified" ? "email-flag is-ok" : "email-flag"}>{RESULT_MSG[result] ?? RESULT_MSG.invalid}</p>
+          <p className={result === "verified" ? "login-tag email-flag is-ok" : "error-note"}>
+            {RESULT_MSG[result] ?? RESULT_MSG.invalid}
+          </p>
           {result === "verified" ? (
             <Link className="btn" to="/profile">
               Go to your profile
@@ -53,12 +53,12 @@ export function VerifyEmailPage() {
         </>
       ) : (
         <>
-          <p className="email-flag">Press the button to verify this email address for your Show Us TV account.</p>
+          <p className="login-tag">Press the button to verify this email address for your Show Us TV account.</p>
           <button className="btn" onClick={confirm} disabled={busy}>
             Confirm email
           </button>
         </>
       )}
-    </div>
+    </AccountPage>
   );
 }

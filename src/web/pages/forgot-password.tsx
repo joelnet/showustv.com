@@ -7,7 +7,7 @@
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { post, ApiError } from "../api";
-import { Wordmark } from "../components/ui";
+import { AccountPage } from "../components/auth-card";
 
 export function ForgotPasswordPage() {
   const [sent, setSent] = useState(false);
@@ -29,42 +29,38 @@ export function ForgotPasswordPage() {
   }
 
   return (
-    <div className="login-page">
-      <div className="login-card">
-        <Wordmark />
-        <h1 className="login-form-title">Reset your password</h1>
-        {sent ? (
-          <>
-            {/* Deliberately the same message whether or not the email has an
-                account — mirrors the server's non-enumerating response. */}
-            <p className="login-tag">
-              If an account exists for that email address, a reset link is on its way. It expires in 30 minutes —
-              check your spam folder if it doesn&rsquo;t arrive.
-            </p>
-            <Link className="btn" to="/login">
-              Back to sign in
-            </Link>
-          </>
-        ) : (
-          <>
-            <p className="login-tag">Enter your account&rsquo;s email address and we&rsquo;ll send you a reset link.</p>
-            <form onSubmit={submit}>
-              <label>
-                Email
-                <input name="email" type="email" autoComplete="email" required maxLength={254} />
-              </label>
-              {error && <p className="error-note">{error}</p>}
-              <button className="btn" type="submit" disabled={busy}>
-                Send reset link
-              </button>
-            </form>
-            <Link className="link-btn" to="/login">
-              Back to sign in
-            </Link>
-          </>
-        )}
-      </div>
-    </div>
+    <AccountPage title="Reset your password">
+      {sent ? (
+        <>
+          {/* Deliberately the same message whether or not the email has an
+              account — mirrors the server's non-enumerating response. */}
+          <p className="login-tag">
+            If an account exists for that email address, a reset link is on its way. It expires in 30 minutes —
+            check your spam folder if it doesn&rsquo;t arrive.
+          </p>
+          <Link className="btn" to="/login">
+            Back to sign in
+          </Link>
+        </>
+      ) : (
+        <>
+          <p className="login-tag">Enter your account&rsquo;s email address and we&rsquo;ll send you a reset link.</p>
+          <form onSubmit={submit}>
+            <label>
+              Email
+              <input name="email" type="email" autoComplete="email" required maxLength={254} />
+            </label>
+            {error && <p className="error-note">{error}</p>}
+            <button className="btn" type="submit" disabled={busy}>
+              Send reset link
+            </button>
+          </form>
+          <Link className="link-btn" to="/login">
+            Back to sign in
+          </Link>
+        </>
+      )}
+    </AccountPage>
   );
 }
 
@@ -98,37 +94,33 @@ export function ResetPasswordPage() {
   }
 
   return (
-    <div className="login-page">
-      <div className="login-card">
-        <Wordmark />
-        <h1 className="login-form-title">Choose a new password</h1>
-        {result === "ok" ? (
-          <>
-            <p className="login-tag">Password updated ✓. Sign in with your new password.</p>
-            <Link className="btn" to="/login">
-              Sign in
-            </Link>
-          </>
-        ) : result ? (
-          <>
-            <p className="error-note">{RESULT_MSG[result] ?? RESULT_MSG.invalid}</p>
-            <Link className="btn" to="/forgot-password">
-              Request a new link
-            </Link>
-          </>
-        ) : (
-          <form onSubmit={submit}>
-            <label>
-              New password
-              <input name="password" type="password" autoComplete="new-password" required minLength={8} maxLength={256} />
-            </label>
-            {error && <p className="error-note">{error}</p>}
-            <button className="btn" type="submit" disabled={busy}>
-              Set new password
-            </button>
-          </form>
-        )}
-      </div>
-    </div>
+    <AccountPage title="Choose a new password">
+      {result === "ok" ? (
+        <>
+          <p className="login-tag">Password updated ✓. Sign in with your new password.</p>
+          <Link className="btn" to="/login">
+            Sign in
+          </Link>
+        </>
+      ) : result ? (
+        <>
+          <p className="error-note">{RESULT_MSG[result] ?? RESULT_MSG.invalid}</p>
+          <Link className="btn" to="/forgot-password">
+            Request a new link
+          </Link>
+        </>
+      ) : (
+        <form onSubmit={submit}>
+          <label>
+            New password
+            <input name="password" type="password" autoComplete="new-password" required minLength={8} maxLength={256} />
+          </label>
+          {error && <p className="error-note">{error}</p>}
+          <button className="btn" type="submit" disabled={busy}>
+            Set new password
+          </button>
+        </form>
+      )}
+    </AccountPage>
   );
 }

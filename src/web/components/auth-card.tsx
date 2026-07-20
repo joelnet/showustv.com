@@ -111,3 +111,19 @@ export function AuthCard({
     </div>
   );
 }
+
+// Shared chrome for the account/token pages: forgot/reset password and the
+// emailed verify/revert landings all render the same centered card as /login,
+// so the whole account family is one shell instead of three different chromes.
+export function AccountPage({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="login-page">
+      <div className="login-card">
+        <Wordmark />
+        <SmpteBars />
+        <h1 className="login-form-title">{title}</h1>
+        {children}
+      </div>
+    </div>
+  );
+}
