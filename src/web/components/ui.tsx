@@ -1,8 +1,9 @@
+import { useId, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { poster } from "../img";
 import { epCode } from "../format";
 import { EMOJI_REACTIONS } from "../../shared/constants";
-import { IconCheck, IconX, IconDiscord, IconImdb, IconRottenTomatoes } from "./icons";
+import { IconCheck, IconX, IconClose, IconStar, IconStarFilled, IconDiscord, IconImdb, IconRottenTomatoes } from "./icons";
 
 // External social links for the footer (issue #75).
 const SOCIALS = [
@@ -213,27 +214,140 @@ export function CheckButton({
   );
 }
 
-export function ScorePicker({
+// StarRating (issue #367): a Letterboxd-style 5-star control with half-star
+// precision, replacing the old 1–10 number picker. It maps onto the *unchanged*
+// 1–10 stored score — each half-star is one point (0.5★ = 1, 1★ = 2, … 5★ = 10)
+// — so `value`/`onPick` still speak the 1–10 API the server expects.
+// Interaction mirrors familiar film/TV sites: hover previews, clicking the left
+// or right half of a star sets a half or whole rating, and the × clears it.
+// Pointer input drives the stars (aria-hidden); keyboard users drive the ARIA
+// slider with arrow keys (± half a star), Home/End (min/max), and
+// Delete/Backspace (clear).
+const STAR_COUNT = 5;
+const MAX_SCORE = STAR_COUNT * 2; // the 1–10 scale: two half-stars per star
+const STAR_SIZE = 30;
+
+export function StarRating({
   value,
   onPick,
+  onClear,
+  disabled = false,
 }: {
   value: number | null;
   onPick: (score: number) => void;
+  onClear: () => void;
+  // While a rating request is in flight the parent passes `disabled` so a
+  // second click can't race the first (e.g. a Clear DELETE landing after a
+  // fresh PUT and wiping it).
+  disabled?: boolean;
 }) {
+  const labelId = useId();
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [hover, setHover] = useState<number | null>(null);
+  // The 0–10 score currently painted: a live hover preview wins over the saved
+  // value, and 0 means no stars filled.
+  const shown = hover ?? value ?? 0;
+
+  // Map a pointer position within star `i` (0-based) to a 1–10 score: the left
+  // half is the odd (half-star) score, the right half the even (whole-star) one.
+  const scoreAt = (i: number, el: HTMLElement, clientX: number) => {
+    const r = el.getBoundingClientRect();
+    const rightHalf = clientX - r.left >= r.width / 2;
+    return i * 2 + (rightHalf ? 2 : 1);
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (disabled) return;
+    const cur = value ?? 0;
+    switch (e.key) {
+      case "ArrowRight":
+      case "ArrowUp":
+        e.preventDefault();
+        onPick(Math.min(MAX_SCORE, cur + 1));
+        break;
+      case "ArrowLeft":
+      case "ArrowDown":
+        e.preventDefault();
+        if (value == null) break; // nothing set yet — don't clear a non-rating
+        if (cur <= 1) onClear();
+        else onPick(cur - 1);
+        break;
+      case "Home":
+        // First allowed value on the 0–10 track is 0 = unrated, so Home clears.
+        e.preventDefault();
+        if (value != null) onClear();
+        break;
+      case "End":
+        e.preventDefault();
+        onPick(MAX_SCORE);
+        break;
+      case "Delete":
+      case "Backspace":
+        e.preventDefault();
+        if (value != null) onClear();
+        break;
+    }
+  };
+
+  const valueText = value == null ? "Not rated" : `${value / 2} out of ${STAR_COUNT} stars`;
+
   return (
-    <div className="score-picker" role="radiogroup" aria-label="Rate 1 to 10">
-      {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-        <button
-          key={n}
-          type="button"
-          role="radio"
-          aria-checked={value === n}
-          className={`score-dot${value != null && n <= value ? " is-on" : ""}`}
-          onClick={() => onPick(n)}
+    <div className="star-rating">
+      <span className="your-rating-label" id={labelId}>
+        Your Rating
+      </span>
+      <div className="star-rating-controls">
+        <div
+          ref={trackRef}
+          className={`star-track${disabled ? " is-disabled" : ""}`}
+          role="slider"
+          tabIndex={0}
+          aria-labelledby={labelId}
+          aria-valuemin={0}
+          aria-valuemax={MAX_SCORE}
+          aria-valuenow={value ?? 0}
+          aria-valuetext={valueText}
+          aria-disabled={disabled || undefined}
+          onKeyDown={onKeyDown}
+          onMouseLeave={() => setHover(null)}
         >
-          {n}
-        </button>
-      ))}
+          {Array.from({ length: STAR_COUNT }, (_, i) => {
+            const full = (i + 1) * 2;
+            const pct = shown >= full ? 100 : shown === full - 1 ? 50 : 0;
+            return (
+              <span
+                key={i}
+                className="star-cell"
+                aria-hidden="true"
+                onMouseMove={(e) => !disabled && setHover(scoreAt(i, e.currentTarget, e.clientX))}
+                onClick={(e) => !disabled && onPick(scoreAt(i, e.currentTarget, e.clientX))}
+              >
+                <IconStar size={STAR_SIZE} />
+                <span className="star-fill" style={{ width: `${pct}%` }}>
+                  <IconStarFilled size={STAR_SIZE} />
+                </span>
+              </span>
+            );
+          })}
+        </div>
+        {value != null && (
+          <button
+            type="button"
+            className="star-clear"
+            disabled={disabled}
+            // Move focus back to the slider before this button unmounts (it's
+            // gone once the rating clears), so keyboard focus isn't dropped.
+            onClick={() => {
+              trackRef.current?.focus();
+              onClear();
+            }}
+            aria-label="Clear rating"
+            title="Clear rating"
+          >
+            <IconClose size={14} />
+          </button>
+        )}
+      </div>
     </div>
   );
 }

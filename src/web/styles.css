@@ -1039,20 +1039,60 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 
 .show-overview { max-width: 720px; color: var(--text); margin: 0 0 16px; }
 
-.rating-row { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; margin: 4px 0 16px; }
+.rating-row { display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-end; margin: 4px 0 16px; }
 
-.score-picker { display: flex; gap: 3px; }
-.score-dot {
+/* Star rating (issue #367) — Letterboxd-style 5 stars with half-star precision.
+   Each star cell layers a solid amber star, clipped to a width %, over an
+   outlined empty star so any half (or whole) star renders from one glyph. */
+.star-rating { display: flex; flex-direction: column; gap: 6px; }
+.your-rating-label {
+  font: 600 12px var(--font-display);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.star-rating-controls { display: flex; align-items: center; gap: 10px; }
+.star-track {
+  display: inline-flex;
+  gap: 2px;
+  color: var(--muted); /* empty-star outline colour */
+  cursor: pointer;
+  border-radius: 6px;
+  touch-action: manipulation;
+}
+.star-track:focus-visible { outline: 2px solid var(--amber); outline-offset: 4px; }
+.star-track.is-disabled { pointer-events: none; cursor: default; }
+.star-cell { position: relative; display: inline-flex; line-height: 0; }
+.star-cell > svg { display: block; }
+.star-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  overflow: hidden;
+  color: var(--amber); /* filled-star colour */
+  pointer-events: none;
+}
+.star-fill > svg { display: block; }
+.star-clear {
+  display: inline-grid;
+  place-items: center;
   width: 26px;
   height: 26px;
   border-radius: 6px;
   border: 1px solid var(--line);
   background: var(--surface);
   color: var(--muted);
-  font: 600 11px var(--font-mono);
   cursor: pointer;
 }
-.score-dot.is-on { background: var(--amber); border-color: var(--amber); color: var(--amber-ink); }
+.star-clear:hover { color: var(--text); border-color: var(--muted); }
+.star-clear:disabled { opacity: 0.5; cursor: default; }
+/* On touch (any width, phones through tablets) enlarge the stars and clear so
+   each half-star tap zone is a comfortable target. */
+@media (pointer: coarse) {
+  .star-track svg { width: 40px; height: 40px; }
+  .star-clear { width: 40px; height: 40px; }
+}
 
 .emoji-picker { display: flex; gap: 3px; }
 .emoji-btn {
@@ -2772,8 +2812,6 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   .tabs a { padding: 11px 14px; }
   .check-btn { width: 38px; height: 38px; }
   .heart-btn, .hide-btn, .remove-btn { width: 42px; height: 42px; }
-  .score-dot { width: 29px; height: 36px; } /* 10 across a 360px screen */
-  .score-picker { flex-wrap: wrap; }
   .emoji-btn { width: 36px; height: 36px; }
 
   /* iOS Safari zooms into focused controls with fonts under 16px. */

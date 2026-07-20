@@ -6,7 +6,7 @@ import { useApi, useDocumentTitle, getCached, setCached, dropCached, readApiCach
 import { useAuth } from "../app";
 import { poster, backdrop } from "../img";
 import { fmtAirDate, fmtEpisodeDate } from "../format";
-import { Slate, ErrorNote, Progress, CheckButton, ScorePicker, ExternalLinks } from "../components/ui";
+import { Slate, ErrorNote, Progress, CheckButton, StarRating, ExternalLinks } from "../components/ui";
 import { ShowPageSkeleton } from "../components/skeleton";
 import { WhereToWatch, type WatchInfo } from "../components/where-to-watch";
 import { Comments } from "../components/comments";
@@ -736,12 +736,21 @@ export function ShowPage() {
       <AlsoWatching showId={id} />
 
       <div className="rating-row">
-        <ScorePicker
+        <StarRating
           value={mine.rating?.score ?? null}
+          disabled={busy}
           onPick={(score) =>
             run(
               () => put("/ratings", { target_type: "show", target_id: show.id, score }),
               (d) => withUser(d, { rating: { score, emoji: d.user?.rating?.emoji ?? null } })
+            )()
+          }
+          onClear={() =>
+            run(
+              () => del(`/ratings/show/${show.id}/score`),
+              // Server keeps the row (with created_at) if an emoji remains; mirror
+              // that locally — otherwise the rating is gone entirely.
+              (d) => withUser(d, { rating: d.user?.rating?.emoji ? { score: null, emoji: d.user.rating.emoji } : null })
             )()
           }
         />

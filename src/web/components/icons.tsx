@@ -76,6 +76,10 @@ export const IconClock = make(Clock);
 export const IconFilm = make(Film);
 export const IconTv = make(Tv);
 export const IconStar = make(Star);
+// Solid amber star — the filled overlay for the half-precision star rating
+// (issue #367). Same Star glyph as IconStar so the two align pixel-for-pixel;
+// only the fill differs, letting a clipped copy paint any fraction of a star.
+export const IconStarFilled = make(Star, "currentColor");
 export const IconUser = make(User);
 export const IconUsers = make(Users);
 export const IconWarning = make(TriangleAlert);
