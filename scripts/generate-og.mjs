@@ -94,7 +94,7 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" 
 
   <!-- headline -->
   <text x="100" y="205" font-family="${FONT}" font-size="58" font-weight="bold" font-style="italic" fill="${TEXT}">Track your shows.</text>
-  <text x="100" y="278" font-family="${FONT}" font-size="58" font-weight="bold" font-style="italic" fill="${TEXT}">Pickup where you <tspan fill="${AMBER}">left off</tspan>.</text>
+  <text x="100" y="278" font-family="${FONT}" font-size="58" font-weight="bold" font-style="italic" fill="${TEXT}">Pick up where you <tspan fill="${AMBER}">left off</tspan>.</text>
 
   <!-- subtext -->
   <text x="102" y="330" font-family="${FONT}" font-size="27" fill="${MUTED}">Your Watch Now queue, air dates, and full history.</text>

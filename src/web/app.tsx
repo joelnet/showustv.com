@@ -37,7 +37,6 @@ import { NotificationsPage } from "./pages/notifications";
 import { SettingsPage } from "./pages/settings";
 import { AdminPage } from "./pages/admin";
 import { ImportPage } from "./pages/import";
-import { ImportHelpPage } from "./pages/import-help";
 import { InstallPage } from "./pages/install";
 import { AboutPage } from "./pages/about";
 import { PrivacyPage, TermsPage } from "./pages/legal";
@@ -552,8 +551,10 @@ export function App() {
               the reset-link clicker is logged out by definition. */}
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
-          {/* Public TV Time export/import how-to (linked from the landing banner). */}
-          <Route path="/import-help" element={<ImportHelpPage />} />
+          {/* The TV Time how-to page was removed after the shutdown; redirect
+              old shared links to the in-app import (signed-out visitors fall
+              through to the landing catch-all). */}
+          <Route path="/import-help" element={<Navigate to="/settings/import" replace />} />
           {/* Public iOS install walkthrough (linked from the Install App button). */}
           <Route path="/install" element={<InstallPage />} />
           {/* Legal pages — public so they're reachable signed in or out (footer). */}

@@ -22,6 +22,9 @@
   --font-display: "Lato", system-ui, sans-serif;
   --font-body: "Lato", system-ui, sans-serif;
   --font-mono: "Roboto Mono", ui-monospace, monospace;
+  /* Loaded faces: Lato 400/700/900 (Google Fonts has no Lato 500/600 — they
+     silently fall back), Roboto Mono 400/600, Zilla Slab 700 italic.
+     Declare only these weights. */
 }
 
 * { box-sizing: border-box; }
@@ -108,7 +111,7 @@ a:hover { text-decoration: underline; }
 
 .header-nav a {
   color: var(--muted);
-  font-weight: 500;
+  font-weight: 400;
   padding: 6px 11px;
   border-radius: 8px;
 }
@@ -163,7 +166,7 @@ a:hover { text-decoration: underline; }
   padding: 0 4px;
   border-radius: 999px;
   background: var(--red);
-  color: #fff;
+  color: var(--bg); /* dark ink — #fff on this red is only 3.3:1, below WCAG 4.5:1 */
   font: 700 10px/16px var(--font-body);
   text-align: center;
   pointer-events: none;
@@ -177,7 +180,7 @@ a:hover { text-decoration: underline; }
   background: var(--amber-soft);
   border: 1px solid var(--amber);
   color: var(--amber);
-  font: 600 13px var(--font-body);
+  font: 700 13px var(--font-body);
   border-radius: 8px;
   padding: 6px 11px;
   cursor: pointer;
@@ -260,7 +263,7 @@ a:hover { text-decoration: underline; }
   padding: 8px 0 7px;
   color: var(--muted);
   font-size: 10.5px;
-  font-weight: 500;
+  font-weight: 400;
 }
 .tabbar a:hover { text-decoration: none; }
 .tabbar a.active { color: var(--amber); }
@@ -381,7 +384,7 @@ a:hover { text-decoration: underline; }
   background: var(--amber);
   color: var(--amber-ink);
   border: 1px solid var(--amber);
-  font: 600 14px var(--font-body);
+  font: 700 14px var(--font-body);
   border-radius: 8px;
   padding: 8px 16px;
   cursor: pointer;
@@ -407,7 +410,7 @@ a:hover { text-decoration: underline; }
   background: none;
   border: none;
   color: var(--amber);
-  font: 500 13.5px var(--font-body);
+  font: 400 13.5px var(--font-body);
   cursor: pointer;
   padding: 4px 6px;
   display: inline-flex;
@@ -725,7 +728,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   color: var(--muted);
 }
 .signup-progress-steps .is-done { color: var(--green); }
-.signup-progress-steps .is-current { color: var(--text); font-weight: 600; }
+.signup-progress-steps .is-current { color: var(--text); font-weight: 700; }
 
 /* ---------- Watch Next tiles ---------- */
 
@@ -923,7 +926,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   overflow: hidden;
 }
 .poster-card-meta { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.poster-card-title { font-weight: 600; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.poster-card-title { font-weight: 700; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .poster-card-sub { color: var(--muted); font-size: 12px; }
 /* Episode-count pill on Finished library cards (issue #223): those cards
    carry no .poster-card-meta text block, so the poster is the whole card and
@@ -1046,7 +1049,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
    outlined empty star so any half (or whole) star renders from one glyph. */
 .star-rating { display: flex; flex-direction: column; gap: 6px; }
 .your-rating-label {
-  font: 600 12px var(--font-display);
+  font: 700 12px var(--font-display);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--muted);
@@ -1135,7 +1138,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   padding: 8px 16px;
 }
 .providers-shelf img { display: block; width: 52px; height: 52px; border-radius: 10px; }
-.provider-name { color: var(--text); font-size: 14px; font-weight: 500; white-space: nowrap; }
+.provider-name { color: var(--text); font-size: 14px; font-weight: 400; white-space: nowrap; }
 .providers-out { color: var(--muted); font-size: 15px; }
 a.providers-shelf:hover { border-color: var(--amber); text-decoration: none; }
 a.providers-shelf:hover .providers-out { color: var(--amber); }
@@ -1341,7 +1344,6 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   color: var(--text);
   font-size: 14px;
 }
-.atl-create input:focus { border-color: var(--muted); outline: none; }
 .atl-create .btn { white-space: nowrap; }
 
 /* Phones: dock the picker to the bottom as a full-width sheet (issue #318) —
@@ -1366,7 +1368,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid var(--line); }
 .tabs a {
   color: var(--muted);
-  font-weight: 500;
+  font-weight: 400;
   padding: 8px 14px;
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
@@ -1378,7 +1380,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .subtabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 20px 0 0; border-bottom: 1px solid var(--line); }
 .subtabs button {
   color: var(--muted);
-  font-weight: 500;
+  font-weight: 400;
   font-size: 14px;
   padding: 8px 14px;
   border: 0;
@@ -1404,7 +1406,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 }
 .agenda li.is-watched { opacity: 0.5; }
 .agenda-date { width: 74px; flex-shrink: 0; }
-.agenda-show { font-weight: 600; color: var(--text); white-space: nowrap; }
+.agenda-show { font-weight: 700; color: var(--text); white-space: nowrap; }
 .agenda-ep { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ---------- Lists ---------- */
@@ -1702,7 +1704,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
    read in mono like other counts; each pair lights amber on hover. */
 .profile-follow-counts { display: flex; gap: 18px; margin: 10px 0 4px; }
 .profile-follow-counts a { color: var(--muted); font-size: 13.5px; }
-.profile-follow-counts a strong { color: var(--text); font-size: 13px; font-weight: 600; margin-right: 4px; }
+.profile-follow-counts a strong { color: var(--text); font-size: 13px; font-weight: 700; margin-right: 4px; }
 .profile-follow-counts a:hover { color: var(--amber); text-decoration: none; }
 .profile-follow-counts a:hover strong { color: var(--amber); }
 
@@ -1768,7 +1770,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   border-radius: 7px;
   background: none;
   color: var(--muted);
-  font: 600 12.5px var(--font-body);
+  font: 700 12.5px var(--font-body);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -1864,7 +1866,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   align-items: center;
   gap: 4px;
   color: var(--red);
-  font: 600 11px var(--font-body);
+  font: 700 11px var(--font-body);
 }
 .taste-favorite-mark.is-mine { padding-right: 7px; border-right: 1px solid var(--line); }
 
@@ -1906,7 +1908,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   border: 0;
   border-radius: 7px;
   padding: 8px 12px;
-  font: 500 14px var(--font-body);
+  font: 400 14px var(--font-body);
   color: var(--text);
   cursor: pointer;
 }
@@ -1923,7 +1925,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   padding: 3px 12px;
   color: var(--text);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 400;
   white-space: nowrap;
 }
 .friend-chip:hover { border-color: var(--amber); color: var(--amber); text-decoration: none; }
@@ -1946,8 +1948,8 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .notif-list li.is-unread { background: var(--amber-soft); border-color: var(--amber); }
 .notif-poster { width: 38px; aspect-ratio: 2/3; object-fit: cover; border-radius: 5px; flex-shrink: 0; }
 .notif-text { flex: 1; font-size: 14px; min-width: 0; }
-.notif-user { font-weight: 600; color: var(--text); }
-.notif-ep { color: var(--text); font-weight: 600; }
+.notif-user { font-weight: 700; color: var(--text); }
+.notif-ep { color: var(--text); font-weight: 700; }
 .notif-when { flex-shrink: 0; }
 
 /* Push opt-in surfaced on the notifications page (issue #237): the settings
@@ -1973,12 +1975,12 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .settings { max-width: 460px; }
 .settings-user { color: var(--muted); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .settings-user strong { color: var(--text); }
-.settings-field { display: flex; flex-direction: column; gap: 6px; margin: 18px 0 14px; font-weight: 500; }
+.settings-field { display: flex; flex-direction: column; gap: 6px; margin: 18px 0 14px; font-weight: 400; }
 .settings-hint { color: var(--muted); font-size: 12.5px; font-weight: 400; }
 .settings-rule { border: none; border-top: 1px solid var(--line); margin: 26px 0; }
 .settings-subtitle { font-size: 17px; margin: 0 0 6px; }
 .settings .settings-hint { margin: 0 0 12px; }
-.settings-toggle { display: flex; align-items: flex-start; gap: 10px; margin: 14px 0; font-weight: 500; cursor: pointer; }
+.settings-toggle { display: flex; align-items: flex-start; gap: 10px; margin: 14px 0; font-weight: 400; cursor: pointer; }
 .settings-toggle input { accent-color: var(--amber); width: 17px; height: 17px; margin: 2px 0 0; flex-shrink: 0; }
 .settings-toggle .settings-hint { display: block; margin: 2px 0 0; }
 
@@ -2071,8 +2073,8 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .landing-header-actions { display: flex; align-items: center; gap: 12px; }
 .landing-header .wordmark { font-size: 21px; }
 /* Landing type floor (issue #61): keep every landing tier >= 18px. The hero h1
-   is deliberately exempt, and the framed product screenshots (.hero-shot /
-   .showcase-shot) stay at real app sizes so they read as faithful previews. */
+   is deliberately exempt, and the framed product screenshots (.showcase-shot)
+   stay at real app sizes so they read as faithful previews. */
 .landing-header .btn { font-size: 18px; }
 .landing .footer { font-size: 16px; }
 
@@ -2099,7 +2101,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 /* Only the landing page's hero hosts the poster wall. Its bottom padding
    absorbs the 30px the wall used to overhang so the hero always contains it
    and the device showcase below stays clear. Scoped with a modifier so
-   /import-help and /install heroes keep the base 40px. */
+   the /install hero keeps the base 40px. */
 .landing-hero--wall {
   padding-bottom: 70px;
 }
@@ -2448,7 +2450,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .device-home { width: 12px; height: 12px; border: 1.5px solid currentColor; border-radius: 50%; }
 .device-back { width: 10px; height: 10px; border-bottom: 1.5px solid currentColor; border-left: 1.5px solid currentColor; transform: rotate(45deg); }
 
-/* Shared CTA row for the import-help and install marketing pages. */
+/* CTA row for the install marketing page. */
 .landing-cta-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 .btn-lg { font-size: 15.5px; padding: 12px 26px; border-radius: 10px; }
 .landing-hero .smpte { margin: 44px auto 0; max-width: 420px; }
@@ -2482,64 +2484,6 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .poster-wall--on { opacity: var(--wall-opacity); }
 .poster-wall canvas { display: block; width: 100%; height: 100%; }
 
-/* Product screenshot, framed like an app window. */
-.hero-shot {
-  margin: 44px auto 0;
-  max-width: 620px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: var(--surface);
-  overflow: hidden;
-  box-shadow: 0 30px 70px -28px rgba(0, 0, 0, 0.75);
-}
-.hero-shot-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 14px;
-  border-bottom: 1px solid var(--line);
-  background: var(--surface-2);
-}
-.hero-shot-dots { display: inline-flex; gap: 6px; }
-.hero-shot-dots i { width: 10px; height: 10px; border-radius: 50%; opacity: 0.9; }
-.hero-shot-url {
-  margin: 0 auto;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--muted);
-  background: var(--bg);
-  border-radius: 6px;
-  padding: 3px 14px;
-  /* balance the dots so the faux URL stays centered */
-  transform: translateX(-23px);
-}
-.hero-shot-frame { position: relative; max-height: 470px; overflow: hidden; }
-.hero-shot-frame img { display: block; width: 100%; height: auto; }
-.hero-shot-frame::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 90px;
-  background: linear-gradient(to bottom, transparent, var(--bg));
-  pointer-events: none;
-}
-
-/* TV Time shutdown warning banner + import how-to (issue #22). */
-.landing-eyebrow--warn {
-  color: var(--amber);
-  border-color: rgba(255, 174, 46, 0.5);
-  background: var(--amber-soft);
-  text-transform: none;
-  letter-spacing: 0.01em;
-  border-radius: 10px;
-  font-family: var(--font-body);
-  font-weight: 600;
-  font-size: 18px;
-}
-.landing-eyebrow--link { text-decoration: none; transition: background 0.15s ease, border-color 0.15s ease; }
-.landing-eyebrow--link:hover { text-decoration: none; background: rgba(255, 174, 46, 0.24); border-color: var(--amber); }
 
 .help-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 20px; }
 .help-step {
@@ -2555,11 +2499,6 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .help-step-text { flex: 1 1 260px; display: flex; gap: 14px; align-items: flex-start; text-align: left; }
 .help-step-text h3 { font-family: var(--font-display); font-weight: 700; font-size: 16px; margin: 0 0 6px; }
 .help-step-text p { color: var(--muted); font-size: 14px; line-height: 1.55; margin: 0; }
-.help-shot { flex: 1 1 300px; margin: 0; max-width: 100%; box-shadow: 0 16px 40px -24px rgba(0, 0, 0, 0.7); }
-.help-shot-frame { max-height: none; }
-.help-shot-frame::after { display: none; }
-.help-shot-frame svg { display: block; width: 100%; height: auto; }
-.help-note { text-align: center; margin-top: 16px; }
 .import-help .landing-final h2 { display: flex; align-items: center; justify-content: center; gap: 10px; }
 .import-help .landing-final h2 .svg-inline--fa { color: var(--green); }
 
@@ -2903,7 +2842,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   border: 1px solid transparent;
   border-radius: 6px;
   color: var(--muted);
-  font: 500 13px var(--font-body);
+  font: 400 13px var(--font-body);
   padding: 3px 10px;
   cursor: pointer;
 }
@@ -2943,7 +2882,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .ach-page-link:hover { color: var(--amber); text-decoration: none; }
 /* On the achievements page the count sits inside the 28px h1 — scale it up
    from the 13px it uses inside section titles. */
-.page-title .ach-count { font-size: 16px; font-weight: 500; color: var(--muted); }
+.page-title .ach-count { font-size: 16px; font-weight: 400; color: var(--muted); }
 .ach-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
@@ -2977,7 +2916,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 }
 .ach.is-unlocked { opacity: 1; }
 .ach.is-unlocked .ach-emoji { filter: none; }
-.ach-title { font-weight: 600; font-size: 13.5px; color: var(--text); }
+.ach-title { font-weight: 700; font-size: 13.5px; color: var(--text); }
 .ach-desc { color: var(--muted); font-size: 12px; line-height: 1.35; }
 
 /* Admin tools on profiles (issue #17). */
@@ -2999,7 +2938,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 /* ---------- Email verification (settings) ---------- */
 
 .email-status { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; color: var(--muted); margin: 6px 0 10px; }
-.email-address { color: var(--text); font-weight: 500; }
+.email-address { color: var(--text); font-weight: 400; }
 .email-badge {
   display: inline-flex;
   align-items: center;
@@ -3009,7 +2948,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   border-radius: 999px;
   padding: 1px 10px;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
 }
 .email-form { display: flex; gap: 8px; max-width: 420px; }
 .email-form input {
@@ -3072,7 +3011,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .comment-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .collapse-btn { background: none; border: none; padding: 0; cursor: pointer; color: var(--muted); }
 .collapse-btn:hover { color: var(--text); }
-.comment-user { font-weight: 600; font-size: 14px; }
+.comment-user { font-weight: 700; font-size: 14px; }
 .comment-user.is-deleted { color: var(--muted); font-style: italic; font-weight: 400; }
 .comment-score, .comment-time { font-size: 12.5px; }
 

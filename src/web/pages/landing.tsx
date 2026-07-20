@@ -6,7 +6,7 @@ import { InstallAppButton } from "../components/install";
 import { AuthCard } from "../components/auth-card";
 import { PosterWall } from "../components/poster-wall";
 import { DeviceShowcase } from "../components/device-showcase";
-import { IconChevron, IconWarning } from "../components/icons";
+import { IconChevron } from "../components/icons";
 
 // Developer link used in a couple of FAQ answers.
 function JoelLink() {
@@ -73,10 +73,7 @@ export function Landing() {
         {/* --wall modifier: extra bottom padding keeps the poster wall inside
             the hero so the free badge below never overlaps it (issue #218). */}
         <section className="landing-hero landing-hero--wall">
-          <Link to="/import-help" className="landing-eyebrow landing-eyebrow--warn landing-eyebrow--link">
-            <IconWarning size={13} /> TV Time is shutting down July 15: import your data here
-          </Link>
-          <h1>Track your shows. Pickup where you left off.</h1>
+          <h1>Track your shows. Pick up where you left off.</h1>
           <p className="landing-sub">
             Show Us TV keeps track of every show and movie you watch: what&rsquo;s next, what&rsquo;s
             airing soon, and everything you&rsquo;ve finished.

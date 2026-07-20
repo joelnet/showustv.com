@@ -153,11 +153,8 @@ export function ImportPage() {
       {stage.name === "pick" && (
         <>
           <p className="settings-hint">
-            Upload the zip archive from TV Time&rsquo;s{" "}
-            <a href="https://gdpr.tvtime.com/gdpr/self-service" target="_blank" rel="noreferrer">
-              GDPR data export
-            </a>
-            . It&rsquo;s unpacked right here in your browser: only the shows, episodes and movies we can match are
+            Upload the zip archive you exported from TV Time before it shut down — usually still in
+            your Downloads folder. It&rsquo;s unpacked right here in your browser: only the shows, episodes and movies we can match are
             sent to the server. You&rsquo;ll see a preview before anything is imported, and re-running an import never
             duplicates history.
           </p>
