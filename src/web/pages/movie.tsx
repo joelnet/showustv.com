@@ -6,7 +6,7 @@ import { post, put, del } from "../api";
 import { useAuth } from "../app";
 import { poster } from "../img";
 import { fmtAirDate, fmtDateTime, runtimeStr } from "../format";
-import { ErrorNote, StarRating, EmojiPicker, ExternalLinks } from "../components/ui";
+import { ErrorNote, StarRating, ExternalLinks } from "../components/ui";
 import { MediaDetailSkeleton } from "../components/skeleton";
 import { WhereToWatch, type WatchInfo } from "../components/where-to-watch";
 import { IconCheck, IconBookmark, IconHeart, IconHeartOutline } from "../components/icons";
@@ -31,7 +31,7 @@ interface MoviePayload {
     state: "watchlist" | "watched" | null;
     watchedAt: string | null;
     playCount: number;
-    rating: { score: number | null; emoji: string | null } | null;
+    rating: { score: number | null } | null;
     favorited: boolean;
   } | null;
   watch: WatchInfo;
@@ -217,12 +217,8 @@ export function MoviePage() {
               value={mine.rating?.score ?? null}
               disabled={busy}
               onPick={(score) => act(() => put("/ratings", { target_type: "movie", target_id: movie.id, score }))()}
-              // Score-only clear: keeps any emoji reaction / review on the row.
+              // Score-only clear: keeps any legacy reaction / review on the row.
               onClear={act(() => del(`/ratings/movie/${movie.id}/score`))}
-            />
-            <EmojiPicker
-              value={mine.rating?.emoji ?? null}
-              onPick={(emoji) => act(() => put("/ratings", { target_type: "movie", target_id: movie.id, emoji }))()}
             />
           </div>
 

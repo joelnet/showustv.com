@@ -47,7 +47,7 @@ interface ShowPayload {
   user: {
     followed: boolean;
     state: string | null;
-    rating: { score: number | null; emoji: string | null } | null;
+    rating: { score: number | null } | null;
     favorited: boolean;
     // Hidden from the viewer's public surfaces (issue #260). Optional so a
     // service-worker-cached pre-#260 payload still renders.
@@ -742,15 +742,16 @@ export function ShowPage() {
           onPick={(score) =>
             run(
               () => put("/ratings", { target_type: "show", target_id: show.id, score }),
-              (d) => withUser(d, { rating: { score, emoji: d.user?.rating?.emoji ?? null } })
+              (d) => withUser(d, { rating: { score } })
             )()
           }
           onClear={() =>
             run(
               () => del(`/ratings/show/${show.id}/score`),
-              // Server keeps the row (with created_at) if an emoji remains; mirror
-              // that locally — otherwise the rating is gone entirely.
-              (d) => withUser(d, { rating: d.user?.rating?.emoji ? { score: null, emoji: d.user.rating.emoji } : null })
+              // The star widget only shows the score; drop it locally. The server
+              // keeps the row's created_at / any legacy reaction, which a later
+              // reload reconciles.
+              (d) => withUser(d, { rating: null })
             )()
           }
         />

@@ -6,7 +6,7 @@ import { post, put, del } from "../api";
 import { useAuth } from "../app";
 import { still } from "../img";
 import { fmtDateTime, fmtEpisodeDate, runtimeStr } from "../format";
-import { Slate, ErrorNote, StarRating, EmojiPicker } from "../components/ui";
+import { Slate, ErrorNote, StarRating } from "../components/ui";
 import { MediaDetailSkeleton } from "../components/skeleton";
 import { Comments } from "../components/comments";
 import { useCelebrate } from "../components/celebration";
@@ -32,7 +32,7 @@ interface EpisodePayload {
     watched: boolean;
     watchedAt: string | null;
     playCount: number;
-    rating: { score: number | null; emoji: string | null } | null;
+    rating: { score: number | null } | null;
   } | null;
 }
 
@@ -173,12 +173,8 @@ export function EpisodePage() {
               value={mine.rating?.score ?? null}
               disabled={busy}
               onPick={(score) => act(() => put("/ratings", { target_type: "episode", target_id: ep.id, score }))()}
-              // Score-only clear: keeps any emoji reaction / review on the row.
+              // Score-only clear: keeps any legacy reaction / review on the row.
               onClear={act(() => del(`/ratings/episode/${ep.id}/score`))}
-            />
-            <EmojiPicker
-              value={mine.rating?.emoji ?? null}
-              onPick={(emoji) => act(() => put("/ratings", { target_type: "episode", target_id: ep.id, emoji }))()}
             />
           </div>
         </div>

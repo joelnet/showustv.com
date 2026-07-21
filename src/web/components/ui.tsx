@@ -2,7 +2,6 @@ import { useId, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { poster } from "../img";
 import { epCode } from "../format";
-import { EMOJI_REACTIONS } from "../../shared/constants";
 import { IconCheck, IconX, IconClose, IconStar, IconStarFilled, IconDiscord, IconImdb, IconRottenTomatoes } from "./icons";
 
 // External social links for the footer (issue #75).
@@ -214,18 +213,16 @@ export function CheckButton({
   );
 }
 
-// StarRating (issue #367): a Letterboxd-style 5-star control with half-star
-// precision, replacing the old 1–10 number picker. It maps onto the *unchanged*
-// 1–10 stored score — each half-star is one point (0.5★ = 1, 1★ = 2, … 5★ = 10)
-// — so `value`/`onPick` still speak the 1–10 API the server expects.
-// Interaction mirrors familiar film/TV sites: hover previews, clicking the left
-// or right half of a star sets a half or whole rating, and the × clears it.
-// Pointer input drives the stars (aria-hidden); keyboard users drive the ARIA
-// slider with arrow keys (± half a star), Home/End (min/max), and
+// StarRating (issue #367): a 10-star control mapped 1:1 onto the *unchanged*
+// 1–10 stored score — each whole star is one point (1★ = 1, 2★ = 2, … 10★ = 10)
+// — so `value`/`onPick` still speak the 1–10 API the server expects. No
+// half-stars: hovering previews, clicking a star sets that whole score, and the
+// × clears it. Pointer input drives the stars (aria-hidden); keyboard users
+// drive the ARIA slider with arrow keys (±1), Home/End (clear/max), and
 // Delete/Backspace (clear).
-const STAR_COUNT = 5;
-const MAX_SCORE = STAR_COUNT * 2; // the 1–10 scale: two half-stars per star
-const STAR_SIZE = 30;
+const STAR_COUNT = 10;
+const MAX_SCORE = STAR_COUNT; // the 1–10 scale: one point per whole star
+const STAR_SIZE = 28;
 
 export function StarRating({
   value,
@@ -247,14 +244,6 @@ export function StarRating({
   // The 0–10 score currently painted: a live hover preview wins over the saved
   // value, and 0 means no stars filled.
   const shown = hover ?? value ?? 0;
-
-  // Map a pointer position within star `i` (0-based) to a 1–10 score: the left
-  // half is the odd (half-star) score, the right half the even (whole-star) one.
-  const scoreAt = (i: number, el: HTMLElement, clientX: number) => {
-    const r = el.getBoundingClientRect();
-    const rightHalf = clientX - r.left >= r.width / 2;
-    return i * 2 + (rightHalf ? 2 : 1);
-  };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (disabled) return;
@@ -289,7 +278,7 @@ export function StarRating({
     }
   };
 
-  const valueText = value == null ? "Not rated" : `${value / 2} out of ${STAR_COUNT} stars`;
+  const valueText = value == null ? "Not rated" : `${value} out of ${STAR_COUNT} stars`;
 
   return (
     <div className="star-rating">
@@ -312,18 +301,18 @@ export function StarRating({
           onMouseLeave={() => setHover(null)}
         >
           {Array.from({ length: STAR_COUNT }, (_, i) => {
-            const full = (i + 1) * 2;
-            const pct = shown >= full ? 100 : shown === full - 1 ? 50 : 0;
+            const score = i + 1; // this star's whole-number value on the 1–10 scale
+            const filled = shown >= score;
             return (
               <span
                 key={i}
                 className="star-cell"
                 aria-hidden="true"
-                onMouseMove={(e) => !disabled && setHover(scoreAt(i, e.currentTarget, e.clientX))}
-                onClick={(e) => !disabled && onPick(scoreAt(i, e.currentTarget, e.clientX))}
+                onMouseMove={() => !disabled && setHover(score)}
+                onClick={() => !disabled && onPick(score)}
               >
                 <IconStar size={STAR_SIZE} />
-                <span className="star-fill" style={{ width: `${pct}%` }}>
+                <span className="star-fill" style={{ width: filled ? "100%" : "0%" }}>
                   <IconStarFilled size={STAR_SIZE} />
                 </span>
               </span>
@@ -348,31 +337,6 @@ export function StarRating({
           </button>
         )}
       </div>
-    </div>
-  );
-}
-
-export function EmojiPicker({
-  value,
-  onPick,
-}: {
-  value: string | null;
-  onPick: (emoji: string) => void;
-}) {
-  return (
-    <div className="emoji-picker" role="radiogroup" aria-label="Reaction">
-      {EMOJI_REACTIONS.map((e) => (
-        <button
-          key={e}
-          type="button"
-          role="radio"
-          aria-checked={value === e}
-          className={`emoji-btn${value === e ? " is-on" : ""}`}
-          onClick={() => onPick(e)}
-        >
-          {e}
-        </button>
-      ))}
     </div>
   );
 }
