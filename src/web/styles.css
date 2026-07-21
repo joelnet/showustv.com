@@ -2812,6 +2812,16 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   .steps { grid-template-columns: 1fr; }
 }
 
+/* Portrait mobile: the movie poster reads too small stacked above the title, so
+   double it from the shared 104px (set above) to ~208px (issue #369). Scoped to
+   .movie-head so the show hero and episode still are untouched, and to portrait
+   orientation so it doesn't dominate the short viewport of a landscape phone.
+   The 2/3 aspect-ratio from .show-poster keeps proportions; the vw cap keeps it
+   inside narrow viewports (e.g. ~205px on a 320px phone) without overflow. */
+@media (max-width: 719px) and (orientation: portrait) {
+  .movie-head .show-poster { width: min(208px, 64vw); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation-duration: 0.01ms !important; }
   .scrolling-shot-content { animation: none !important; transform: none !important; will-change: auto; }
