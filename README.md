@@ -1,6 +1,6 @@
 # showustv
 
-A TV show (and movie) tracker in the spirit of TV Time: follow shows, mark episodes watched, keep a watchlist, rate things, and build shareable lists. Metadata comes from [TMDB](https://www.themoviedb.org/).
+A Social TV show (and movie) tracker: follow shows, mark episodes watched, keep a watchlist, rate things, and build shareable lists. Metadata comes from [TMDB](https://www.themoviedb.org/).
 
 The whole app is a single Cloudflare Worker: it serves a React SPA as static assets and handles `/api/*` with Hono, backed by a D1 (SQLite) database.
 
