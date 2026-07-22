@@ -23,6 +23,7 @@
 // drop it and surface the loss); 401 pauses the queue until re-login.
 
 import { useSyncExternalStore } from "react";
+import { logSync } from "./synclog";
 
 interface QueuedOp {
   id: number;
@@ -121,6 +122,7 @@ export function setOfflineUser(uid: number | null) {
 export function markReachable(ok: boolean) {
   if (ok) {
     if (!status.online) {
+      logSync("Server reachable again — back online");
       setStatus({ online: true });
       // With a backlog, revalidating now would fetch pre-replay server
       // state and visually revert optimistic changes — the flush-completion
@@ -129,6 +131,7 @@ export function markReachable(ok: boolean) {
     }
     if (status.pending > 0) void flush();
   } else if (status.online) {
+    logSync("Server unreachable — offline");
     setStatus({ online: false });
     scheduleRetry();
   }
@@ -291,6 +294,9 @@ async function flushLoop(): Promise<void> {
   let applied = 0;
   let dropped = 0;
   let retry = false;
+  // Admin sync log (issue #372): announce the replay once (with the queue
+  // depth), then a single closing summary — never one line per op.
+  let announced = false;
   try {
     for (;;) {
       const ops = await allOps();
@@ -299,6 +305,10 @@ async function flushLoop(): Promise<void> {
       if (!navigator.onLine) break; // the 'online' event re-triggers us
       if (currentUid == null) break; // signed-in user unknown — setOfflineUser re-triggers us
       if (!navigator.locks) void claimLease(); // renew the fallback lease
+      if (!announced) {
+        announced = true;
+        logSync(`Offline queue: replaying ${ops.length} action${ops.length === 1 ? "" : "s"}`);
+      }
       const op = ops[0];
       if (op.uid !== currentUid) {
         // Queued under a different (or expired-and-replaced) account —
@@ -320,13 +330,18 @@ async function flushLoop(): Promise<void> {
         });
       } catch {
         // Still unreachable — keep the queue, try again shortly.
+        logSync("Offline queue: server unreachable — will retry");
         setStatus({ online: false });
         retry = true;
         break;
       }
       if (!status.online) setStatus({ online: true });
-      if (res.status === 401) break; // session expired — resume after re-login
+      if (res.status === 401) {
+        logSync("Offline queue: paused — session expired; resumes after sign-in");
+        break; // session expired — resume after re-login
+      }
       if (res.status >= 500) {
+        logSync("Offline queue: server error — will retry");
         retry = true; // server trouble — transient, keep the op
         break;
       }
@@ -343,6 +358,16 @@ async function flushLoop(): Promise<void> {
       dropped: status.dropped + dropped,
     });
     if (retry) scheduleRetry();
+    if (announced) {
+      const bits: string[] = [];
+      if (applied) bits.push(`${applied} synced`);
+      if (dropped) bits.push(`${dropped} couldn't sync`);
+      if (pending) bits.push(`${pending} still queued`);
+      logSync(
+        `Offline sync ${pending ? "paused" : "complete"}${bits.length ? " — " + bits.join(", ") : ""}`,
+        dropped ? "error" : "info"
+      );
+    }
     if (applied || dropped) {
       emitRevalidate(); // views refetch so server truth replaces optimistic state
       clearResultSoon();
@@ -357,6 +382,10 @@ async function flushLoop(): Promise<void> {
 export function initOffline() {
   setStatus({ online: navigator.onLine });
   window.addEventListener("online", () => {
+    // Distinct from markReachable's "server reachable" log: this is the
+    // browser's network interface coming back (issue #372) — logged here so
+    // toggling connectivity shows in the admin sync log even with no queue.
+    logSync("Network online");
     setStatus({ online: true });
     // No backlog → refetch stale cache-served views now; with one, the
     // flush-completion revalidation does it (fetching mid-replay would show
@@ -364,6 +393,9 @@ export function initOffline() {
     if (!hasPending()) emitRevalidate();
     void flush();
   });
-  window.addEventListener("offline", () => setStatus({ online: false }));
+  window.addEventListener("offline", () => {
+    logSync("Network offline");
+    setStatus({ online: false });
+  });
   void flush(); // sets the pending badge; replay waits for setOfflineUser
 }

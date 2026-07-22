@@ -11,6 +11,7 @@ import { useAuth } from "../app";
 import { useToast } from "../components/toast";
 import { pushSupported, refreshUnread } from "../notifications";
 import { isStandalone } from "../pwa";
+import { useSyncLog, clearSyncLog, SYNC_LOG_MAX, type SyncLogEntry } from "../synclog";
 
 export function AdminPage() {
   const { user } = useAuth();
@@ -47,7 +48,81 @@ export function AdminPage() {
         {busy ? "Sending…" : "Send test notification"}
       </button>
 
+      <SyncLogView />
+
       <PushDiagnostics />
+    </div>
+  );
+}
+
+// Live view of the background sync the header progress bar (issue #204)
+// reflects (issue #372): the library and Continue Watching precache passes
+// (precache.ts) and the offline mutation-queue replay (offline.ts) append to a
+// small capped client log store (synclog.ts) as they work; this renders it
+// newest-first and updates in place while a sync runs. Admin-only by virtue of
+// living on this already-gated page. The store keeps operation names + counts
+// only — no tokens, bodies, or title names — so nothing sensitive surfaces.
+function SyncLogView() {
+  const entries = useSyncLog();
+  return (
+    <>
+      <h2 className="settings-subtitle">Sync logs</h2>
+      <p className="settings-hint">
+        Live log of the background sync the header progress bar reflects — the library and Continue
+        Watching precache passes and the offline queue replay. Newest first; the last {SYNC_LOG_MAX}{" "}
+        entries are kept (across reloads).
+      </p>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", marginBottom: "8px" }}>
+        <span className="settings-hint" style={{ margin: 0 }}>
+          {entries.length} {entries.length === 1 ? "entry" : "entries"}
+        </span>
+        <button className="btn btn-ghost" onClick={clearSyncLog} disabled={entries.length === 0}>
+          Clear
+        </button>
+      </div>
+      {entries.length === 0 ? (
+        <p className="settings-hint">
+          No sync activity recorded yet. Browse the app, or toggle offline and back online, to see entries here.
+        </p>
+      ) : (
+        <div
+          role="log"
+          aria-live="polite"
+          style={{
+            maxHeight: "320px",
+            overflowY: "auto",
+            border: "1px solid var(--line)",
+            borderRadius: "var(--radius, 8px)",
+            background: "var(--surface)",
+            padding: "8px 10px",
+            fontFamily: "var(--font-mono, monospace)",
+            fontSize: "12px",
+            lineHeight: 1.6,
+          }}
+        >
+          {entries.map((e) => (
+            <SyncLogLine key={e.id} entry={e} />
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+// Date + time — entries persist across reloads, so activity from different
+// days must stay distinguishable. Rendered in the viewer's local zone.
+const logTimeFmt = new Intl.DateTimeFormat(undefined, {
+  month: "short",
+  day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+});
+
+function SyncLogLine({ entry }: { entry: SyncLogEntry }) {
+  return (
+    <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", color: entry.type === "error" ? "var(--red)" : undefined }}>
+      <span style={{ opacity: 0.6 }}>{logTimeFmt.format(entry.at)}</span> {entry.message}
     </div>
   );
 }
