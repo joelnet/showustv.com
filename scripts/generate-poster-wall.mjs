@@ -7,8 +7,9 @@
 // Outputs are committed (same pattern as generate-og.mjs / generate-icons.mjs).
 // Like og.png, the strips are a curated marketing composite — the required
 // TMDB attribution renders in SiteFooter on the landing page. Re-run at least
-// every ~6 months (docs/tmdb-licensing.md cache cap); manifest.json records
-// the titles and the generatedAt date to track that cadence.
+// every ~6 months (TMDB's cap on how long its image data may be cached);
+// manifest.json records the titles and the generatedAt date to track that
+// cadence.
 //
 // Run from the repo root: node scripts/generate-poster-wall.mjs
 // Needs TMDB_TOKEN in .dev.vars for the trending-list API calls; the poster

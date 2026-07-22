@@ -4,8 +4,6 @@ A TV show (and movie) tracker in the spirit of TV Time: follow shows, mark episo
 
 The whole app is a single Cloudflare Worker: it serves a React SPA as static assets and handles `/api/*` with Hono, backed by a D1 (SQLite) database.
 
-> Note: the `docs/` folder contains early planning/spec documents that partially diverge from the actual implementation (e.g. they describe a SvelteKit/Pages monorepo). This README describes what's actually in the tree.
-
 ## Tech stack
 
 - **Frontend:** React 19 + React Router 7, built with Vite 6 (plain SPA, no SSR), [Lucide](https://lucide.dev/) icons (brand marks stay hand-inlined SVG)
@@ -29,7 +27,7 @@ src/
     lib/          session (signed cookies), password (PBKDF2), tmdb client, date helpers
   shared/         Constants shared by web and worker
 migrations/       D1 SQL migrations
-docs/             Planning docs (partially outdated — see note above)
+docs/             Notes on architecture and specific features
 wrangler.jsonc    Worker config: assets, D1 binding, cron trigger, TMDB vars
 vite.config.ts    Vite config (root src/web, output dist/client)
 ```
