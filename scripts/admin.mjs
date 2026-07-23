@@ -172,7 +172,7 @@ const commands = {
   },
 
   usercount() {
-    // Single COUNT — the cheap query behind the new-signup cron notifier.
+    // Single COUNT of active users (matches the in-app signup ping's total).
     const [r] = rows(`SELECT COUNT(*) AS users FROM users WHERE deleted_at IS NULL`);
     emit(r, (d) => console.log(d.users));
   },
@@ -250,7 +250,7 @@ Commands:
   admin <username> [--revoke]        grant or revoke admin
   ban <username> [--unban]           shadow-ban or un-ban a user
   stats                      quick counts across the whole instance
-  usercount                  just the active-user count (fast; used by cron)
+  usercount                  just the active-user count (fast)
   dailystats --start ISO --end ISO --prev-start ISO
                              one-day activity aggregates (used by the nightly
                              Discord summary cron; boundaries are UTC ISO)
