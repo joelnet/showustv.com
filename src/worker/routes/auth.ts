@@ -9,6 +9,7 @@ import { USERNAME_RE, USERNAME_RULES } from "../lib/username";
 import { isRateLimited, recordAttempt, clearAttempts } from "../lib/rate-limit";
 import { readJson } from "../lib/body";
 import { dispatchEmailVerification } from "../lib/verify-email";
+import { notifyDiscordSignup } from "../lib/discord";
 import { notifyEmailChanged } from "../lib/email-revert";
 
 export const auth = new Hono<AppEnv>();
@@ -210,6 +211,11 @@ auth.post("/register", async (c) => {
           console.error("register: verification dispatch failed", e)
         )
       );
+      // New-signup Discord ping (issue #8): fires only when the admin-set
+      // webhook is configured AND the notify-signups flag is on. Best-effort
+      // and off the response path — notifyDiscordSignup swallows every
+      // failure internally, so it can never block or fail the signup.
+      c.executionCtx.waitUntil(notifyDiscordSignup(c.env));
       // onboarded: false routes the fresh account to the preferences step,
       // where it confirms this handle and timezone.
       return c.json({

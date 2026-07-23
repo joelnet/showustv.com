@@ -4,6 +4,7 @@
 import { Hono } from "hono";
 import type { Context, Next } from "hono";
 import type { AppEnv } from "../env";
+import { getDiscordSettings, isDiscordWebhookUrl, NOTIFY_SIGNUPS_KEY, WEBHOOK_URL_KEY } from "../lib/discord";
 import { notifyTestNotification } from "../lib/notifications";
 
 export const admin = new Hono<AppEnv>();
@@ -61,6 +62,31 @@ admin.put("/users/:username/shadow-ban", async (c) => {
 // the global middleware like every other admin action.
 admin.post("/test-notification", async (c) => {
   await notifyTestNotification(c.env, c.get("uid"));
+  return c.json({ ok: true });
+});
+
+// Discord webhook config (issue #8): the admin page's integrations
+// section. Stored in app_settings (0013/0036); POST /register reads it to
+// fire the new-signup ping (lib/discord.ts). Admin-gated like everything
+// here, and the PUT lands in activity_log via the global middleware.
+admin.get("/discord", async (c) => c.json(await getDiscordSettings(c.env.DB)));
+
+admin.put("/discord", async (c) => {
+  const b = await c.req.json().catch(() => ({}));
+  if (typeof b.webhookUrl !== "string" || typeof b.notifySignups !== "boolean")
+    return c.json({ error: "webhookUrl (string) and notifySignups (boolean) are required" }, 400);
+  const webhookUrl = b.webhookUrl.trim();
+  if (webhookUrl.length > 400) return c.json({ error: "That URL is too long" }, 400);
+  // SSRF gate: the server will fetch this URL on signups, so only a real
+  // Discord webhook may be stored (empty clears it). lib/discord.ts checks
+  // again before every fire.
+  if (webhookUrl !== "" && !isDiscordWebhookUrl(webhookUrl))
+    return c.json({ error: "That isn't a Discord webhook URL (expected https://discord.com/api/webhooks/…)" }, 400);
+  const upsert = "INSERT INTO app_settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value";
+  await c.env.DB.batch([
+    c.env.DB.prepare(upsert).bind(WEBHOOK_URL_KEY, webhookUrl),
+    c.env.DB.prepare(upsert).bind(NOTIFY_SIGNUPS_KEY, b.notifySignups ? "1" : "0"),
+  ]);
   return c.json({ ok: true });
 });
 

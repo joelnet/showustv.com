@@ -6,7 +6,7 @@
 // indistinguishable 404 to anyone else.
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { api, post } from "../api";
+import { api, post, put, ApiError } from "../api";
 import { useAuth } from "../app";
 import { useToast } from "../components/toast";
 import { pushSupported, refreshUnread } from "../notifications";
@@ -48,10 +48,98 @@ export function AdminPage() {
         {busy ? "Sending…" : "Send test notification"}
       </button>
 
+      <DiscordWebhook />
+
       <SyncLogView />
 
       <PushDiagnostics />
     </div>
+  );
+}
+
+// Discord webhook config (issue #8): stores an admin-set webhook URL
+// plus a notify-on-new-signups flag (server side: /api/admin/discord →
+// app_settings). When both are set, POST /register fires a Discord message
+// for each new signup — this replaced the external notify-new-users.mjs
+// cron. The server rejects any URL that isn't a real Discord webhook
+// (https://discord.com/api/webhooks/…), so a save can fail validation; that
+// message surfaces in the error toast.
+function DiscordWebhook() {
+  const toast = useToast();
+  const [webhookUrl, setWebhookUrl] = useState("");
+  const [notifySignups, setNotifySignups] = useState(false);
+  // Editing is blocked until the current values load — saving blind
+  // would silently overwrite the stored config with defaults.
+  const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api<{ webhookUrl: string; notifySignups: boolean }>("/admin/discord")
+      .then((d) => {
+        setWebhookUrl(d.webhookUrl);
+        setNotifySignups(d.notifySignups);
+        setState("ready");
+      })
+      .catch(() => setState("error"));
+  }, []);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await put("/admin/discord", { webhookUrl: webhookUrl.trim(), notifySignups });
+      toast("Discord settings saved");
+    } catch (e) {
+      toast(e instanceof ApiError && e.status === 400 ? e.message : "Couldn't save the Discord settings", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <>
+      <h2 className="settings-subtitle">Discord webhook</h2>
+      <p className="settings-hint">
+        Webhook the site posts to (server-created Discord messages, e.g. new-signup pings). Must be a Discord
+        webhook URL; leave empty to turn Discord posting off.
+      </p>
+      {state === "error" ? (
+        <p className="error-note">Couldn't load the Discord settings — reload to try again.</p>
+      ) : (
+        <>
+          {/* Bare labels have no layout on this page; mirror .login-card label. */}
+          <label
+            style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "13.5px", color: "var(--muted)", maxWidth: "480px", margin: "10px 0 14px" }}
+          >
+            Webhook URL
+            <input
+              type="url"
+              placeholder="https://discord.com/api/webhooks/…"
+              maxLength={400}
+              value={webhookUrl}
+              disabled={state !== "ready" || saving}
+              onChange={(e) => setWebhookUrl(e.target.value)}
+            />
+          </label>
+          <label className="settings-toggle">
+            <input
+              type="checkbox"
+              checked={notifySignups}
+              disabled={state !== "ready" || saving}
+              onChange={() => setNotifySignups((v) => !v)}
+            />
+            <span>
+              Notify on new user signups
+              <span className="settings-hint">
+                Post a message to the webhook each time a new account is created.
+              </span>
+            </span>
+          </label>
+          <button className="btn" onClick={save} disabled={state !== "ready" || saving}>
+            {saving ? "Saving…" : "Save Discord settings"}
+          </button>
+        </>
+      )}
+    </>
   );
 }
 

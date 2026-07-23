@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // daily-summary — nightly cron job that posts a one-day activity summary to
-// Discord (issue #168). Sibling of notify-new-users.mjs.
+// Discord (issue #168).
 //
 // It asks the admin CLI for the day's aggregates (`dailystats --remote`) and
 // posts a Discord embed: new signups (vs yesterday), shows followed, episodes
