@@ -22,19 +22,19 @@ type ProfileGate =
   | { kind: "full"; user: ProfileOwner; viewer: Awaited<ReturnType<typeof readValidSession>> };
 
 // The one visibility gate for every /u/:username surface served here — the
-// profile and the public library (issue #245) must agree on who sees what,
+// profile and the public library must agree on who sees what,
 // so they share this decision. A private profile answers with an
 // Instagram-style teaser — the canonical username and `private: true`,
 // nothing else — so the page can say "this profile is private" instead of
 // pretending the person doesn't exist. Only a genuinely unknown (or deleted)
 // username reads as missing (404). Two viewers still get the full content of
-// a private account: the owner, and a MUTUAL follow (issue #184) — the owner
+// a private account: the owner, and a MUTUAL follow — the owner
 // following the viewer back is a deliberate signal that they want to be
 // seen. A one-way follow never unlocks anything: follows are instant and
-// unapproved, so a viewer could self-grant one (that's why issue #158 kept
+// unapproved, so a viewer could self-grant one (that's why the visibility rules keep
 // followers out).
 //
-// The teaser (issue #158) must never carry the private content — no stats,
+// The teaser must never carry the private content — no stats,
 // lists, achievements, comments, counts, or watch history. The mutual check
 // demands BOTH directions be active in a single self-join: `f` is
 // viewer→owner, `r` is owner→viewer. The owner's row already proved them
@@ -48,7 +48,7 @@ async function profileGate(c: Context<AppEnv>, username: string): Promise<Profil
     .first<ProfileOwner>();
   if (!user) return { kind: "missing" };
 
-  // Validated viewer (issue #355): a revoked or soft-deleted session is treated
+  // Validated viewer: a revoked or soft-deleted session is treated
   // as anonymous here, so it can't be used to reach a private profile (own or
   // mutual-follow). The mutual-follow query below keeps its own deleted_at
   // re-check as defence in depth.
@@ -70,7 +70,7 @@ async function profileGate(c: Context<AppEnv>, username: string): Promise<Profil
   return { kind: "full", user, viewer };
 }
 
-// Watch-history rows for the profile (issue #245): at most this many tiles
+// Watch-history rows for the profile: at most this many tiles
 // per row. Each query LIMITs to it directly; only the Anime row — a merge of
 // anime shows and anime movies — re-trims after combining.
 const HISTORY_ROW_LIMIT = 20;
@@ -139,11 +139,11 @@ pub.get("/profile/:username", async (c) => {
          WHERE COALESCE(s.poster_url, m.poster_url) IS NOT NULL
        ) WHERE rn <= 4 ORDER BY list_id, rn`
     ).bind(user.id),
-    // Comment activity (issue #16): which shows this user is talking about.
+    // Comment activity: which shows this user is talking about.
     // Episode comments surface their show's title — that's the conversation
     // a visitor cares about. Deleted comments never appear, and rows whose
     // catalog target vanished are dropped here, not client-side. Comments on
-    // a show the owner hid (issue #260) — direct or via one of its episodes —
+    // a show the owner hid — direct or via one of its episodes —
     // stay out too: "talking about Real Sex" outs the show as surely as a
     // watch tile would. (s.tmdb_id / es.tmdb_id are NULL for movie comments,
     // so the NOT EXISTS never matches and movies are unaffected.)
@@ -164,7 +164,7 @@ pub.get("/profile/:username", async (c) => {
        ORDER BY c.created_at DESC LIMIT 15`
     ).bind(user.id),
     c.env.DB.prepare("SELECT achievement_id FROM user_achievements WHERE user_id = ?1 ORDER BY unlocked_at").bind(user.id),
-    // Watch-history rows (issue #245): Shows / Movies / Anime tile rows above
+    // Watch-history rows: Shows / Movies / Anime tile rows above
     // the achievements, straight from the history tables. Shows are deduped
     // to ONE row per show — the latest-watched episode — so a binge can't
     // flood the row; ROW_NUMBER (the friends-watched pattern in
@@ -209,7 +209,7 @@ pub.get("/profile/:username", async (c) => {
     .slice(0, HISTORY_ROW_LIMIT)
     .map((a) => a.item);
 
-  // Shadow ban (issue #18): the banned user still sees their own
+  // Shadow ban: the banned user still sees their own
   // conversations here; everyone else sees none — same invisibility their
   // comments get on thread pages, so the profile can't out the ban.
   const hideComments = !!user.shadow_banned && viewer?.u !== user.id;
@@ -229,14 +229,14 @@ pub.get("/profile/:username", async (c) => {
   return c.json({
     username: user.username,
     // True only when a private profile is served in full: to its owner, or
-    // to a mutual follow (issue #184) — every other viewer got the teaser
+    // to a mutual follow — every other viewer got the teaser
     // above. The page uses it to suppress the share button and explain why
     // the viewer can see the page.
     private: !user.profile_public,
     stats: statsFromRow(statsR.results[0]),
     lists: (listsR.results as any[]).map((l) => ({ ...l, posters: posters.get(l.id) ?? [] })),
     achievements: (achR.results as any[]).map((r) => r.achievement_id),
-    // The Shows / Movies / Anime history rows (issue #245) — visible exactly
+    // The Shows / Movies / Anime history rows — visible exactly
     // when the profile is (no per-section toggle), deduped and split above.
     history: {
       shows: (histShowsR.results as any[]).map(showTile),
@@ -245,12 +245,12 @@ pub.get("/profile/:username", async (c) => {
     },
     comments: (hideComments ? [] : (commentsR.results as any[])).map((r) => ({
       // Snippet only — profiles tease the conversation, the thread holds it.
-      // Shown to every viewer the profile is, signed-out included (issue
-      // #349): these are comments on public titles, whose full threads a
-      // signed-out visitor already reads on the title page (issue #159), so
+      // Shown to every viewer the profile is, signed-out included:
+      // these are comments on public titles, whose full threads a
+      // signed-out visitor already reads on the title page, so
       // withholding the body from anonymous viewers only made the owner's own
       // profile preview differ from what visitors actually saw. Hidden-show
-      // (#260) and shadow-ban (#18) gating still apply above, so nothing the
+      // and shadow-ban gating still apply above, so nothing the
       // viewer couldn't otherwise see leaks.
       body: r.body.length > 240 ? r.body.slice(0, 239) + "…" : r.body,
       createdAt: r.created_at,
@@ -266,7 +266,7 @@ pub.get("/profile/:username", async (c) => {
   });
 });
 
-// The public library at /u/:username/library (issue #245): the same payload
+// The public library at /u/:username/library: the same payload
 // the owner's authed GET /library serves — one shared query path in
 // lib/library.ts — but for the named user, read-only by nature (this router
 // is GET-only and unauthenticated). Gated by profileGate exactly like the
@@ -285,7 +285,7 @@ pub.get("/library/:username", async (c) => {
   const payload = await libraryPayload(c.env.DB, user.id, viewer?.tz ?? "UTC");
 
   // Same cache hygiene as the profile: a private library served in full — to
-  // its owner or a mutual (issue #184) — is personal content on a public,
+  // its owner or a mutual — is personal content on a public,
   // viewer-varying URL; no-store keeps it out of the service worker's API
   // cache so it can't replay to a later non-mutual visitor on this browser.
   if (!user.profile_public) c.header("Cache-Control", "no-store");
@@ -314,12 +314,12 @@ pub.get("/lists/:username/:id", async (c) => {
     }>();
   if (!meta) return c.json({ error: "not found" }, 404);
 
-  // Per-item owner comment (issue #322): the list owner's own top-level comment
+  // Per-item owner comment: the list owner's own top-level comment
   // on each show/movie in the list, surfaced read-only inside .pub-list-item and
   // linking back to the title page — the source, where a reader can actually
   // reply. One query for the whole list (the most recent non-deleted top-level
   // comment per item, ROW_NUMBER-deduped) so there's no N+1. A shadow-banned
-  // owner's comments (issue #18) stay hidden from everyone but themselves, just
+  // owner's comments stay hidden from everyone but themselves, just
   // as on the title page and the profile's Conversations — otherwise the list
   // would leak comments the viewer couldn't otherwise see.
   const viewer = await readValidSession(c);
@@ -335,7 +335,7 @@ pub.get("/lists/:username/:id", async (c) => {
      WHERE li.list_id = ?1 ORDER BY li.position`
   ).bind(id);
   // Same per-item owner-comment query the owner's own list endpoint uses,
-  // shared in lib/list-comments (issue #325) so the two unified views can't
+  // shared in lib/list-comments so the two unified views can't
   // drift. Only run it when this viewer may see the owner's comments.
   let ownerComments = new Map<string, OwnerComment>();
   let items: unknown[];

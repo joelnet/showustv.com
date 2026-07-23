@@ -1,6 +1,6 @@
 // The library payload, shared — like lib/stats.ts — by the owner's authed
 // GET /library (routes/library.ts) and the public library endpoint
-// GET /public/library/:username (routes/public.ts, issue #245). One query
+// GET /public/library/:username (routes/public.ts). One query
 // path means the public page can never drift from what the owner's Library
 // shows; the CALLER decides who may see it (the public route applies the
 // profile-visibility gate before ever invoking this).
@@ -12,7 +12,7 @@ import { isAnime } from "../../shared/anime";
 
 // The anime test as a SQL predicate — the twin of shared/anime.ts isAnime()
 // (Animation genre + Japanese origin); KEEP THE TWO IN SYNC. Needed where a
-// query must LIMIT per section (the profile history rows, issue #245): a
+// query must LIMIT per section (the profile history rows): a
 // fetch-then-split-in-JS would let 40 recent anime watches starve the Shows
 // row of older non-anime ones. json_each is safe here: genres_json is
 // NOT NULL DEFAULT '[]' and only ever written as serialized JSON from TMDB.
@@ -56,14 +56,14 @@ export function recentlyActive(lastWatched: string | null, lastAired: string | n
 // for anonymous visitors) on the public one — a few hours' skew around
 // midnight at most, same as the owner's own view shifts when they travel.
 //
-// `opts.watchlist` opts IN to the watchlistShows / watchlistMovies buckets
-// (issue #257): the Library's Watch Later subtabs under Shows and Movies.
+// `opts.watchlist` opts IN to the watchlistShows / watchlistMovies buckets:
+// the Library's Watch Later subtabs under Shows and Movies.
 // Opt-in rather than strip-on-the-way-out because the watchlist is private
-// planning shown on no public surface (issue #245) — the public route spreads
+// planning shown on no public surface — the public route spreads
 // this payload into its response verbatim, so the buckets must not exist
 // unless a caller explicitly asks for them.
 //
-// `opts.includeHidden` opts IN to shows the user hid (issue #260) — same
+// `opts.includeHidden` opts IN to shows the user hid — same
 // safe-by-default posture: only the owner's authed GET /library passes it, so
 // the public library can never serve a hidden show even if a future caller
 // forgets to think about it. Owner rows then carry a `hidden` flag so the
@@ -108,7 +108,7 @@ export async function libraryPayload(
       .bind(uid),
   ];
   if (opts?.watchlist) {
-    // The Watch Later buckets (issue #257): poster-card rows only, in the
+    // The Watch Later buckets: poster-card rows only, in the
     // same shape and order the retired top-level Watchlist tab got from
     // GET /watchlist. Shows order by when they were saved; user_movies has no
     // added_at (and is WITHOUT ROWID), so movie_id DESC reproduces that
@@ -136,8 +136,8 @@ export async function libraryPayload(
 
   // A show still being watched but with no watch/air activity in the recent
   // window is "stale" — the same recency split Watch Next uses for its
-  // "Haven't watched for a while" bucket. The Library's Watching tab (issue
-  // #253) includes stale shows; the flag rides along for any surface that
+  // "Haven't watched for a while" bucket. The Library's Watching tab
+  // includes stale shows; the flag rides along for any surface that
   // wants the distinction. Only meaningful for the watching state.
   const recentSince = daysAgoInTz(tz, RECENT_WINDOW_DAYS);
 
@@ -151,7 +151,7 @@ export async function libraryPayload(
     const derivedState = deriveState(r);
     const item = {
       ...rest,
-      // The hidden flag (issue #260) ships only on the owner's opted-in
+      // The hidden flag ships only on the owner's opted-in
       // payload — the public rows are pre-filtered to hidden = 0, so the
       // field would only be dead weight (and shape drift) there.
       ...(opts?.includeHidden ? { hidden: !!hidden } : {}),

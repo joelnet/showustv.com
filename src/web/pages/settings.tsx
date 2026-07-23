@@ -16,14 +16,14 @@ interface EmailData {
   pendingEmail: string | null;
 }
 
-// Email verification (issue #13): enter an address, click the emailed link,
+// Email verification: enter an address, click the emailed link,
 // confirm on the landing page, get the check mark. A verified email is what
 // unlocks commenting. Lives on Settings alongside the rest of account
-// identity (issue #55).
+// identity.
 function EmailVerification({ data, reload }: { data: EmailData; reload: () => void }) {
   const verified = data.emailVerified && !!data.email;
   // A pending change takes precedence: seed the input with the pending address
-  // so "Resend link" targets it (issues #56/#57). A settled verified address
+  // so "Resend link" targets it. A settled verified address
   // (no pending change) stays empty — it's never re-validated unless the user
   // opts in via "Change email". Otherwise seed from the current unvalidated one.
   const [email, setEmail] = useState(data.pendingEmail ?? (verified ? "" : data.email ?? ""));
@@ -33,7 +33,7 @@ function EmailVerification({ data, reload }: { data: EmailData; reload: () => vo
   // Only relevant when already verified: the input stays hidden behind a
   // "Change email" affordance so a settled address is never re-validated.
   const [changing, setChanging] = useState(false);
-  // Re-authentication (issue #358): moving an ALREADY-VERIFIED address requires
+  // Re-authentication: moving an ALREADY-VERIFIED address requires
   // the account password, so a hijacked session can't silently change the email.
   // First-time verification (no verified address yet) needs no password.
   const needsPassword = data.emailVerified;
@@ -111,7 +111,7 @@ function EmailVerification({ data, reload }: { data: EmailData; reload: () => vo
   return (
     <>
       {data.pendingEmail ? (
-        // A change is in flight (issue #57): present the NEW address as the one
+        // A change is in flight: present the NEW address as the one
         // awaiting validation — never the old validated address alongside it.
         // The form still lets the user resend to the pending address (or retarget
         // to a different one), so this isn't a dead end. There's already a change
@@ -168,7 +168,7 @@ interface NotificationPrefs {
   pushPublicKey: string | null;
 }
 
-// Notification settings (issues #129/#141): the per-type toggles plus the
+// Notification settings: the per-type toggles plus the
 // Web Push opt-in for this device (shared with the notifications page —
 // components/push-toggle.tsx). Push is layered on top — the in-app type
 // toggles gate whether the notification exists at all, push only changes
@@ -314,7 +314,7 @@ export function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
   // Email lives on the auth User only as a bare `emailVerified` flag, so pull
-  // the address and any pending verification from /profile (issue #55).
+  // the address and any pending verification from /profile.
   const { data: emailData, error: emailError, reload: reloadEmail } = useApi<EmailData>("/profile");
   const { data: notifPrefs, error: notifError, reload: reloadNotifPrefs } = useApi<NotificationPrefs>("/notifications/prefs");
 
@@ -382,7 +382,7 @@ export function SettingsPage() {
         Import from TV Time
       </Link>
 
-      {/* Admin entry point (issue #275), for admins only. Hiding it here is
+      {/* Admin entry point, for admins only. Hiding it here is
           cosmetic — the /admin page redirects non-admins and every
           /api/admin endpoint re-checks is_admin server-side. */}
       {user!.isAdmin && (
@@ -410,7 +410,7 @@ export function SettingsPage() {
           await disablePush().catch(() => {});
           // The server logout needs the network, but the local sign-out must
           // happen regardless — otherwise an offline sign-out leaves the cached
-          // identity behind for the next person to restore on a refresh (#51).
+          // identity behind for the next person to restore on a refresh.
           await post("/auth/logout").catch(() => {});
           // Clear the user AND route home in one transition. react-router's
           // <BrowserRouter> wraps location updates in React.startTransition, so
@@ -418,7 +418,7 @@ export function SettingsPage() {
           // urgent. Committed separately, the urgent user=null render happens
           // while we're still on /settings — <Shell>'s `if (!user)` guard then
           // fires <Navigate to="/login">, which beats the pending "/" transition
-          // and strands sign-out on /login (issue #34). Batching both into the
+          // and strands sign-out on /login. Batching both into the
           // same transition commits user=null and location="/" together, so the
           // logged-out "/" route (Landing/Login) matches and Shell never renders.
           startTransition(() => {

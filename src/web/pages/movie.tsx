@@ -25,7 +25,7 @@ interface MoviePayload {
     genres: string[];
     imdbId: string | null;
   };
-  // Null on the anonymous payload (issue #159) — the server never ships
+  // Null on the anonymous payload — the server never ships
   // user-shaped fields without a session.
   user: {
     state: "watchlist" | "watched" | null;
@@ -55,7 +55,7 @@ export function MoviePage() {
     setFavedOverride(null);
   }, [data]);
 
-  // Canonicalize the address bar to the slugged URL (issue #11) so bare or
+  // Canonicalize the address bar to the slugged URL so bare or
   // stale-slug links become shareable SEO-friendly ones once the title loads.
   useEffect(() => {
     if (!data) return;
@@ -63,7 +63,7 @@ export function MoviePage() {
     if (location.pathname !== canonical) navigate(canonical + location.search, { replace: true });
   }, [data, location, navigate]);
 
-  // Tab title (issue #211) — matches the <title> the Worker bakes into a
+  // Tab title — matches the <title> the Worker bakes into a
   // hard load of this page.
   useDocumentTitle(data?.movie.title);
 
@@ -73,10 +73,10 @@ export function MoviePage() {
 
   const { movie, watch } = data;
   // No profile timezone without a session — the browser's own stands in for
-  // signed-out visitors on shared links (issue #159).
+  // signed-out visitors on shared links.
   const tz = user ? user.tz : Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-  // Signed-out visitors (shared links, issue #159): public catalog content
+  // Signed-out visitors (shared links): public catalog content
   // with a sign-in CTA in place of the tracking controls. The anonymous
   // payload carries no user state to render.
   if (!user) {
@@ -107,8 +107,8 @@ export function MoviePage() {
           </div>
         </div>
 
-        {/* Movie comments read like show comments (issue #271): public on a
-            shared link (issue #159), sign-in required only to post. */}
+        {/* Movie comments read like show comments: public on a
+            shared link, sign-in required only to post. */}
         <Comments targetType="movie" targetId={movie.id} />
       </div>
     );

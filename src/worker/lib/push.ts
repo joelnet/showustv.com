@@ -1,4 +1,4 @@
-// Web Push delivery (issue #129) via @block65/webcrypto-web-push — VAPID
+// Web Push delivery via @block65/webcrypto-web-push — VAPID
 // signing and payload encryption on pure WebCrypto, so it runs on the plain
 // Workers runtime (the usual `web-push` package needs Node built-ins /
 // nodejs_compat). The library builds the encrypted body + headers; we POST
@@ -28,7 +28,7 @@ export type PushData = {
   body: string;
   url: string; // same-origin path the notification click opens
   tag?: string; // same tag replaces the previous notification instead of stacking
-  unread?: number; // recipient's unread count at send time — the SW mirrors it onto the app icon (issue #142)
+  unread?: number; // recipient's unread count at send time — the SW mirrors it onto the app icon
 };
 
 // RFC 8030 Urgency header: "low" lets the device batch delivery (radio

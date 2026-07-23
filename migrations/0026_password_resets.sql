@@ -1,4 +1,4 @@
--- Forgot-password flow (issue #216). Mirrors email_verifications (0007):
+-- Forgot-password flow. Mirrors email_verifications (0007):
 -- one pending reset per user — a new request replaces the row — and only the
 -- token's SHA-256 digest is stored (the raw token exists only in the emailed
 -- link), so a DB leak can't reset anyone's password. Single-use: the worker

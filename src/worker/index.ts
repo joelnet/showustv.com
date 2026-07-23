@@ -24,7 +24,7 @@ import { notifications } from "./routes/notifications";
 
 const app = new Hono<AppEnv>().basePath("/api");
 
-// Admin audit log (issue #15): every mutating request — success or failure,
+// Admin audit log: every mutating request — success or failure,
 // authed or not — lands in activity_log, so troubleshooting can replay what
 // a user did. One middleware instead of per-route calls means new endpoints
 // are covered the day they're added. waitUntil keeps the insert off the
@@ -42,7 +42,7 @@ app.use("*", async (c, next) => {
   }
 });
 
-// CSRF defense-in-depth (issue #360). Runs after the audit middleware so a
+// CSRF defense-in-depth. Runs after the audit middleware so a
 // blocked cross-site / non-JSON mutation is still recorded in activity_log,
 // but before requireAuth and every route handler, so the check gates the whole
 // /api surface (authed or not) from a single place. See lib/csrf.ts.
@@ -57,7 +57,7 @@ function logMutation(c: Context<AppEnv>, status: number): void {
     .catch((e) => console.error("activity_log insert failed", e));
   c.executionCtx.waitUntil(insert);
 
-  // Achievements (issue #19) piggyback on the same hook: any successful
+  // Achievements piggyback on the same hook: any successful
   // mutation by a known user may have unlocked something. Runs in the
   // background; a check that loses a race just re-awards idempotently later.
   const uid = c.get("uid");
@@ -74,7 +74,7 @@ app.get("/healthz", async (c) => {
 app.route("/auth", auth);
 app.route("/public", pub);
 
-// Shareable title pages (issue #159): GET /shows/:id, /movies/:id, and
+// Shareable title pages: GET /shows/:id, /movies/:id, and
 // /episodes/:id accept anonymous requests so shared links open signed-out.
 // The router is GET-only and each handler serves public catalog data,
 // attaching the viewer's own state solely when a valid session cookie is
@@ -83,7 +83,7 @@ app.route("/public", pub);
 // to requireAuth below.
 app.route("/", titles);
 
-// Comment READS (issue #159): listing, load-more, continue-thread, and edit
+// Comment READS: listing, load-more, continue-thread, and edit
 // history accept anonymous requests so a signed-out visitor on a shared title
 // link can read the thread. optionalAuth per route attaches the viewer's own
 // myVote/mine only when signed in. Every comment WRITE (post/edit/vote/
@@ -127,7 +127,7 @@ async function scheduled(_event: ScheduledEvent, env: Env, _ctx: ExecutionContex
     console.error("cron: activity_log prune failed", e);
   }
 
-  // Notifications age out on the same 90-day horizon (issue #129) — read or
+  // Notifications age out on the same 90-day horizon — read or
   // not, nobody scrolls back a season; keeps the per-user scans bounded.
   try {
     const notifBefore = new Date(Date.now() - 90 * 24 * 3600 * 1000).toISOString();
@@ -155,7 +155,7 @@ async function scheduled(_event: ScheduledEvent, env: Env, _ctx: ExecutionContex
     }
   }
 
-  // Origin-language backfill (issue #85): migration 0016 added original_language
+  // Origin-language backfill: migration 0016 added original_language
   // but left pre-existing rows NULL, and the still-airing query above skips
   // Ended/Canceled shows — so ended anime (e.g. Neon Genesis Evangelion) never
   // gets an origin language and stays out of the Anime tab until the ~5-month
@@ -197,8 +197,8 @@ async function scheduled(_event: ScheduledEvent, env: Env, _ctx: ExecutionContex
 
   // TMDB ToS compliance sweep (api-terms-of-use §1.C): data obtained from the
   // TMDB API may not be cached longer than 6 months, commercial or not
-  // (TMDB_CACHE_POLICY_DAYS — shared with the client precache window, issue
-  // #1). The nightly query above only touches followed, still-airing shows —
+  // (TMDB_CACHE_POLICY_DAYS — shared with the client precache window).
+  // The nightly query above only touches followed, still-airing shows —
   // ended shows, unfollowed catalog rows, and movies would otherwise sit in
   // D1 stale forever. Refresh anything untouched for ~5 months (a month of
   // margin inside the cap). Bounded per run; the backlog drains nightly.
@@ -225,7 +225,7 @@ async function scheduled(_event: ScheduledEvent, env: Env, _ctx: ExecutionContex
 
 export default {
   // Every response the Worker returns (RSS feed, social-preview shells, the
-  // whole /api surface) is wrapped with the security headers (issue #356). The
+  // whole /api surface) is wrapped with the security headers. The
   // static-asset server applies the same set to assets it serves without the
   // Worker via src/web/public/_headers, so the SPA shell + JS + CSS + fonts +
   // images all carry them on both paths.
@@ -237,13 +237,13 @@ export default {
 
 function route(req: Request, env: Env, ctx: ExecutionContext): Response | Promise<Response> {
   const pathname = new URL(req.url).pathname;
-  // Per-user RSS feed (issue #330): /u/:username/feed.xml. Checked before
+  // Per-user RSS feed: /u/:username/feed.xml. Checked before
   // the social-preview handler, which also owns /u/* but would treat this
   // sub-path as a non-profile page and fall through to the shell.
   const feed = FEED_PATH_RE.exec(pathname);
   if (feed) return serveUserFeed(req, env, feed[1]);
   // Shareable pages: run_worker_first routes /show/*, /movie/*, /episode/*
-  // (issue #211) and /u/* (issue #219) here so the SPA shell can be served
+  // and /u/* here so the SPA shell can be served
   // with per-title or per-profile OG/Twitter meta. Everything it declines
   // (non-GET, unknown ids, private profiles) falls through to the
   // static-asset server; all other paths are API traffic for the Hono app.

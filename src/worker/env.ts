@@ -1,7 +1,7 @@
 export interface Env {
   DB: D1Database;
   // Static-assets binding (wrangler.jsonc `assets.binding`). Used by the
-  // social-preview path (issue #211) to fetch the SPA shell for meta
+  // social-preview path to fetch the SPA shell for meta
   // rewriting and as the passthrough for title-page requests it won't handle.
   ASSETS: Fetcher;
   TMDB_API_BASE: string;
@@ -16,7 +16,7 @@ export interface Env {
   EMAIL_FROM?: string;
   EMAIL_FROM_NAME?: string;
   DISABLE_EMAIL_SEND?: string; // "true" in .dev.vars only: log mail to console instead of sending
-  // Web Push / VAPID (issue #129). Both keys come from `npx web-push
+  // Web Push / VAPID. Both keys come from `npx web-push
   // generate-vapid-keys`, stored as secrets (wrangler secret put). Until they
   // are set, push delivery no-ops and the app is in-app-notifications-only —
   // see lib/push.ts.
@@ -38,8 +38,8 @@ export interface EmailBinding {
 }
 
 // Set by the auth middleware. tz rides in the session cookie; requireAuth adds
-// a single indexed users read to verify the session_epoch + account state
-// (issue #355), the price of server-side session revocation.
+// a single indexed users read to verify the session_epoch + account state,
+// the price of server-side session revocation.
 export interface Vars {
   uid: number;
   tz: string;

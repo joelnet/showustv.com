@@ -1,4 +1,4 @@
-// Achievement catalog (issue #19). The single source of truth for what
+// Achievement catalog. The single source of truth for what
 // exists: the worker awards against these ids (lib/achievements.ts decides
 // when), the web renders titles/emoji/hints from here, and the DB stores
 // only (user, id, unlocked_at) rows. Adding an achievement = add it here

@@ -1,5 +1,5 @@
 // Icon set — Lucide (https://lucide.dev), stroke-based SVG components imported
-// individually so the bundle only ships the glyphs in use (issue #314). Each
+// individually so the bundle only ships the glyphs in use. Each
 // IconX keeps its former export name and `{ size }` prop, so the ~30 call
 // sites are unchanged; only the underlying glyph (and the lighter stroke look)
 // swapped over from Font Awesome. Brand marks below stay hand-inlined — Lucide
@@ -76,8 +76,8 @@ export const IconClock = make(Clock);
 export const IconFilm = make(Film);
 export const IconTv = make(Tv);
 export const IconStar = make(Star);
-// Solid amber star — the filled overlay for the half-precision star rating
-// (issue #367). Same Star glyph as IconStar so the two align pixel-for-pixel;
+// Solid amber star — the filled overlay for the half-precision star rating.
+// Same Star glyph as IconStar so the two align pixel-for-pixel;
 // only the fill differs, letting a clipped copy paint any fraction of a star.
 export const IconStarFilled = make(Star, "currentColor");
 export const IconUser = make(User);
@@ -92,7 +92,7 @@ export const IconShare = make(Share2);
 export const IconLock = make(Lock);
 export const IconPencil = make(Pencil);
 export const IconHandshake = make(Handshake);
-// Per-show hide toggle (issue #260, #314) — the "incognito" hat-and-glasses
+// Per-show hide toggle — the "incognito" hat-and-glasses
 // glyph, matching the privacy affordance's disguise metaphor.
 export const IconHatGlasses = make(HatGlasses);
 
@@ -110,7 +110,7 @@ export const IconDiscord = ({ size = 17 }: { size?: number }) => (
 );
 
 // IMDb & Rotten Tomatoes brand marks for the detail pages' "Elsewhere"
-// off-site links (issue #292). Bundled as inline SVG — Lucide carries no brand
+// off-site links. Bundled as inline SVG — Lucide carries no brand
 // logos — and drawn in each brand's own colour so they read as logos alongside
 // the streaming-provider logos. Glyph paths from Simple Icons.
 export const IconImdb = ({ size = 30 }: { size?: number }) => (

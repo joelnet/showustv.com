@@ -1,5 +1,5 @@
 // Web Push opt-in checkbox for this device — extracted from the settings page
-// so the notifications page can offer the exact same control (issue #237).
+// so the notifications page can offer the exact same control.
 // State is the device's real subscription, asked from the service worker on
 // mount; enabling/disabling reuses the one flow in notifications.ts.
 //

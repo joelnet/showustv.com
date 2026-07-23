@@ -1,4 +1,4 @@
-// App-level rate limiting for the auth endpoints (issues #214, #207): a D1
+// App-level rate limiting for the auth endpoints: a D1
 // sliding window in the spirit of the comment route's — count recent rows,
 // refuse past the cap — but on a dedicated auth_attempts table, because a
 // failed login or refused signup leaves no natural row behind the way a

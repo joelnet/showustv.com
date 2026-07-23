@@ -1,4 +1,4 @@
--- List comments (issue #98): a per-list on/off toggle plus allowing 'list' as a
+-- List comments: a per-list on/off toggle plus allowing 'list' as a
 -- comment target so lists can reuse the existing threaded-comment system.
 
 -- 1) Per-list toggle, controlled by the list owner. Off by default (opt-in).

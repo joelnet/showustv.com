@@ -358,7 +358,7 @@ export function parseTvTimeZip(data: Uint8Array): ParseResult {
     const base = normHeader((name.split("/").pop() ?? name).replace(/\.(csv|txt)$/i, ""));
 
     // Favorites live in user_*/status files the account-data filter below
-    // would otherwise skip (issue #21) — let those through to column
+    // would otherwise skip — let those through to column
     // classification, which confirms the favorite shape before using them.
     const looksFavorites = /favou?rite|special_status|tv_show_data/.test(base);
     const unsupported = looksFavorites ? undefined : UNSUPPORTED.find(([re]) => re.test(base));

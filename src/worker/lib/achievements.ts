@@ -1,4 +1,4 @@
-// Achievement awarding (issue #19). checkAchievements() recomputes a user's
+// Achievement awarding. checkAchievements recomputes a user's
 // earned set from live data and INSERT OR IGNOREs anything new — no stored
 // progress counters to drift. It runs in the background (waitUntil) after
 // every successful mutation, hooked from worker/index.ts, so unlocks are

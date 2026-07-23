@@ -1,4 +1,4 @@
-// Offline mode (issue #8): a durable mutation queue plus connectivity status.
+// Offline mode: a durable mutation queue plus connectivity status.
 //
 // Watch/unwatch/favorite actions are "queueable": when the network is gone
 // (or a queued backlog is still draining — order matters) api.ts records
@@ -294,7 +294,7 @@ async function flushLoop(): Promise<void> {
   let applied = 0;
   let dropped = 0;
   let retry = false;
-  // Admin sync log (issue #372): announce the replay once (with the queue
+  // Admin sync log: announce the replay once (with the queue
   // depth), then a single closing summary — never one line per op.
   let announced = false;
   try {
@@ -323,7 +323,7 @@ async function flushLoop(): Promise<void> {
           method: op.method,
           credentials: "same-origin",
           // Queued ops are always mutations (isQueueable gates non-GET only), so
-          // declare JSON unconditionally for the server CSRF check (issue #360) —
+          // declare JSON unconditionally for the server CSRF check —
           // including no-body ops like a queued DELETE.
           headers: { "content-type": "application/json" },
           body: op.body ?? undefined,
@@ -383,7 +383,7 @@ export function initOffline() {
   setStatus({ online: navigator.onLine });
   window.addEventListener("online", () => {
     // Distinct from markReachable's "server reachable" log: this is the
-    // browser's network interface coming back (issue #372) — logged here so
+    // browser's network interface coming back — logged here so
     // toggling connectivity shows in the admin sync log even with no queue.
     logSync("Network online");
     setStatus({ online: true });

@@ -1,4 +1,4 @@
-// Background-activity store (issue #204): counts in-flight background work —
+// Background-activity store: counts in-flight background work —
 // the cache-warming passes in precache.ts today — so the header can show a
 // thin progress sweep while the app is downloading data to the local cache.
 // Same useSyncExternalStore pattern as offline.ts / pwa.ts. The offline

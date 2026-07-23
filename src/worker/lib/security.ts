@@ -1,4 +1,4 @@
-// Security response headers (issue #356). Applied in two places that must stay
+// Security response headers. Applied in two places that must stay
 // in lockstep:
 //   1. This module — wraps every response the Worker itself returns (the Hono
 //      /api surface, the per-title/profile social-preview shells, and the RSS

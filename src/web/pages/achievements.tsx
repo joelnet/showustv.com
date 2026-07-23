@@ -1,9 +1,9 @@
-// Dedicated achievements pages (issue #201). The profile pages used to
+// Dedicated achievements pages. The profile pages used to
 // render the whole grid inline, which crowded everything below it — they now
 // show a compact "Achievements (18/31)" link and the grid lives here.
 //
 // Two flavors share this layout, both living at /u/:username/achievements
-// (the old /profile/achievements redirects there, issue #220 — app.tsx picks
+// (the old /profile/achievements redirects there — app.tsx picks
 // which one renders):
 //   Your own page — when the name is yours. Shows the full catalog as a
 //     checklist: earned entries lit (hover for the unlock date), locked ones
@@ -59,7 +59,7 @@ function AchPageSkeleton() {
 }
 
 // The /profile payload — only the fields this page reads. Fetching the same
-// path as the profile page shares its in-memory cache entry (issue #154), so
+// path as the profile page shares its in-memory cache entry, so
 // following the profile's link paints instantly.
 interface OwnProfile {
   achievements: { id: string; unlockedAt: string }[];
@@ -95,8 +95,8 @@ export function MyAchievementsPage() {
   );
 }
 
-// The /public/profile payload — the server decides what this viewer may see
-// (issues #158/#184): the full profile, a private teaser (no `stats`), or a
+// The /public/profile payload — the server decides what this viewer may see:
+// the full profile, a private teaser (no `stats`), or a
 // 404. Same endpoint as the public profile page, so the cache entry is
 // shared and the click over from there paints instantly.
 interface PublicProfilePayload {
@@ -112,7 +112,7 @@ export function PublicAchievementsPage() {
   const { data, loading, error } = useApi<PublicProfilePayload>(path);
 
   // Same cache hygiene as the profile page: a private profile served in full
-  // is no-store on the wire (issues #158/#184) — drop the in-memory copy too,
+  // is no-store on the wire — drop the in-memory copy too,
   // so revoked access can't warm-paint stale private data here later.
   useEffect(() => {
     if (data?.private && data.stats) dropCached(path);

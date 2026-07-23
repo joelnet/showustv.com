@@ -1,4 +1,4 @@
-// Notifications (issue #129): the list behind the header bell, the unread
+// Notifications: the list behind the header bell, the unread
 // count the bell badge polls, per-user type preferences, and Web Push
 // subscription registration. Mounted behind requireAuth — every query is
 // scoped to the signed-in user.
@@ -29,17 +29,17 @@ notifications.get("/", async (c) => {
   // Episode details (season/number/title) join in live off n.episode_id — the
   // read model stores ids and resolves display text at read time, so a later
   // episode-title fix shows through and a since-deleted episode degrades to the
-  // show-only text (issue #129 follow-up).
+  // show-only text.
   const { results } = await c.env.DB.prepare(
     `SELECT n.id, n.type, n.target_type, n.target_id, n.episode_id, n.read_at, n.created_at,
             u.username AS actor,
-            -- List rows (issue #331) resolve their name the same way — live at
+            -- List rows resolve their name the same way — live at
             -- read time, so a renamed list shows through and a since-deleted one
             -- degrades to "a list". The URL uses the actor (the list owner).
             COALESCE(s.title, m.title, cl.name) AS title,
             COALESCE(s.poster_url, m.poster_url) AS poster,
             e.season_number AS ep_season, e.number AS ep_number, e.title AS ep_title,
-            -- Follow rows (issue #273) carry whether the recipient follows the
+            -- Follow rows carry whether the recipient follows the
             -- actor NOW, computed live at read time — so the Follow back button
             -- disappears the moment it's true, however the follow happened
             -- (this button, their profile, the following page). NULL for every

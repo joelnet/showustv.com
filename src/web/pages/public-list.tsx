@@ -2,7 +2,7 @@
 // link) sees this at /u/:username/lists/:id-slug when the owner has made the
 // list public. Renders inside PublicShell (signed-out) or the app Shell
 // (signed-in), so it returns just the content, no chrome of its own — the
-// owner gets the editable ListDetailPage at the same URL instead (issue #319).
+// owner gets the editable ListDetailPage at the same URL instead.
 import { useEffect } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useApi } from "../hooks";
@@ -52,7 +52,7 @@ export function PublicListPage() {
         </div>
       ) : (
         <>
-          {/* Share sits right of the name, icon-only (issue #319), mirroring
+          {/* Share sits right of the name, icon-only, mirroring
               the public profile header. This page only renders for public
               lists (the server 404s private ones), so it's always safe. */}
           <div className="list-title-wrap">

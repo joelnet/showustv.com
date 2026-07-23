@@ -1,4 +1,4 @@
--- Shadow ban (issue #18). A banned user's comments are invisible to
+-- Shadow ban. A banned user's comments are invisible to
 -- everyone else — rendered exactly like deleted ones ([deleted] placeholder
 -- where non-banned replies exist, pruned otherwise) — while the banned user
 -- keeps seeing their own posts normally, so nothing tips them off. Admins

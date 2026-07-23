@@ -15,7 +15,7 @@ async function ownList(c: any, listId: number): Promise<boolean> {
 
 lists.get("/", async (c) => {
   const uid = c.get("uid");
-  // Optional membership flag for the "Add to list" picker (issue #318): when a
+  // Optional membership flag for the "Add to list" picker: when a
   // title (?type=show|movie&id=…) is passed, each list also reports whether it
   // already contains that title, so the picker can render a checked/unchecked
   // checkbox per list. Without the params this is the plain Lists-page listing.
@@ -79,8 +79,8 @@ lists.get("/:id", async (c) => {
       "SELECT id, name, kind, is_shared, profile_position, preamble, comments_enabled FROM custom_lists WHERE id = ?1"
     ).bind(id),
     // `overview` is served so the owner's cards read like the visitor's shared
-    // view (issue #325); `genres_json`/`original_language` still feed the
-    // favorites Shows/Movies/Anime split (issue #103).
+    // view; `genres_json`/`original_language` still feed the
+    // favorites Shows/Movies/Anime split.
     c.env.DB.prepare(
       `SELECT li.target_type AS type, li.target_id AS id, li.position,
               COALESCE(s.title, m.title) AS title, COALESCE(s.poster_url, m.poster_url) AS poster,
@@ -92,7 +92,7 @@ lists.get("/:id", async (c) => {
        LEFT JOIN movies m ON li.target_type = 'movie' AND m.tmdb_id = li.target_id
        WHERE li.list_id = ?1 ORDER BY li.position`
     ).bind(id),
-    // The owner's own top-level comment per item (issue #322), the same query
+    // The owner's own top-level comment per item, the same query
     // the public share uses (shared in lib/list-comments so they can't drift).
     // The author is always the list owner (this route is owner-only), so
     // there's no shadow-ban gating to do: an owner always sees their own.
@@ -118,7 +118,7 @@ lists.put("/:id", async (c) => {
   return c.json({ ok: true });
 });
 
-// Optional preamble (issue #94): a short note the owner writes about the list.
+// Optional preamble: a short note the owner writes about the list.
 // Separate from rename so it can be edited on its own; empty trims to NULL.
 lists.put("/:id/preamble", async (c) => {
   const id = Number(c.req.param("id"));
@@ -129,7 +129,7 @@ lists.put("/:id/preamble", async (c) => {
   return c.json({ ok: true });
 });
 
-// Per-list comments on/off toggle, owner-controlled (issue #98). Comments only
+// Per-list comments on/off toggle, owner-controlled. Comments only
 // surface on shared lists; the flag is stored regardless so it's remembered.
 lists.put("/:id/comments", async (c) => {
   const id = Number(c.req.param("id"));
@@ -150,7 +150,7 @@ lists.put("/:id/visibility", async (c) => {
     // when the list was already public, so the notification below fires only on
     // the actual private→public transition. RETURNING profile_position then
     // tells us whether the list is now BOTH public AND pinned — the combined
-    // state that fans out a list_created notification (issue #331). This is
+    // state that fans out a list_created notification. This is
     // scenario B ("list is on the profile, then made public").
     const row = await c.env.DB.prepare(
       "UPDATE custom_lists SET is_shared = 1 WHERE id = ?1 AND is_shared = 0 RETURNING profile_position"
@@ -163,7 +163,7 @@ lists.put("/:id/visibility", async (c) => {
       );
     }
   } else {
-    // Making a list private also unpins it from the profile (issue #33): a
+    // Making a list private also unpins it from the profile: a
     // private list can never appear there, so the two states stay consistent
     // even if the client forgets to warn.
     await c.env.DB.prepare("UPDATE custom_lists SET is_shared = 0, profile_position = NULL WHERE id = ?1")
@@ -175,9 +175,9 @@ lists.put("/:id/visibility", async (c) => {
 
 lists.delete("/:id", async (c) => {
   const id = Number(c.req.param("id"));
-  // The Favorites list is a system/auto-list (kind='favorites', issue #266)
+  // The Favorites list is a system/auto-list (kind='favorites')
   // created when a user favorites items — it isn't user-managed and must never
-  // be deleted (issue #351). Read the kind alongside ownership so a direct API
+  // be deleted. Read the kind alongside ownership so a direct API
   // call can't delete it either; the client also hides its Danger Zone.
   const list = await c.env.DB.prepare("SELECT kind FROM custom_lists WHERE id = ?1 AND user_id = ?2")
     .bind(id, c.get("uid"))
@@ -216,8 +216,8 @@ lists.post("/:id/items", async (c) => {
   )
     .bind(id, type, targetId)
     .first();
-  // Notify followers (issue #266), off the response path — same hook as the
-  // heart routes in library.ts; the fan-out skips hidden shows (#260) and
+  // Notify followers, off the response path — same hook as the
+  // heart routes in library.ts; the fan-out skips hidden shows and
   // dedupes per actor/title per day.
   if (created && list.kind === "favorites") {
     c.executionCtx.waitUntil(

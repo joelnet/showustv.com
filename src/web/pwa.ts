@@ -1,5 +1,5 @@
 // PWA plumbing: service-worker registration, beforeinstallprompt capture,
-// and new-version detection (issue #172). Modeled on open.raweditor.io's
+// and new-version detection. Modeled on open.raweditor.io's
 // src/pwa.js, adapted to React — events are captured once at boot (they can
 // fire before any component mounts) and components subscribe via
 // useInstallPrompt() / useUpdateReady().
@@ -32,7 +32,7 @@ let deferredPrompt: BeforeInstallPromptEvent | null = null;
 const listeners = new Set<() => void>();
 const notify = () => listeners.forEach((l) => l());
 
-// ---------- New-version detection (issue #172) ----------
+// ---------- New-version detection ----------
 // Every deploy changes the sw.js bytes (build-stamped, see vite.config.ts),
 // so the browser installs the new worker, which parks in `waiting` instead
 // of activating (install no longer calls skipWaiting — see sw.js). We watch

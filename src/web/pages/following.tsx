@@ -1,7 +1,6 @@
-// Following (issue #39): follow people by username, and see who follows you.
+// Following: follow people by username, and see who follows you.
 // Instagram-style asymmetric follows — no accept step, and following isn't
-// mutual. Pairs that DO follow each other surface in a Mutuals section
-// (issue #130).
+// mutual. Pairs that DO follow each other surface in a Mutuals section.
 //
 // Social mutations are deliberately NOT offline-queueable (api.ts only queues
 // watch/favorite ops) — when the network is gone they fail fast and the error
@@ -109,7 +108,7 @@ export function FollowingPage() {
       </form>
       {note && (note.isError ? <ErrorNote message={note.text} /> : <p className="friend-note">{note.text} ✓</p>)}
 
-      {/* Social Graph (issue #284): the taste graph + list renders inline at
+      {/* Social Graph: the taste graph + list renders inline at
           the top, right after the follow form. The section owns its own fetch
           and handles the no-mutuals / no-shared-titles cases with its own empty
           state; the Suspense fallback covers the one-time chunk load. */}
@@ -124,7 +123,7 @@ export function FollowingPage() {
         <SocialGraphSection />
       </Suspense>
 
-      {/* Mutuals (issue #130): people you follow who follow you back. The
+      {/* Mutuals: people you follow who follow you back. The
           section hides entirely when there are none rather than adding a third
           empty block to a fresh account. Rows are plain links; unfollow lives
           in the Following list below. */}

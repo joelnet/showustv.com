@@ -1,7 +1,7 @@
 // HMAC-SHA256-signed session cookie. The signature is verified with zero
 // storage ops, but the cookie is no longer blindly trusted: it carries a
 // per-user session_epoch that requireAuth checks against the DB so a session
-// can be revoked server-side before its 30-day expiry (issue #355). Payload
+// can be revoked server-side before its 30-day expiry. Payload
 // carries uid + tz + epoch; changing tz in settings reissues the cookie.
 
 import type { Context, Next } from "hono";
@@ -14,8 +14,8 @@ const TTL_SECONDS = 30 * 24 * 3600;
 interface SessionPayload {
   u: number;
   tz: string;
-  // Per-user revocation counter (issue #355). Absent on cookies minted before
-  // #355 — readSession leaves it undefined and the DB check treats that as 0,
+  // Per-user revocation counter. Absent on cookies minted before
+  // session epochs existed — readSession leaves it undefined and the DB check treats that as 0,
   // matching the users.session_epoch column default, so no mass logout on
   // deploy. Present (as `e`) on every cookie minted since.
   e?: number;
@@ -41,7 +41,7 @@ async function sign(secret: string, data: string): Promise<Uint8Array> {
 }
 
 export async function issueSession(c: Context<AppEnv>, uid: number, tz: string): Promise<void> {
-  // Embed the user's CURRENT session_epoch (issue #355) so the cookie is
+  // Embed the user's CURRENT session_epoch so the cookie is
   // revocable: bumping users.session_epoch invalidates every cookie minted
   // before the bump. The authoritative value is read here rather than trusted
   // from the caller, so a freshly minted cookie always carries the live epoch —
@@ -93,7 +93,7 @@ export async function readSession(c: Context<AppEnv>): Promise<SessionPayload | 
   return payload;
 }
 
-// Server-side session authority (issue #355). A cryptographically valid cookie
+// Server-side session authority. A cryptographically valid cookie
 // is honored only while BOTH hold:
 //   (a) the account still exists and is not soft-deleted/disabled
 //       (deleted_at IS NULL) — so a banned/deleted account's cookie stops
@@ -116,7 +116,7 @@ export async function sessionAccountValid(
   return (payload.e ?? 0) === row.session_epoch;
 }
 
-// readSession + server-side authority (issue #355) in one call, for public
+// readSession + server-side authority in one call, for public
 // routes that compute "viewer" state directly (routes/public.ts) rather than
 // through requireAuth/optionalAuth. Returns the payload only when the account
 // is live and the cookie's epoch is current, so a revoked or soft-deleted
@@ -131,7 +131,7 @@ export async function readValidSession(c: Context<AppEnv>): Promise<SessionPaylo
 export async function requireAuth(c: Context<AppEnv>, next: Next) {
   const session = await readSession(c);
   if (!session) return c.json({ error: "unauthorized" }, 401);
-  // Enforce server-side revocation + account state (issue #355). A revoked or
+  // Enforce server-side revocation + account state. A revoked or
   // deleted account's cookie is cleared so the browser stops resending a dead
   // credential, then rejected.
   if (!(await sessionAccountValid(c.env.DB, session))) {
@@ -143,14 +143,14 @@ export async function requireAuth(c: Context<AppEnv>, next: Next) {
   await next();
 }
 
-// Optional authentication for explicitly public reads (issue #159): attaches
+// Optional authentication for explicitly public reads: attaches
 // uid/tz when a valid session cookie is present so the handler can include
 // the viewer's own state, and lets anonymous requests through with neither
 // set (handlers branch on `c.get("uid") ?? null`). Never use this on a
 // mutation or a user-scoped read — those stay behind requireAuth.
 export async function optionalAuth(c: Context<AppEnv>, next: Next) {
   const session = await readSession(c);
-  // Same server-side authority as requireAuth (issue #355): a revoked or
+  // Same server-side authority as requireAuth: a revoked or
   // deleted session must not be treated as "the viewer" even on a public read.
   // Never 401s — a stale cookie just falls through as anonymous.
   if (session && (await sessionAccountValid(c.env.DB, session))) {

@@ -1,7 +1,7 @@
-// Shared list presentation (issue #325): the owner's editable list and a
+// Shared list presentation: the owner's editable list and a
 // visitor's read-only share once diverged — the owner saw bare numbered rows,
-// visitors saw rich cards with descriptions and the owner's per-item comment
-// (issue #322). They now render the SAME content through these components, so
+// visitors saw rich cards with descriptions and the owner's per-item comment.
+// They now render the SAME content through these components, so
 // the owner sees exactly what a visitor sees; the only difference is that the
 // owner view layers its controls on top (reorder/remove per item here, plus the
 // header management buttons in lists.tsx). Both routes feed the same normalized
@@ -18,7 +18,7 @@ export interface ListViewItem {
   title: string;
   poster: string | null;
   overview: string | null;
-  // The list owner's own top-level comment on this title (issue #322), if any:
+  // The list owner's own top-level comment on this title, if any:
   // shown read-only and linking to the title page where the comment lives.
   ownerComment: { body: string; createdAt: string; editedAt: string | null } | null;
 }
@@ -86,10 +86,10 @@ function ListItemCard({
           </button>
         </div>
       )}
-      {/* The owner's own top-level comment on this title (issue #322), read-only:
+      {/* The owner's own top-level comment on this title, read-only:
           no composer, vote, or reply — the whole block just links to the title
           page where the comment lives and where a reader can actually join the
-          thread. It renders full-width below the poster/content (issue #345),
+          thread. It renders full-width below the poster/content,
           spanning the whole card rather than being boxed into the body column. */}
       {item.ownerComment && (
         <Link to={to} className="pub-list-comment" title={`Read ${username}’s comment on ${item.title}`}>
@@ -133,16 +133,16 @@ export function ListItems({
 export function ListByline({ username, count }: { username: string; count: number }) {
   return (
     <p className="public-byline">
-      {/* Always linked: a private profile renders its teaser now (issue #158)
+      {/* Always linked: a private profile renders its teaser now
           instead of 404ing, so the link is safe. */}
       A list by <Link to={`/u/${username}`}>{username}</Link> · {count} {count === 1 ? "title" : "titles"}
     </p>
   );
 }
 
-// The list comments section (issue #98), unified across both routes. The list
+// The list comments section, unified across both routes. The list
 // owner controls visibility from an icon-only eye toggle right here by the
-// comments (issue #336): eye = comments on (visitors can read and post),
+// comments: eye = comments on (visitors can read and post),
 // eye-off = comments hidden. When off, only the owner still sees this section —
 // with the composer disabled — so they can turn it back on; visitors see
 // nothing at all. When on, the usual gating applies: comments surface on a
@@ -161,14 +161,14 @@ export function ListComments({
   commentsEnabled: boolean;
   isShared: boolean;
   viewerSignedIn: boolean;
-  // Owner-only affordances (issue #336): the eye toggle and the always-visible
+  // Owner-only affordances: the eye toggle and the always-visible
   // section. Omitted on the public route, which is never the owner.
   isOwner?: boolean;
   commentsBusy?: boolean;
   onToggleComments?: () => void;
 }) {
   // Visitors (non-owners): the section only exists when comments are on; off
-  // hides it from them entirely (issue #336). The server enforces this too —
+  // hides it from them entirely. The server enforces this too —
   // /comments/list/:id returns closed for a comments-off (or private) list.
   if (!isOwner) {
     if (!commentsEnabled) return null;
@@ -213,7 +213,7 @@ export function ListComments({
           <p className="settings-hint list-comments-note">
             Comments are hidden. Only you can see this — turn them on with the eye so visitors can read and post.
           </p>
-          {/* Inputs disabled while off (issue #336): the composer shows but is
+          {/* Inputs disabled while off: the composer shows but is
               inert, a preview of what visitors get once comments are on. */}
           <form className="comment-composer" aria-hidden="true" onSubmit={(e) => e.preventDefault()}>
             <textarea rows={3} placeholder="Comments are off" disabled />

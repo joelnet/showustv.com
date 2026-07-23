@@ -1,4 +1,4 @@
--- Auth rate limiting (issues #214, #207): one row per counted auth event —
+-- Auth rate limiting: one row per counted auth event —
 -- a failed login or a register attempt — keyed by a composite bucket string
 -- ("login:ip:<addr>", "login:id:<identifier>", "register:ip:<addr>",
 -- "register:email:<email>"). The worker counts rows newer than the window to

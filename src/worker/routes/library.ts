@@ -6,7 +6,7 @@ import { nowIso, todayInTz, daysAgoInTz } from "../lib/dates";
 import { airedCond } from "../lib/aired";
 import { notifyFollowersOfFavorite, notifyFollowersOfWatch } from "../lib/notifications";
 // The library payload and its derivation helpers live in lib/library.ts now
-// (issue #245) — the public library endpoint shares them, stats.ts-style.
+// — the public library endpoint shares them, stats.ts-style.
 import { libraryPayload, recentlyActive } from "../lib/library";
 import { RECENT_WINDOW_DAYS, STORED_SHOW_STATES } from "../../shared/constants";
 
@@ -26,7 +26,7 @@ function watchedAtFrom(body: any): string | null {
 
 // ---------- Home: Watch Next ----------
 
-// "From People You Follow" (issue #128) looks back this far for followees'
+// "From People You Follow" looks back this far for followees'
 // episode watches — the same 30-day window the activity feed uses, so the two
 // social surfaces agree on what counts as recent.
 const FOLLOWING_WINDOW_MS = 30 * 24 * 3600 * 1000;
@@ -80,7 +80,7 @@ library.get("/home", async (c) => {
   // Bucket the queue into Continue Watching / Not Started / Haven't Watched
   // in a While by whether the show has been started and is recently active.
   // episodeId names the exact next-up episode the tile is showing, so the
-  // client's mark-watched button (issue #186) can hit /episodes/:id/watch
+  // client's mark-watched button can hit /episodes/:id/watch
   // for precisely that episode.
   const showTile = (r: any) => ({
     kind: "show" as const,
@@ -132,26 +132,26 @@ library.get("/home", async (c) => {
     number: r.number,
     episodeTitle: r.episode_title,
     // Date-only 'YYYY-MM-DD'; the query guarantees it exists and is in the
-    // future. Feeds the tile's date pill (issue #175).
+    // future. Feeds the tile's date pill.
     airDate: r.air_date,
   }));
 
   // History: recently watched episodes and movies, newest first. The batch
-  // also carries the "From People You Follow" query (issue #128): shows the
+  // also carries the "From People You Follow" query: shows the
   // people you follow watched recently, one tile per show attributed to the
   // most recent watcher (a popular show is one tile, not one per follower).
   // Each tile also carries the exact episode behind that winning watch so the
-  // client can name it and deep-link to it (issue #128 follow-up). Tiebreaks
+  // client can name it and deep-link to it. Tiebreaks
   // preserve the section's original attribution: watchers tied on timestamp
   // still resolve by username first; only then, within the credited watcher's
   // rows (a bulk mark-watched stamps many episodes with one timestamp), does
   // the furthest episode win — the followee's actual progress point.
   //
-  // Movies join the same rail (issue #353): a parallel query, deduped one tile
+  // Movies join the same rail: a parallel query, deduped one tile
   // per movie by most-recent watcher, is merged with the episode tiles below
   // and sorted by watch time within the shared cap — the same episode+movie
   // merge the History rail already does. user_movies carries no hidden flag
-  // (the issue-#260 privacy toggle is show-only, and the watch-notification
+  // (the hidden-show privacy toggle is show-only, and the watch-notification
   // fan-out likewise hidden-filters shows only), so movies need no hidden
   // exclusion — just the same followee-visibility gate and follow window.
   const followSince = new Date(Date.now() - FOLLOWING_WINDOW_MS).toISOString();
@@ -172,10 +172,10 @@ library.get("/home", async (c) => {
     ).bind(uid),
     c.env.DB.prepare(
       `WITH following(fid) AS (
-         -- Only followees whose activity this viewer may see (issue #205),
+         -- Only followees whose activity this viewer may see,
          -- mirroring social.ts's FOLLOWING_CTE: profile public or mutual — a
          -- self-granted follow alone unlocks nothing. The separate
-         -- activity_public gate was dropped (issue #308): #249 removed the eye
+         -- activity_public gate was dropped: an earlier change removed the eye
          -- toggle that set that flag, freezing it, so gating on it permanently
          -- hid the activity of any user whose flag was 0 from their followers,
          -- with no way to turn it back on.
@@ -196,7 +196,7 @@ library.get("/home", async (c) => {
          JOIN users u ON u.id = ue.user_id AND u.deleted_at IS NULL
          JOIN episodes e ON e.id = ue.episode_id
          WHERE (ue.watched_at >= ?2 OR ue.last_rewatched_at >= ?2) AND e.season_number > 0
-           -- A followee's hidden show (issue #260) is private activity: keep
+           -- A followee's hidden show is private activity: keep
            -- it out of the rail exactly like the activity feed does.
            AND NOT EXISTS (SELECT 1 FROM user_shows h
                            WHERE h.user_id = ue.user_id AND h.show_id = e.show_id AND h.hidden = 1)
@@ -214,8 +214,8 @@ library.get("/home", async (c) => {
     ).bind(uid, followSince),
     c.env.DB.prepare(
       `WITH following(fid) AS (
-         -- The same followee-visibility gate as the episode rail above (issue
-         -- #205): profile public or mutual, post-#308 (no activity_public).
+         -- The same followee-visibility gate as the episode rail above:
+         -- profile public or mutual (no activity_public gate).
          SELECT f.followee_id FROM follows f
          JOIN users fu ON fu.id = f.followee_id
          WHERE f.follower_id = ?1 AND f.state = 'active'
@@ -268,7 +268,7 @@ library.get("/home", async (c) => {
     .slice(0, 30);
 
   // Episode and movie tiles share one rail, newest first, capped as the
-  // section always was (issue #353) — the same merge/sort/slice the History
+  // section always was — the same merge/sort/slice the History
   // rail uses. Movie tiles carry no episode fields, so the client's generic
   // Tile links them to /movie/:id and still shows "Watched by <user>".
   const friendsWatched: any[] = [
@@ -306,8 +306,8 @@ library.get("/home", async (c) => {
 // ---------- Library & watchlist ----------
 
 library.get("/library", async (c) => {
-  // The owner's own library carries the Watch Later buckets (issue #257) AND
-  // their hidden shows (issue #260) — both opt-in, so the public route (which
+  // The owner's own library carries the Watch Later buckets AND
+  // their hidden shows — both opt-in, so the public route (which
   // calls libraryPayload without either flag) can never serve the private
   // watchlist or a hidden show. Hidden shows must stay visible HERE so the
   // owner can find and unhide them without losing progress.
@@ -315,7 +315,7 @@ library.get("/library", async (c) => {
 });
 
 // No Library page fetches this anymore — Watch Later moved into the Shows and
-// Movies subtabs off the /library payload (issue #257). It stays for the
+// Movies subtabs off the /library payload. It stays for the
 // offline precache pass (precache.ts warms watchlist titles from it) and for
 // stale service-worker-cached clients still rendering the old Watchlist tab.
 library.get("/watchlist", async (c) => {
@@ -341,7 +341,7 @@ library.put("/shows/:id/follow", async (c) => {
   const id = intParam(c.req.param("id"));
   if (!id) return c.json({ error: "bad id" }, 400);
   await ensureShow(c.env, id);
-  // 'hidden' here is the issue-#260 tombstone (a hidden show that was
+  // 'hidden' here is the hidden-show tombstone (a hidden show that was
   // unfollowed): following it again resurrects it as watching — the hidden
   // FLAG rides along untouched, so the privacy choice stays sticky.
   await c.env.DB.prepare(
@@ -360,15 +360,15 @@ library.delete("/shows/:id/follow", async (c) => {
   if (!id) return c.json({ error: "bad id" }, 400);
   const uid = c.get("uid");
 
-  // Unfollowing a show you're partway through ABANDONS it (issue #314): the
+  // Unfollowing a show you're partway through ABANDONS it: the
   // standalone "Abandon show" button is gone, so this endpoint now carries that
   // flow. "Partially watched" is the exact rule the old PUT /shows/:id/state
   // abandon guard used and libraryPayload's deriveState uses — some aired
   // regular-season episodes watched, but not caught up — counted in the viewer's
   // timezone. Such a show drops into the 'stopped' state (staying in the
-  // Library's Abandoned tab, seasons collapsed per #302) instead of leaving the
+  // Library's Abandoned tab, seasons collapsed) instead of leaving the
   // library. Hidden rows are excluded — they keep the tombstone path below so
-  // the issue-#260 privacy flag survives the unfollow.
+  // the hidden-show privacy flag survives the unfollow.
   const row = await c.env.DB.prepare(
     `SELECT
        us.hidden AS hidden,
@@ -391,7 +391,7 @@ library.delete("/shows/:id/follow", async (c) => {
   }
 
   // Otherwise: plain unfollow, which keeps watch history (user_episodes) — TV
-  // Time behavior. A HIDDEN show (issue #260) can't just drop its row: the
+  // Time behavior. A HIDDEN show can't just drop its row: the
   // privacy flag lives on it, and the history that stays behind would reappear
   // on the public profile. Tombstone it instead — the legacy state 'hidden'
   // every read surface already treats as not-tracked — so unfollow works and the
@@ -406,7 +406,7 @@ library.delete("/shows/:id/follow", async (c) => {
   return c.json({ ok: true });
 });
 
-// Full removal (issue #20): for accidental adds — wipe every trace of the
+// Full removal: for accidental adds — wipe every trace of the
 // show from this user's account, not just the follow. Unlike unfollow, this
 // deletes watch history, ratings, and favorites/list memberships too.
 library.delete("/shows/:id/remove", async (c) => {
@@ -440,7 +440,7 @@ library.put("/shows/:id/state", async (c) => {
   const state = String(body.state ?? "");
   if (!id || !(STORED_SHOW_STATES as readonly string[]).includes(state)) return c.json({ error: "bad request" }, 400);
   if (state === "stopped") {
-    // Abandoning only makes sense mid-show (issue #258): an unwatched show
+    // Abandoning only makes sense mid-show: an unwatched show
     // should be removed instead, and one with every aired episode watched is
     // finished/caught up, not abandoned. Same counting as libraryPayload's
     // deriveState — regular seasons only (season_number > 0), aired per the
@@ -467,7 +467,7 @@ library.put("/shows/:id/state", async (c) => {
   return c.json({ ok: true });
 });
 
-// Per-user privacy flag (issue #260): hide a show from every outward surface
+// Per-user privacy flag: hide a show from every outward surface
 // — public profile history rows, public library, activity feed, also-watching,
 // the followee rail, and notifications about it — while it stays fully intact
 // (state, progress, history) in the owner's own library.
@@ -505,7 +505,7 @@ library.put("/shows/:id/watchlist", async (c) => {
   const id = intParam(c.req.param("id"));
   if (!id) return c.json({ error: "bad id" }, 400);
   await ensureShow(c.env, id);
-  // A tombstone (state 'hidden', issue #260 — a hidden show that was
+  // A tombstone (state 'hidden' — a hidden show that was
   // unfollowed) resurrects as watch-later; any other existing row is
   // untouched, as before. The hidden flag rides along either way.
   await c.env.DB.prepare(
@@ -523,7 +523,7 @@ library.delete("/shows/:id/watchlist", async (c) => {
   const id = intParam(c.req.param("id"));
   if (!id) return c.json({ error: "bad id" }, 400);
   const uid = c.get("uid");
-  // Same tombstone rule as unfollow (issue #260): a hidden watch-later row
+  // Same tombstone rule as unfollow: a hidden watch-later row
   // keeps its privacy flag on a tombstone instead of vanishing with it.
   await c.env.DB.batch([
     c.env.DB.prepare("DELETE FROM user_shows WHERE user_id = ?1 AND show_id = ?2 AND state = 'watch_later' AND hidden = 0").bind(uid, id),
@@ -570,9 +570,9 @@ library.put("/shows/:id/favorite", async (c) => {
   )
     .bind(listId, id)
     .first();
-  // Notify followers (issue #266), off the response path — the same hook
+  // Notify followers, off the response path — the same hook
   // shape as the watch routes. The fan-out itself skips shows this user hid
-  // (#260) and dedupes per actor/title per day, so an unfavorite/refavorite
+  // and dedupes per actor/title per day, so an unfavorite/refavorite
   // flap stays one notification.
   if (created) {
     c.executionCtx.waitUntil(
@@ -660,7 +660,7 @@ library.post("/episodes/:id/watch", async (c) => {
     ).bind(uid, id),
     // Re-marking a watched episode counts a rewatch — EXCEPT an exact replay
     // of a mark we already recorded (identical watched_at), which is a no-op.
-    // The offline queue (issue #183) stamps watched_at at enqueue time and
+    // The offline queue stamps watched_at at enqueue time and
     // can retry an op whose response was lost (tab died / 5xx after apply),
     // so the same timestamp arriving twice must not inflate play_count.
     // Genuine rewatches always carry a fresh "now" (or distinct backdate).
@@ -673,7 +673,7 @@ library.post("/episodes/:id/watch", async (c) => {
     ).bind(uid, id, watchedAt),
   ]);
 
-  // Notify followers (issue #129), off the response path. Only this
+  // Notify followers, off the response path. Only this
   // one-episode "I just watched this" action notifies — the bulk paths
   // (season / watch-all / watch-until) are history backfill, and pinging
   // every follower because someone imported five old seasons is noise.
@@ -682,7 +682,7 @@ library.post("/episodes/:id/watch", async (c) => {
     notifyFollowersOfWatch(c.env, uid, "show", ep.show_id, id).catch((e) => console.error("notify failed", e))
   );
 
-  // Confetti trigger (issue #53): this watch just caught the user up when it
+  // Confetti trigger: this watch just caught the user up when it
   // was a *fresh* watch (not a rewatch) of an aired, regular-season episode
   // and no aired regular-season episode is left unwatched for the show. The
   // freshness + aired guards keep it from firing on rewatches or on shows that
@@ -790,7 +790,7 @@ library.post("/movies/:id/watch", async (c) => {
   const watchedAt = watchedAtFrom(await c.req.json().catch(() => ({})));
   if (!id || !watchedAt) return c.json({ error: "bad request" }, 400);
   await ensureMovie(c.env, id);
-  // The WHERE mirrors the episode-watch upsert (issue #183): an exact replay
+  // The WHERE mirrors the episode-watch upsert: an exact replay
   // of an already-recorded mark (same watched_at, already watched) is a
   // no-op so offline-queue retries can't inflate play_count; genuine
   // rewatches carry a fresh timestamp and still count.
@@ -802,7 +802,7 @@ library.post("/movies/:id/watch", async (c) => {
   )
     .bind(c.get("uid"), id, watchedAt)
     .run();
-  // Notify followers (issue #129), off the response path — see the episode
+  // Notify followers, off the response path — see the episode
   // watch route above for the reasoning.
   c.executionCtx.waitUntil(
     notifyFollowersOfWatch(c.env, c.get("uid"), "movie", id).catch((e) => console.error("notify failed", e))

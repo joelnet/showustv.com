@@ -15,7 +15,7 @@ export const profile = new Hono<AppEnv>();
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const RESEND_GAP_MS = 60_000;
-// Failures-only brake on the email-change password re-auth (issue #358), in the
+// Failures-only brake on the email-change password re-auth, in the
 // spirit of /login: a live session must not become an unthrottled oracle for
 // guessing the account password. Per IP and per account; only wrong passwords
 // are counted (see below), so a legitimate change never trips it.
@@ -48,7 +48,7 @@ profile.get("/", async (c) => {
     ).bind(uid),
     c.env.DB.prepare("SELECT email, expires_at FROM email_verifications WHERE user_id = ?1").bind(uid),
     c.env.DB.prepare("SELECT achievement_id, unlocked_at FROM user_achievements WHERE user_id = ?1 ORDER BY unlocked_at").bind(uid),
-    // Follow counts for the profile header (issue #130) — same live-user
+    // Follow counts for the profile header — same live-user
     // filter as /social/follows so the numbers match that page's lists.
     c.env.DB.prepare(
       `SELECT
@@ -102,13 +102,13 @@ profile.post("/email", async (c) => {
   const password = String(body.password ?? "");
   if (!EMAIL_RE.test(email) || email.length > 254) return c.json({ error: "That doesn't look like an email address" }, 400);
 
-  // Re-authenticate before moving an ALREADY-VERIFIED address (issue #358): a
+  // Re-authenticate before moving an ALREADY-VERIFIED address: a
   // live session must prove the account password before it can point the
   // account at a new email, so a hijacked session can't silently start a
   // takeover. Gated on an existing verified address only — first-time
   // verification of the signup email (no verified address yet) stays
   // frictionless, and that path is already covered by the epoch bump on verify
-  // (#355) plus the old-address notification the swap sends (this issue).
+  // plus the old-address notification the swap sends.
   const acct = await c.env.DB.prepare("SELECT pw_hash, email_verified_at FROM users WHERE id = ?1")
     .bind(uid)
     .first<{ pw_hash: string | null; email_verified_at: string | null }>();
@@ -144,7 +144,7 @@ profile.post("/email", async (c) => {
   return c.json({ ok: true });
 });
 
-// Change the auto-assigned handle (issue #23). Sign-up hands out a random
+// Change the auto-assigned handle. Sign-up hands out a random
 // username; this is where a user renames it. Case-insensitively unique.
 profile.put("/username", async (c) => {
   const body = await c.req.json().catch(() => ({}));
@@ -178,7 +178,7 @@ profile.post("/lists", async (c) => {
   // (the WHERE requires profile_position IS NULL), so a re-pin returns nothing.
   // When the newly pinned list is already public, it has just entered the
   // combined (public AND on-profile) state and its followers get a list_created
-  // notification (issue #331) — scenario A ("list is public, then added to the
+  // notification — scenario A ("list is public, then added to the
   // profile"). The 24h dedupe in the fan-out absorbs re-pin flapping and the
   // parallel make-public path.
   const pinned = await c.env.DB.prepare(

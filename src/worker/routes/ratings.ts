@@ -43,7 +43,7 @@ ratings.delete("/:type/:id", async (c) => {
   return c.json({ ok: true });
 });
 
-// Clear ONLY the star score (issue #367). The star widget's × unsets the
+// Clear ONLY the star score. The star widget's × unsets the
 // rating, but a whole-row DELETE would also drop the separate emoji reaction,
 // any review text, and reset created_at — so this nulls the score in place.
 // Runs as one atomic batch: if nothing else is on the row, drop it entirely so

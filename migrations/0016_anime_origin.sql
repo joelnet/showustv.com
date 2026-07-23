@@ -1,4 +1,4 @@
--- Anime tab (issue #85): classify a title as anime when it's animated *and*
+-- Anime tab: classify a title as anime when it's animated *and*
 -- Japanese in origin — Animation genre plus original_language = 'ja'. We already
 -- store genres_json but not the origin language, so add it to both shows and
 -- movies. Nullable: existing rows stay NULL until the nightly show sync and

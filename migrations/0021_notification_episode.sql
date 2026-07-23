@@ -1,4 +1,4 @@
--- issue #129 follow-up: name the episode in follow-watch notifications.
+-- follow-up: name the episode in follow-watch notifications.
 -- The 0020 notification points at the show (target_id = show tmdb_id), which
 -- was enough for "watched an episode of Dexter" but not for "watched S2·E5
 -- Waiting of Dexter" — the specific episode the actor watched is only known

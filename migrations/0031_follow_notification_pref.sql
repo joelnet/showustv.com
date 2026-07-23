@@ -1,4 +1,4 @@
--- issue #273: following a user notifies them — "X followed you", or "X
+-- Following a user notifies them — "X followed you", or "X
 -- followed you back" when X's follow reciprocates one the recipient already
 -- had. The notification reuses the 0020 shape — type 'follow' or
 -- 'follow_back', actor_id is the new follower, target_type/target_id/

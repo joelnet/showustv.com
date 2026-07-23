@@ -5,12 +5,12 @@ purpose: How the home page ("Watch Now") picks, orders, and updates the shows a 
 
 ## What it is
 
-The home page at `/`. Two tabs (issue #69) under a shared "Watch Now" heading:
+The home page at `/`. Two tabs under a shared "Watch Now" heading:
 
 1. **Watch Now** — a grid of tiles, one per followed show, each showing the show's next unwatched aired episode. Ordered by most recent activity.
 2. **Upcoming** — a grid of tiles (matching the Watch Now style) showing the next episode to air for each followed show, soonest first. One row per show, so a show with several scheduled episodes doesn't crowd out others; click through for its full schedule.
 
-The tab was renamed from "Watch next" to "Watch Now" in issue #68; the route, component, and API keep their original `watch-next` / `WatchNext` names.
+The tab was renamed from "Watch next" to "Watch Now"; the route, component, and API keep their original `watch-next` / `WatchNext` names.
 
 Route registration: `src/web/app.tsx` → `<Route path="/" element={<WatchNext />} />`.
 Component: `src/web/pages/watchnext.tsx` (`WatchNext` at :99).
@@ -59,7 +59,7 @@ WHERE c.rn = 1
   AND (lw.last_watched >= ?3 OR la.air_date >= ?3)
 ```
 
-- Second clause hides not-yet-started shows unless they were followed within `RECENT_WINDOW_DAYS` (fix from #58 — don't let stale follows clutter the queue, but keep new follows visible so they can be started).
+- Second clause hides not-yet-started shows unless they were followed within `RECENT_WINDOW_DAYS` (don't let stale follows clutter the queue, but keep new follows visible so they can be started).
 - Third clause hides dormant shows — nothing watched recently *and* nothing aired recently. Such shows still show up on the library page under "Haven't watched for a while".
 
 `RECENT_WINDOW_DAYS = 90` — see `src/shared/constants.ts:19`.
@@ -70,7 +70,7 @@ Bound parameters: `?1 = uid`, `?2 = today` (user timezone), `?3 = recentSince` (
 
 ## Query 2: Upcoming
 
-`episodes` for followed shows with `air_date > today`, deduped to the **soonest upcoming episode per show** via `ROW_NUMBER() OVER (PARTITION BY show_id ORDER BY air_date, season_number, number)` keeping `rn = 1`, ordered by air date, `LIMIT 20` — so the limit applies to distinct shows (issue #69).
+`episodes` for followed shows with `air_date > today`, deduped to the **soonest upcoming episode per show** via `ROW_NUMBER() OVER (PARTITION BY show_id ORDER BY air_date, season_number, number)` keeping `rn = 1`, ordered by air date, `LIMIT 20` — so the limit applies to distinct shows.
 
 ## Frontend behavior
 
@@ -96,7 +96,7 @@ Client:
 
 - If the offline layer queued the request (`r.queued`), adds the episode to a local `hidden` set so the tile disappears immediately; a real refetch happens after the offline queue drains.
 - Otherwise calls `reload()` to refetch `/watch-next`.
-- If `caughtUp`, calls `useCelebrate()` to trigger the confetti overlay (issue #53).
+- If `caughtUp`, calls `useCelebrate()` to trigger the confetti overlay.
 
 The `hidden` set is reset whenever fresh server data arrives (`watchnext.tsx:112`) so it never overrides authoritative state.
 

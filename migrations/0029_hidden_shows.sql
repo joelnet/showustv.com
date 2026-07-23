@@ -1,4 +1,4 @@
--- issue #260: per-user "hide this show" privacy flag. Hiding keeps the show
+-- Per-user "hide this show" privacy flag. Hiding keeps the show
 -- (and all watch progress) in the owner's own library but excludes it from
 -- every OUTWARD surface: the public profile's Shows history rows and comment
 -- activity, the public library, the social activity feed and "also watching",

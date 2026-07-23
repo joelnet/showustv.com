@@ -168,7 +168,7 @@ export function Comments({ targetType, targetId }: { targetType: "episode" | "mo
         </div>
       </div>
       {!user ? (
-        // Anonymous readers (shared links, issue #159) can read the thread but
+        // Anonymous readers (shared links) can read the thread but
         // not write — a quiet sign-in line stands in for the composer.
         <p className="comments-gate">
           <Link to="/login">Sign in</Link> to join the conversation.
@@ -177,9 +177,8 @@ export function Comments({ targetType, targetId }: { targetType: "episode" | "mo
         <Composer placeholder="What did you think?" submitLabel="Comment" onSubmit={postTopLevel} />
       ) : (
         <p className="comments-gate">
-          {/* The verify/resend flow lives on Settings (issue #55) — the
-              profile hasn't had it since, and now redirects away anyway
-              (issue #220). */}
+          {/* The verify/resend flow lives on Settings — the
+              profile no longer has it, and redirects away anyway. */}
           Verify your email to join the conversation: <Link to="/settings">go to Settings</Link>.
         </p>
       )}
@@ -187,7 +186,7 @@ export function Comments({ targetType, targetId }: { targetType: "episode" | "mo
         online ? (
           <ErrorNote message={error} />
         ) : (
-          // Comment threads are deliberately never precached (issue #183) —
+          // Comment threads are deliberately never precached —
           // offline they load only when normal browsing already cached this
           // thread (then `data` renders above). A calm note beats a red error.
           <p className="comments-empty">Comments are unavailable offline.</p>
@@ -236,7 +235,7 @@ function CommentItem({ node: n, act }: { node: CommentNode; act: Act }) {
   };
 
   // No profile timezone for a signed-out reader — the browser's own is the
-  // stand-in for the exact-time tooltips (issue #159).
+  // stand-in for the exact-time tooltips.
   const tz = user?.tz ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
   const author = n.user ?? "[deleted]";
   const points = `${n.score} ${n.score === 1 || n.score === -1 ? "point" : "points"}`;

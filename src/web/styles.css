@@ -137,8 +137,8 @@ a:hover { text-decoration: underline; }
   width: 190px;
   outline: none;
 }
-/* The pill is the control, so it wears the shared 2px amber focus ring
-   (issue #133): the generic input:focus rule used to draw a second amber
+/* The pill is the control, so it wears the shared 2px amber focus ring:
+   the generic input:focus rule used to draw a second amber
    ring on the borderless input inside the rounded form. Matches the
    .ds-search spec in DESIGN.json. */
 .header-search:focus-within { outline: 2px solid var(--amber); outline-offset: 1px; }
@@ -147,13 +147,13 @@ a:hover { text-decoration: underline; }
 .header-gear { color: var(--muted); display: flex; }
 .header-gear:hover { color: var(--text); }
 
-/* Icon-only search (issue #290): only shown at phone width, where the
+/* Icon-only search: only shown at phone width, where the
    .header-search pill is hidden and the footer tab bar no longer carries a
    Search item. Desktop keeps the pill, so this is a no-op there. */
 .header-search-btn { display: none; color: var(--muted); }
 .header-search-btn:hover { color: var(--text); }
 
-/* Notification bell (issue #129): sits with the gear; the badge is the
+/* Notification bell: sits with the gear; the badge is the
    unread count in ON AIR red. */
 .header-bell { color: var(--muted); display: flex; position: relative; }
 .header-bell:hover { color: var(--text); }
@@ -189,7 +189,7 @@ a:hover { text-decoration: underline; }
 }
 .header-install:hover { background: rgba(255, 174, 46, 0.24); color: var(--amber); text-decoration: none; }
 
-/* Sync progress bar (issue #204): a thin indeterminate sweep along the
+/* Sync progress bar: a thin indeterminate sweep along the
    header's bottom edge while activity syncs or the offline cache downloads —
    the same top-loading-bar style as open.raweditor.io's status progress, in
    this app's amber. Fading in only after a short delay keeps near-instant
@@ -420,7 +420,7 @@ a:hover { text-decoration: underline; }
 .link-btn:hover { text-decoration: underline; }
 .link-btn:disabled { opacity: 0.55; cursor: default; }
 
-/* Bare icon button (issue #241): just the glyph — no fill, no outline. Muted
+/* Bare icon button: just the glyph — no fill, no outline. Muted
    at rest so it doesn't compete with the text it sits beside; brightens on
    hover. 34px square keeps the hit area honest (40px on touch, with the other
    thumb targets in the mobile block). Keyboard focus still rings via the
@@ -471,7 +471,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .net-banner.is-synced { background: rgba(88, 201, 131, 0.12); color: var(--green); }
 .net-banner.is-failed { background: rgba(255, 77, 61, 0.12); color: var(--red); }
 
-/* ---------- New-version toast (issue #172) ----------
+/* ---------- New-version toast ----------
    Fixed at the bottom, app-wide, when a fresh deploy's service worker is
    installed and waiting. Amber Update button per the One Bulb Rule: this is
    the action. Sits above the mobile tabbar; below celebration (90). */
@@ -502,7 +502,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   100% { opacity: 1; transform: translate(-50%, 0); }
 }
 
-/* ---------- Transient toast (issue #244) ----------
+/* ---------- Transient toast ----------
    Same bottom-center placement and surface as the update toast, but plain
    text that auto-dismisses (components/toast.tsx) — no actions, so clicks
    pass straight through (like the celebration overlay): it can never block
@@ -570,7 +570,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ---------- Skeleton loaders (issue #138) ---------- */
+/* ---------- Skeleton loaders ---------- */
 /* Slate placeholder blocks shaped like the content they stand in for, so a
    loading view reads as the page assembling rather than a spinner blocking
    it. Depth stays tonal (Flat-Room Rule): surface-2 blocks with a gentle
@@ -695,14 +695,14 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .login-card label { display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; color: var(--muted); }
 .login-card .btn { justify-content: center; margin-top: 4px; }
 .login-card .link-btn { margin-top: 14px; }
-/* Forgot-password flow (issue #216): the escape hatch under the login form's
+/* Forgot-password flow: the escape hatch under the login form's
    password field, and the heading of every AccountPage card (forgot/reset
    password, verify/revert email). */
 .login-forgot { align-self: flex-start; font-size: 12.5px; color: var(--muted); margin: -6px 0 0; }
 .login-forgot:hover { color: var(--text); }
 .login-form-title { font-family: var(--font-display); font-size: 20px; margin: 14px 0 4px; }
 
-/* Secondary signup step (issue #160): the two-stage progress strip above the
+/* Secondary signup step: the two-stage progress strip above the
    preferences form — stage 1 (Sign up) done, stage 2 (Preferences) current,
    the bar sitting at 50%. */
 .signup-progress { margin: 0 0 18px; }
@@ -739,12 +739,12 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   gap: 18px 16px;
 }
 
-/* Bare tiles: no card border or background, so the artwork carries the row
-   (issue #105 follow-up). Rounded corners live on the thumbnail itself.
+/* Bare tiles: no card border or background, so the artwork carries the row.
+   Rounded corners live on the thumbnail itself.
    The tile is a plain container; .wn-tile-link wraps the thumb + titles so a
-   sibling link (the "Watched by" username, issue #128) can live beside it. */
+   sibling link (the "Watched by" username) can live beside it. */
 .wn-tile {
-  position: relative; /* anchors the mark-watched check on queue tiles (issue #186) */
+  position: relative; /* anchors the mark-watched check on queue tiles */
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -759,7 +759,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 }
 .wn-tile-link:hover { text-decoration: none; }
 .wn-tile-link:hover .wn-tile-show { color: var(--amber); }
-/* Landscape thumbnail (episode still / show backdrop), 16:9 (issue #106). */
+/* Landscape thumbnail (episode still / show backdrop), 16:9. */
 .wn-tile-thumb { position: relative; display: block; border-radius: var(--radius); overflow: hidden; }
 .wn-tile-thumb img,
 .wn-tile-thumb .poster-fallback {
@@ -769,17 +769,17 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   display: block;
 }
 .wn-tile-thumb .poster-fallback { display: flex; align-items: center; justify-content: center; text-align: center; }
-/* Poster-art tiles (Not Started, issue #300): the show's portrait poster, so
+/* Poster-art tiles (Not Started): the show's portrait poster, so
    the thumb (and its fallback) takes the 2:3 shape the app's other poster
    tiles use instead of the 16:9 still frame. */
 .wn-tile-thumb.is-poster img,
 .wn-tile-thumb.is-poster .poster-fallback { aspect-ratio: 2 / 3; }
 /* Overlay pills on the thumb corner: episodes-left count, and the air-date
-   pill on Upcoming tiles (issue #175). Same spot — no tile carries both. */
+   pill on Upcoming tiles. Same spot — no tile carries both. */
 .wn-tile-count,
 .wn-tile-date { position: absolute; bottom: 7px; right: 7px; background: rgba(15, 18, 24, 0.85); color: var(--text); }
 .wn-tile-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 8px 2px 0; }
-/* Mark-watched check on the queue sections' tiles (issue #186): pinned to
+/* Mark-watched check on the queue sections' tiles: pinned to
    the body's right edge. In the DOM it's a sibling of .wn-tile-link (a
    button can't nest inside an anchor, and this way its click can't reach
    the Link), overlaid on the body, which reserves right padding so the
@@ -804,13 +804,13 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* "Watched by <user>" attribution on From People You Follow tiles (issue
-   #128). Sits outside .wn-tile-link so the username can be its own anchor;
+/* "Watched by <user>" attribution on From People You Follow tiles.
+   Sits outside .wn-tile-link so the username can be its own anchor;
    the link inherits the global cyan. */
 .wn-tile-user { padding: 2px 2px 0; }
 
-/* Home: horizontally-scrollable section rows (issue #105). The header line is
-   a bar (issue #185): the section link on the left, the hide/show eye toggle
+/* Home: horizontally-scrollable section rows. The header line is
+   a bar: the section link on the left, the hide/show eye toggle
    pushed to the far right on the same line as the h2. */
 .wn-home { display: flex; flex-direction: column; gap: 28px; }
 .wn-section-bar {
@@ -841,8 +841,8 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   margin: 0;
 }
 .wn-section-more { font-size: 22px; line-height: 1; color: var(--muted); }
-/* A section heading with no page behind it (the profile's Stats slider,
-   issue #250): same type as the linked heads, but no hover amber — nothing
+/* A section heading with no page behind it (the profile's Stats slider):
+   same type as the linked heads, but no hover amber — nothing
    here is clickable. */
 .wn-section-head.is-static:hover h2 { color: var(--text); }
 /* A hidden section keeps its header as the restore handle, dimmed; its row is
@@ -858,17 +858,17 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   gap: 14px;
   overflow-x: auto;
   overscroll-behavior-x: contain;
-  /* No scroll snapping: a drag should rest wherever the user releases it
-     (issue #176). The partial rightmost tile on first view comes from the
+  /* No scroll snapping: a drag should rest wherever the user releases it.
+     The partial rightmost tile on first view comes from the
      fixed 220px columns not fitting the container evenly, not from snapping. */
   padding-bottom: 8px;
   scrollbar-width: thin;
-  cursor: grab; /* click-drag to scroll on desktop (issue #114) */
+  cursor: grab; /* click-drag to scroll on desktop */
 }
 .wn-row.is-grabbing { cursor: grabbing; user-select: none; }
 .wn-row.is-grabbing img { pointer-events: none; }
 .wn-row img { -webkit-user-drag: none; user-select: none; }
-/* Not Started poster rows (issue #300): the portrait 2:3 posters tower over the
+/* Not Started poster rows: the portrait 2:3 posters tower over the
    landscape rows at the shared 220px column, so they take a ~1/3-narrower
    column (220 → 147px), bringing the tile height back in line with the still
    rows. Same fixed-column scroller — it still drags/scrolls when the row
@@ -929,7 +929,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .poster-card-meta { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .poster-card-title { font-weight: 700; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .poster-card-sub { color: var(--muted); font-size: 12px; }
-/* Episode-count pill on Finished library cards (issue #223): those cards
+/* Episode-count pill on Finished library cards: those cards
    carry no .poster-card-meta text block, so the poster is the whole card and
    the pill pins to its corner — same treatment as the Watch Next thumb pills. */
 .poster-card-pill { position: absolute; bottom: 7px; right: 7px; background: rgba(15, 18, 24, 0.85); color: var(--text); }
@@ -950,7 +950,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   margin-bottom: 22px;
 }
 .search-form input { flex: 1; background: none; border: none; outline: none; color: var(--text); font-size: 16px; }
-/* Same fix as .header-search (issue #133): the rounded form wears the focus
+/* Same fix as.header-search: the rounded form wears the focus
    ring instead of the borderless input inside it. :has(input:focus) rather
    than :focus-within so tabbing to the submit button rings only the button,
    not the button and the form at once. The @supports guard keeps both rules
@@ -1023,14 +1023,14 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .heart-btn:active { transform: scale(0.88); }
 .heart-btn.is-on { color: var(--red); border-color: var(--red); background: rgba(255, 77, 61, 0.12); }
 .heart-btn:disabled { opacity: 0.55; cursor: default; }
-/* The privacy eye (issue #260): the heart button's circular chrome with the
+/* The privacy eye: the heart button's circular chrome with the
    amber accent — "on" (slashed eye) means the show is hidden from the
    owner's public profile and activity. */
 .hide-btn:hover { color: var(--amber); border-color: var(--amber); }
 .hide-btn:active { transform: scale(0.88); }
 .hide-btn.is-on { color: var(--amber); border-color: var(--amber); background: rgba(255, 174, 46, 0.12); }
 .hide-btn:disabled { opacity: 0.55; cursor: default; }
-/* Remove-from-library (issue #301): the icon-only trash mirrors the heart/eye
+/* Remove-from-library: the icon-only trash mirrors the heart/eye
    circular chrome, with a red danger accent on hover for the destructive act. */
 .remove-btn:hover { color: var(--red); border-color: var(--red); }
 .remove-btn:active { transform: scale(0.88); }
@@ -1045,7 +1045,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 
 .rating-row { display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-end; margin: 4px 0 16px; }
 
-/* Star rating (issue #367) — 10 whole stars mapped 1:1 onto the 1–10 score.
+/* Star rating — 10 whole stars mapped 1:1 onto the 1–10 score.
    Each star cell layers a solid amber star over an outlined empty star; the
    overlay is shown (100%) or hidden (0%) so a star reads as filled or empty. */
 .star-rating { display: flex; flex-direction: column; gap: 6px; }
@@ -1102,7 +1102,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   .star-clear { width: 40px; height: 40px; }
 }
 
-/* Streaming (issues #144, #291, #310): a small "Streaming" heading stacked over
+/* Streaming: a small "Streaming" heading stacked over
    the provider shelf, with a smaller faded JustWatch credit below — each on its
    own line. The shelf is a surface riser — 1px line, pill — and links out to the
    title's JustWatch search page.
@@ -1135,8 +1135,8 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .justwatch { color: var(--muted); font-size: 11px; opacity: 0.75; }
 
 /* Off-site "Elsewhere" links (IMDb / Rotten Tomatoes) — a small heading
-   (shared with the Streaming label, issue #291) stacked over a row of bundled
-   brand logos, mirroring the streaming-logo treatment above (issue #292). */
+   (shared with the Streaming label) stacked over a row of bundled
+   brand logos, mirroring the streaming-logo treatment above. */
 .external-links { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-bottom: 20px; }
 .external-logos { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 10px; }
 .external-logo {
@@ -1202,9 +1202,9 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 }
 /* Hover only on devices with a real hover-capable pointer. On touch, a tap
    applies :hover and it STICKS until the next tap elsewhere; because the
-   Watch Now tile advances in place after a mark (issue #186), the next
+   Watch Now tile advances in place after a mark, the next
    episode's unchecked button sits under the same spot and would show this
-   green as a stuck fake-hover (issue #186 follow-up). Focus needs no guard:
+   green as a stuck fake-hover. Focus needs no guard:
    the app rings focus via :focus-visible (keyboard only), so a mouse/touch
    click leaves no visible ring. */
 @media (hover: hover) {
@@ -1216,8 +1216,8 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 
 /* ---------- Episode / movie ---------- */
 
-/* Parent-show link: headline-tier so the episode's show is unmissable
-   (issue #157). Still a link — a persistent hairline underline in the
+/* Parent-show link: headline-tier so the episode's show is unmissable.
+   Still a link — a persistent hairline underline in the
    neutral muted tone marks it as one now that the chevron is gone, and it
    strengthens to text color on hover. */
 .episode-show-link {
@@ -1253,7 +1253,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .episode-actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 14px 0 4px; }
 .watched-note { display: block; margin: 8px 0; }
 
-/* Add-to-list picker (issue #318). Trigger button matches the other detail
+/* Add-to-list picker. Trigger button matches the other detail
    actions; the panel itself is a <dialog> so it escapes the hero's
    overflow:hidden and sits in the top layer. */
 .add-to-list-trigger { white-space: nowrap; }
@@ -1336,7 +1336,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 }
 .atl-create .btn { white-space: nowrap; }
 
-/* Phones: dock the picker to the bottom as a full-width sheet (issue #318) —
+/* Phones: dock the picker to the bottom as a full-width sheet —
    thumb-reachable and immune to viewport-edge overflow. */
 @media (max-width: 719px) {
   .atl-dialog {
@@ -1434,7 +1434,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .list-name .svg-inline--fa { color: var(--red); }
 .page-title .svg-inline--fa { color: var(--red); }
 
-/* The list name with its icon-only share glyph right beside it (issue #319),
+/* The list name with its icon-only share glyph right beside it,
    mirroring the profile header. On the owner's list head this wrapper is the
    left cluster — the action buttons sit opposite it via space-between; on the
    public list page it stands alone, so it carries the title's block spacing. */
@@ -1445,16 +1445,16 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .public-byline { color: var(--muted); margin: -8px 0 20px; }
 .public-byline a { color: var(--cyan); }
 .public-byline a:hover { color: var(--text); }
-/* Signed-out chrome on shared title pages (issue #159), public profiles
-   (issue #200), and public lists (issue #319): brand left, sign-in right. */
+/* Signed-out chrome on shared title pages, public profiles,
+   and public lists: brand left, sign-in right. */
 .public-page .header--public { justify-content: space-between; }
 
 /* Public list: detailed cards with poster + overview so a shared list reads
-   like a recommendation, not a bare thumbnail wall (issue #87). */
+   like a recommendation, not a bare thumbnail wall. */
 .pub-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
 .pub-list-item {
   /* Flex row that wraps so the owner's per-item comment can drop onto its own
-     full-width line beneath the poster/content (issue #345): poster | body |
+     full-width line beneath the poster/content: poster | body |
      (owner controls) across the top, then the comment (flex-basis:100%) wrapping
      to span the whole card below. flex-wrap keeps the top row's widths intact
      while letting the comment claim a new line, and the cross-axis gap supplies
@@ -1477,7 +1477,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   display: block;
 }
 .pub-list-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
-/* Owner controls layered onto the shared card (issue #325): reorder/remove sit
+/* Owner controls layered onto the shared card: reorder/remove sit
    in a column at the card's trailing edge, only rendered for the list's owner. */
 .pub-list-actions { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; align-self: flex-start; }
 .pub-list-actions .btn-ghost { padding: 5px 10px; }
@@ -1501,14 +1501,14 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   font-size: 13.5px;
   line-height: 1.5;
   margin: 2px 0 0;
-  /* Full description, wrapped (issue #337): no line-clamp so long overviews
+  /* Full description, wrapped: no line-clamp so long overviews
      read in their entirety; break-word keeps stray long tokens in bounds. */
   overflow-wrap: break-word;
 }
-/* The list owner's own top-level comment on an item (issue #322): a read-only,
+/* The list owner's own top-level comment on an item: a read-only,
    quote-styled block that links to the title page where the comment lives. Its
    flex-basis of 100% wraps it onto a new full-width line below the poster/content
-   (issue #345) rather than boxing it into the right-of-poster body column; the
+   rather than boxing it into the right-of-poster body column; the
    card's cross-axis gap supplies the spacing above it. */
 .pub-list-comment {
   display: block;
@@ -1539,7 +1539,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   color: var(--muted);
   letter-spacing: 0.02em;
 }
-/* List preamble (issue #94): the owner's optional note about a list, shown
+/* List preamble: the owner's optional note about a list, shown
    here and on the public share page. pre-wrap keeps the line breaks they type. */
 .list-preamble {
   color: var(--muted);
@@ -1567,20 +1567,20 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 }
 .list-preamble-actions { display: flex; gap: 8px; margin-top: 8px; }
 
-/* List comments (issue #98): owner toggles them; they render here and on the
+/* List comments: owner toggles them; they render here and on the
    public list page when the list is public + comments are on. */
 .list-comments { margin-top: 34px; }
 .list-comments-note { margin-top: 24px; }
 
-/* The owner's comments section leads with the icon-only eye toggle (issue
-   #336), pushed to the far right of the "Comments" heading — eye = visible to
+/* The owner's comments section leads with the icon-only eye toggle,
+   pushed to the far right of the "Comments" heading — eye = visible to
    visitors, eye-off = hidden. The head owns the section-title's block spacing
    so the glyph centres against the heading text. */
 .list-comments-head { display: flex; align-items: center; gap: 10px; margin: 28px 0 12px; }
 .list-comments-head .section-title { margin: 0; }
 .list-comments-toggle { margin-left: auto; }
 
-/* Owner-only "Danger zone" at the very bottom of a list (issue #336): a
+/* Owner-only "Danger zone" at the very bottom of a list: a
    red-tinted panel whose Delete stays disabled until the owner types DELETE. */
 .danger-zone {
   margin-top: 48px;
@@ -1592,8 +1592,8 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .danger-zone-title { margin-top: 0; color: var(--red); }
 .danger-zone-title::before { background: var(--red); }
 .danger-zone-hint { margin: 0 0 14px; }
-/* The typed "DELETE" confirmation now lives inside the delete modal (issue #336
-   follow-up); mono + spacing makes the required word easy to read as you type. */
+/* The typed "DELETE" confirmation now lives inside the delete modal;
+   mono + spacing makes the required word easy to read as you type. */
 .danger-zone-input {
   width: 100%;
   margin-bottom: 20px;
@@ -1602,7 +1602,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 }
 .dialog-body strong { color: var(--text); font-family: var(--font-mono); letter-spacing: 0.06em; }
 
-/* Favorites split into Shows / Movies / Anime sections (issue #103). */
+/* Favorites split into Shows / Movies / Anime sections. */
 .fav-section { margin-bottom: 10px; }
 .fav-card { gap: 6px; }
 .fav-remove { justify-content: center; width: 100%; }
@@ -1626,29 +1626,29 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 
 /* ---------- Profile ---------- */
 
-/* Profile header (issues #162/#241): the username is the page title, with
+/* Profile header: the username is the page title, with
    bare .icon-btn glyphs right beside it — share on both views, plus the
-   rename pencil (issue #182) and the privacy toggle on your own, its state
+   rename pencil and the privacy toggle on your own, its state
    spelled out in muted words alongside — the name stays dominant, no button
    chrome competes with it. Wraps as one cluster under a long username. */
 .profile-head { display: flex; align-items: center; gap: 6px 14px; flex-wrap: wrap; margin: 4px 0 2px; }
 .profile-head .page-title { margin: 0; min-width: 0; overflow-wrap: anywhere; }
-/* Icon-only privacy eye (issue #244): pushed to the far right of the
+/* Icon-only privacy eye: pushed to the far right of the
    .profile-head flex row, no status text — the toast announces changes. */
 .profile-privacy { margin-left: auto; }
 
-/* The Stats slider (issue #250): the stat cards ride the same wn-section /
-   wn-row chrome as the watch-history rows (issue #245) — card width comes
+/* The Stats slider: the stat cards ride the same wn-section /
+   wn-row chrome as the watch-history rows — card width comes
    from .wn-row's own column sizing at every breakpoint, so Stats scrolls and
    sizes exactly like Shows / Movies / Anime. This class only keeps the block
    margins the old stat grid had. */
 .profile-stats { margin: 18px 0 26px; }
-/* Watch-history rows on the profile (issue #245): .wn-home already supplies
+/* Watch-history rows on the profile:.wn-home already supplies
    the 28px stack Watch Now uses between sections; this just settles the block
    between the Stats slider above (its bottom margin wins the collapse) and
    the Achievements heading below (whose own top margin provides that gap). */
 .profile-history { margin: 0 0 2px; }
-/* Flat stat cards (issue #170, replacing the glow treatment from #116): the
+/* Flat stat cards (replacing the earlier glow treatment): the
    standard card — surface fill, 1px hairline, 10px radius — with an
    amber-wash icon tile (the documented feature-icon idiom), a big warm-white
    value, and a small uppercase label. Depth is tonal per the Flat-Room Rule:
@@ -1689,7 +1689,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .profile-list-link:hover .list-name { text-decoration: underline; }
 .profile-add-list { margin-top: 16px; }
 
-/* Following/Followers counts under the username (issue #130) — the profile's
+/* Following/Followers counts under the username — the profile's
    entry point to /following now that the header nav dropped its link. Numbers
    read in mono like other counts; each pair lights amber on hover. */
 .profile-follow-counts { display: flex; gap: 18px; margin: 10px 0 4px; }
@@ -1704,7 +1704,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .friend-add input { flex: 1; max-width: 320px; min-width: 0; }
 .friend-note { color: var(--muted); font-size: 13.5px; margin: 8px 0 0; }
 
-/* ---------- Social Graph (inline on Following, issue #284) ---------- */
+/* ---------- Social Graph (inline on Following) ---------- */
 
 .taste-page-head {
   display: flex;
@@ -1874,8 +1874,8 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   .taste-list { max-height: none; }
 }
 
-/* Click-to-open action menu (issue #255) — first used by the "Mutuals"
-   handshake button on a mutual's profile, where it replaced the issue #199
+/* Click-to-open action menu — first used by the "Mutuals"
+   handshake button on a mutual's profile, where it replaced the earlier
    native select. Trigger is a regular .btn; the pop panel drops below it. */
 .menu-wrap { position: relative; }
 .menu-pop {
@@ -1923,7 +1923,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .also-watching { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 16px; }
 .also-watching-label { color: var(--muted); font-size: 13px; }
 
-/* Notifications page (issue #129) — feed-row cards plus an unread
+/* Notifications page — feed-row cards plus an unread
    amber accent that survives the visit even after read-all fires. */
 .notif-list { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .notif-list li {
@@ -1942,7 +1942,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .notif-ep { color: var(--text); font-weight: 700; }
 .notif-when { flex-shrink: 0; }
 
-/* Push opt-in surfaced on the notifications page (issue #237): the settings
+/* Push opt-in surfaced on the notifications page: the settings
    toggle in a feed-row-styled card, shown only while push is off. */
 .notif-push { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 2px 12px; margin: 0 0 14px; }
 .notif-push .settings-toggle { margin: 10px 0; }
@@ -1950,12 +1950,12 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .public-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: -8px 0 20px; }
 .public-actions .friend-note { margin: 0; }
 /* On the public profile the row now follows the .profile-head cluster (the
-   byline that used to separate them is gone, issue #241) whose 2px bottom
+   byline that used to separate them is gone) whose 2px bottom
    margin would let the -8px above pull the buttons into the title — restore
    the same 10px breath the row gets after a bare .page-title. */
 .profile-head + .public-actions { margin-top: 10px; }
 
-/* Owner-only reminder on their private profile's public page (issue #158). */
+/* Owner-only reminder on their private profile's public page. */
 .public-private-note { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 13.5px; margin: -8px 0 20px; }
 .public-private-note a { color: var(--cyan); }
 .public-private-note a:hover { color: var(--text); }
@@ -2062,7 +2062,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 }
 .landing-header-actions { display: flex; align-items: center; gap: 12px; }
 .landing-header .wordmark { font-size: 21px; }
-/* Landing type floor (issue #61): keep every landing tier >= 18px. The hero h1
+/* Landing type floor: keep every landing tier >= 18px. The hero h1
    is deliberately exempt, and the framed product screenshots (.showcase-shot)
    stay at real app sizes so they read as faithful previews. */
 .landing-header .btn { font-size: 18px; }
@@ -2139,7 +2139,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   margin: 0 0 22px;
 }
 /* Hero headline matches JustWatch's .content__heading: Lato 900, ~60px with
-   ~70px leading, scaling down to 36px on phones (issue #124). */
+   ~70px leading, scaling down to 36px on phones. */
 .landing-hero h1 {
   font-family: var(--font-display);
   font-weight: 900;
@@ -2164,7 +2164,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   text-shadow: none;
 }
 /* Subheading matches JustWatch's .content__subheading: 20px, weight 400, muted
-   gray, 30px above the headline (issue #124). */
+   gray, 30px above the headline. */
 .landing-sub {
   color: var(--muted);
   font-size: 20px;
@@ -2221,8 +2221,8 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   transform: translateX(36%) rotateZ(10deg);
   transform-origin: 50% 100%;
 }
-/* Desktop / landscape has horizontal room the tight mobile stack lacks
-   (issue #311). Above the phone breakpoint, fan the outer phones out
+/* Desktop / landscape has horizontal room the tight mobile stack lacks.
+   Above the phone breakpoint, fan the outer phones out
    further (~10deg more) and spread them wider so more of their back
    screens read; the tighter arrangement above still applies below it. */
 @media (min-width: 720px) {
@@ -2458,7 +2458,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   top: -14px;
   /* bottom: 0 (not negative) keeps the wall inside the hero; the hero's 70px
      bottom padding supplies the breathing room, so the wall never extends
-     under .landing-freebadge (issue #218). Its bottom edge sits at the same
+     under.landing-freebadge. Its bottom edge sits at the same
      pixel as the old bottom: -30px overhang did. */
   bottom: 0;
   left: 50%;
@@ -2492,7 +2492,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .import-help .landing-final h2 { display: flex; align-items: center; justify-content: center; gap: 10px; }
 .import-help .landing-final h2 .svg-inline--fa { color: var(--green); }
 
-/* Real iOS screenshots on the install page (issue #74). Framed cleanly as
+/* Real iOS screenshots on the install page. Framed cleanly as
    device captures rather than site-styled mockups. */
 .install-hero-shot { margin: 30px auto 0; max-width: 440px; }
 .install-hero-shot img {
@@ -2543,7 +2543,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   text-wrap: balance;
 }
 
-/* Feature showcase (issue #32): alternating copy + framed live-UI preview. */
+/* Feature showcase: alternating copy + framed live-UI preview. */
 .showcase { display: flex; flex-direction: column; gap: 48px; margin-top: 32px; }
 .showcase-row { display: grid; grid-template-columns: 1fr 1fr; gap: 44px; align-items: start; }
 .showcase-row:nth-child(even) .showcase-copy { order: 2; } /* alternate the shot side */
@@ -2656,10 +2656,10 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
    of the landing page in register mode. */
 .landing-signup { display: flex; justify-content: center; margin-top: 128px; }
 
-/* FAQ accordion (issue #195): the last landing block before the footer.
+/* FAQ accordion: the last landing block before the footer.
    Native <details> items ruled into one bordered panel per the Flat-Room
    Rule; answers collapsed by default, the summary row is the toggle. Type
-   stays >= 18px per the landing type floor (issue #61). */
+   stays >= 18px per the landing type floor. */
 .faq-list {
   max-width: 720px;
   margin: 0 auto;
@@ -2705,7 +2705,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   .header-nav, .header-search { display: none; }
   .header { gap: 12px; }
   /* Icon alone is ~20px — pad the touch area without moving the icon. With the
-     search pill hidden here, the icon-only search (issue #290) is shown and
+     search pill hidden here, the icon-only search is shown and
      carries the auto margin that right-aligns the search + bell + gear cluster
      — the role the bell used to hold. */
   .header-search-btn { display: flex; padding: 12px; margin: -12px -6px -12px auto; }
@@ -2720,7 +2720,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   .header-install { margin-left: auto; padding: 10px 12px; }
   .header-install ~ .header-search-btn { margin-left: 0; }
   .header-install ~ .header-bell { margin-left: -6px; }
-  /* Profile page, install showing (issue #289): drop the logo and lead with
+  /* Profile page, install showing: drop the logo and lead with
      the Install button to free header space (more is planned here), keeping
      the install nudge prominent. Install moves to the leading edge and the
      search icon reclaims the auto margin so the search + bell + gear cluster
@@ -2748,7 +2748,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 
   .wn-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px 10px; }
   /* The 38px thumb-sized check needs more reserved body width, and nearly
-     spans the two text lines, so it hugs the tile bottom (issue #186). */
+     spans the two text lines, so it hugs the tile bottom. */
   .wn-tile-body.has-check { padding-right: 46px; }
   .wn-tile-check { bottom: 3px; }
 
@@ -2766,8 +2766,8 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   .agenda-show { white-space: normal; }
   .agenda li { flex-wrap: wrap; gap: 6px 10px; }
 
-  /* Slightly tighter stat cards in the phone-width Stats slider (issue
-     #250) so the verbose "TV time" value keeps room to breathe. */
+  /* Slightly tighter stat cards in the phone-width Stats slider
+     so the verbose "TV time" value keeps room to breathe. */
   .stat-card { padding: 16px; }
 
   /* List rows: tighter chrome so titles keep readable width next to the
@@ -2813,7 +2813,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 }
 
 /* Portrait mobile: the movie poster reads too small stacked above the title, so
-   double it from the shared 104px (set above) to ~208px (issue #369). Scoped to
+   double it from the shared 104px (set above) to ~208px. Scoped to
    .movie-head so the show hero and episode still are untouched, and to portrait
    orientation so it doesn't dominate the short viewport of a landscape phone.
    The 2/3 aspect-ratio from .show-poster keeps proportions; the vw cap keeps it
@@ -2873,9 +2873,9 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   margin: 0;
 }
 
-/* Achievements (issue #19). */
+/* Achievements. */
 .ach-count { font-size: 13px; }
-/* The profile pages link out to the achievements page (issue #201) instead
+/* The profile pages link out to the achievements page instead
    of rendering the grid inline — the section heading itself is the link. */
 .ach-page-link { display: inline-flex; align-items: center; gap: 8px; color: inherit; }
 .ach-page-link:hover { color: var(--amber); text-decoration: none; }
@@ -2888,8 +2888,8 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   gap: 22px 12px;
   margin-bottom: 26px;
 }
-/* Flat achievement coins (issue #170, replacing the glowing medallions from
-   #112): each achievement is the emoji on a plain surface-riser disc with a
+/* Flat achievement coins (replacing the earlier glowing medallions):
+   each achievement is the emoji on a plain surface-riser disc with a
    1px hairline ring, title and one-line description stacked beneath. No
    gloss, no amber glow, no hover lift — the Flat-Room Rule applies. */
 .ach {
@@ -2918,7 +2918,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .ach-title { font-weight: 700; font-size: 13.5px; color: var(--text); }
 .ach-desc { color: var(--muted); font-size: 12px; line-height: 1.35; }
 
-/* Admin tools on profiles (issue #17). */
+/* Admin tools on profiles. */
 .admin-tools { margin: 0 0 20px; display: flex; gap: 8px; flex-wrap: wrap; flex-direction: column; align-items: flex-start; }
 .admin-tools > .btn { align-self: flex-start; }
 .admin-activity { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; }
@@ -2928,7 +2928,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .admin-activity-status.is-err { color: var(--red); }
 .admin-empty { color: var(--muted); }
 
-/* Comment activity on public profiles (issue #16). */
+/* Comment activity on public profiles. */
 .profile-comments { list-style: none; margin: 0 0 26px; padding: 0; display: flex; flex-direction: column; gap: 12px; }
 .profile-comments li { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 14px; }
 .profile-comment-body { margin: 0 0 4px; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -2959,7 +2959,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   padding: 8px 12px;
   font: inherit;
 }
-/* With the re-auth password field (issue #358) the row would be cramped, so
+/* With the re-auth password field the row would be cramped, so
    stack email + password + button and let the inputs fill the width. */
 .email-form.has-password { flex-direction: column; align-items: stretch; }
 .email-form.has-password button { align-self: flex-start; }
@@ -2967,7 +2967,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .email-flag { color: var(--muted); }
 .email-flag.is-ok { color: var(--green); }
 
-/* Username rename on the profile (issue #23). */
+/* Username rename on the profile. */
 .username-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 2px 0 6px; }
 .username-form input {
   background: var(--surface);
@@ -3042,11 +3042,11 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   .comments-head { flex-wrap: wrap; }
 }
 
-/* Portrait phones show 2 tiles per row, not 3 (issue #286). The full Watch
+/* Portrait phones show 2 tiles per row, not 3. The full Watch
    Next section pages (Continue Watching, Upcoming, Haven't Watched in a While,
    Not Started, History, From People You Follow) render as .wn-grid, and the
    library/search/list poster grids as .poster-grid — 3-up made both too cramped
-   on portrait mobile. This supersedes issue #79's 3-up (which trimmed padding
+   on portrait mobile. This supersedes the earlier 3-up (which trimmed padding
    and gutters to buy a third column); 2-up gives the artwork the room it needs.
    Wider phones/tablets (561px+) keep the auto-fill layout, so tablet/desktop are
    untouched. The horizontal .wn-row section strips already show ~1.5 tiles and
@@ -3054,26 +3054,26 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 @media (max-width: 560px) {
   .main { padding-left: 10px; padding-right: 10px; }
   .wn-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 8px; }
-  /* Library/search poster grids stay matched to the Watch Now grid, now 2-up (#88, #286). */
+  /* Library/search poster grids stay matched to the Watch Now grid, now 2-up. */
   .poster-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 8px; }
   /* Section rows show exactly 1.5 tiles so the cut-off tile hints at horizontal
-     scroll while keeping tiles large (issue #105 follow-up). Width backs out the
+     scroll while keeping tiles large. Width backs out the
      .main padding (2×10px) and the one visible 10px gap, then splits the
      remaining viewport across 1.5 columns. */
   .wn-row { grid-auto-columns: calc((100vw - 30px) / 1.5); gap: 10px; }
-  /* The Not Started poster row opts out of the deliberate 1.5-tile peek (issue
-     #300): it sits centered among the landscape rows where scrollability
+  /* The Not Started poster row opts out of the deliberate 1.5-tile peek:
+     it sits centered among the landscape rows where scrollability
      already reads, so it shows whole tiles. Two posters fill the viewport
      exactly — 2×column + 1×10px gap = the row's width (100vw − 20px main
      padding) — so the rightmost tile is never cut; this also matches the 2-up
-     poster size on the full /watch/notstarted grid (issue #286). It still
+     poster size on the full /watch/notstarted grid. It still
      scrolls when there are more than two. Markable tiles keep room for the
      check control at this width; 3-up would crush the title line. */
   .wn-row.is-poster { grid-auto-columns: calc((100vw - 30px) / 2); }
   .wn-section-head h2 { font-size: 18px; }
 }
 
-/* ---------- Caught-up celebration (issue #53) ----------
+/* ---------- Caught-up celebration ----------
    A brief confetti shower in the brand colors plus a congratulations toast,
    shown once when a watch action finishes a show. The overlay never captures
    pointer events, so it can't trap focus or block navigation, and it removes

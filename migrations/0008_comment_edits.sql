@@ -1,4 +1,4 @@
--- Editable comments with history (issue #14). Each edit snapshots the body
+-- Editable comments with history. Each edit snapshots the body
 -- it replaced; comments.edited_at powers the "edited" marker. Deleting a
 -- comment wipes its history rows (routes/comments.ts) — deletion is a
 -- privacy action and must take prior versions with it.

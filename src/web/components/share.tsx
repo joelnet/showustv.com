@@ -1,4 +1,4 @@
-// Native share affordance (issue #147). Where the browser offers the Web
+// Native share affordance. Where the browser offers the Web
 // Share API (mobile / installed PWA) the button opens the native share
 // sheet; elsewhere it copies the link with a brief confirmation. Surfaces
 // that already sit a "Copy link" button next to it pass fallback="hide" so
@@ -47,7 +47,7 @@ export function ShareButton({
 
   const hint = canNativeShare ? "Share" : "Copy link to share";
 
-  // Bare glyph, no text (issue #241) — the profile header slots this right
+  // Bare glyph, no text — the profile header slots this right
   // beside the username. Copy feedback swaps the glyph to a check since
   // there's no label to flip to "Copied".
   if (variant === "icon") {

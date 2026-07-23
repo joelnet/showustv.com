@@ -8,7 +8,7 @@ interface ApiState<T> {
   error: string | null;
 }
 
-// ---------- Page-data cache (issue #154) ----------
+// ---------- Page-data cache ----------
 //
 // A module-level stale-while-revalidate store behind useApi. Navigating back
 // to a page renders its last-known data instantly — the loading skeleton only
@@ -64,7 +64,7 @@ function put(path: string, data: unknown): void {
   if (cache.size > MAX_ENTRIES) cache.delete(cache.keys().next().value!);
 }
 
-// Seed the cache from outside useApi (issue #154 follow-up). The Continue
+// Seed the cache from outside useApi. The Continue
 // Watching precache (precache.ts) already fetches each show/movie detail
 // payload to warm the service worker's offline cache — it hands the same body
 // here too, so opening one of those tiles paints the detail page from cache
@@ -88,7 +88,7 @@ export function getCached<T = unknown>(path: string): T | undefined {
   return cache.get(path) as T | undefined;
 }
 
-// ---------- Service-worker cache reads (issue #183) ----------
+// ---------- Service-worker cache reads ----------
 //
 // The SW's runtime cache names — MUST match VERSION in public/sw.js. Cache
 // Storage is shared between the worker and the page, so the app can read the
@@ -156,8 +156,8 @@ export function useApi<T = any>(path: string | null) {
     const cached = cache.get(path) as T | undefined;
     set({ data: cached ?? null, loading: cached === undefined, error: null });
     if (cached === undefined) {
-      // Cold mount: paint the service worker's offline copy instantly (issue
-      // #183) while the fetch below revalidates — precached library pages
+      // Cold mount: paint the service worker's offline copy instantly
+      // while the fetch below revalidates — precached library pages
       // skip the skeleton even online. Deliberately NOT written to the
       // in-memory cache: the revalidation below stores the fresher copy.
       void readApiCache<T>(path).then((data) => {
@@ -197,7 +197,7 @@ export function useApi<T = any>(path: string | null) {
   return { ...state, reload };
 }
 
-// ---------- Tab title (issue #211) ----------
+// ---------- Tab title ----------
 //
 // A hard load of a /show, /movie, or /episode URL arrives with that title
 // baked into <title> by the Worker (per-title social previews). These keep

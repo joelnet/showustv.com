@@ -1,4 +1,4 @@
-// Landing page for the "your email was changed" security notice (issue #358).
+// Landing page for the "your email was changed" security notice.
 // Public route: the clicker's sessions were revoked by the change that prompted
 // this notice, so they're logged out by definition — the token is the proof.
 // Like /verify-email it does nothing on load; the token is consumed only by the
