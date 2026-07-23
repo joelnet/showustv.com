@@ -1,4 +1,4 @@
--- issue #236: comments on tracked media notify every tracker. When ANY user
+-- Comments on tracked media notify every tracker. When ANY user
 -- comments on a show or movie you track (not just people you follow — that's
 -- 0022's follow_comment), you get a 'tracked_comment' notification.
 --
@@ -7,7 +7,7 @@
 -- (an episode comment targets its SHOW, carrying the episode in episode_id).
 --
 -- Per-user toggle for the new type, on the global prefs row (show_id = 0
--- sentinel, same as follow_watch/follow_comment). Default on, per the issue.
+-- sentinel, same as follow_watch/follow_comment). Default on.
 ALTER TABLE notification_prefs ADD COLUMN tracked_comment INTEGER NOT NULL DEFAULT 1 CHECK (tracked_comment IN (0,1));
 
 -- The fan-out asks "who tracks this title?" — a media-first probe both

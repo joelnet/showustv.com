@@ -4,7 +4,7 @@ import { poster } from "../img";
 import { epCode } from "../format";
 import { IconCheck, IconX, IconClose, IconStar, IconStarFilled, IconDiscord, IconImdb, IconRottenTomatoes } from "./icons";
 
-// External social links for the footer (issue #75).
+// External social links for the footer.
 const SOCIALS = [
   { label: "X", href: "https://x.com/joelnet", Icon: IconX },
   { label: "Discord", href: "https://discord.gg/AxPcm4xjJC", Icon: IconDiscord },
@@ -12,7 +12,7 @@ const SOCIALS = [
 
 // Indeterminate spinner — kept only for the pre-boot auth check, where the
 // upcoming layout is unknown. Content loading states use the skeleton
-// loaders in components/skeleton.tsx instead (issue #138).
+// loaders in components/skeleton.tsx instead.
 export function Spinner() {
   return (
     <div className="spinner-wrap" role="status" aria-label="Loading">
@@ -98,7 +98,7 @@ export function Wordmark() {
   );
 }
 
-// Off-site links for detail pages (issues #12, #292). Each brand renders as
+// Off-site links for detail pages. Each brand renders as
 // its bundled logo (see icons.tsx) linking out, mirroring the streaming-logo
 // treatment above. IMDb links straight to the title once the catalog row has
 // synced its imdb_id; until then (and always for Rotten Tomatoes, which
@@ -153,7 +153,7 @@ export function Progress({ watched, total }: { watched: number; total: number })
   );
 }
 
-// Poster tile. `sub` is a muted line under the title. `pill` (issue #223,
+// Poster tile. `sub` is a muted line under the title. `pill` (
 // Finished library cards) swaps the whole text meta block for a count pill
 // overlaid on the art's corner — the same treatment as the Watch Next thumb
 // pills — so the title moves to the link's aria-label and hover tooltip.
@@ -213,7 +213,7 @@ export function CheckButton({
   );
 }
 
-// StarRating (issue #367): a 10-star control mapped 1:1 onto the *unchanged*
+// StarRating: a 10-star control mapped 1:1 onto the *unchanged*
 // 1–10 stored score — each whole star is one point (1★ = 1, 2★ = 2, … 10★ = 10)
 // — so `value`/`onPick` still speak the 1–10 API the server expects. No
 // half-stars: hovering previews, clicking a star sets that whole score, and the

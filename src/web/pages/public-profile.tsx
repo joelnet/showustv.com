@@ -1,15 +1,15 @@
 // Public, read-only profile at /u/:username. A public profile shows watch
 // stats plus the lists the owner pinned (public lists only). A private
 // profile shows an Instagram-style teaser instead: the username and a "this
-// profile is private" note (issue #158). A mutual follow (issue #184) still
+// profile is private" note. A mutual follow still
 // sees the full page of a private profile — the server decides, this page
 // just renders what it's sent. The one viewer who never lands here is the
-// profile's own owner: /u/<their name> is where their own profile lives now
-// (issue #220), so the router sends them to the owner view (profile.tsx),
+// profile's own owner: /u/<their name> is where their own profile lives now,
+// so the router sends them to the owner view (profile.tsx),
 // which reuses the section components defined there.
 // Signed-in visitors also get a follow/unfollow affordance here.
-// Renders inside the standard site chrome like every other page (issue
-// #200): the app Shell when signed in, PublicShell when signed out — no
+// Renders inside the standard site chrome like every other page:
+// the app Shell when signed in, PublicShell when signed out — no
 // bespoke header here.
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
@@ -36,18 +36,18 @@ import { ACHIEVEMENTS, ACHIEVEMENTS_BY_ID } from "../../shared/achievements";
 
 interface FullProfile {
   username: string;
-  // True when a private profile is served in full — to a mutual follow
-  // (issue #184). Every other viewer of a private profile gets the teaser
+  // True when a private profile is served in full — to a mutual follow.
+  // Every other viewer of a private profile gets the teaser
   // instead.
   private?: boolean;
   stats: WatchStats;
   lists: { id: number; name: string; count: number; posters: string[] }[];
   achievements: string[];
   comments: ProfileComment[];
-  history?: ProfileHistoryData; // optional: tolerates cached pre-#245 payloads
+  history?: ProfileHistoryData; // optional: tolerates older cached payloads
 }
 
-// What a private profile serves to everyone but its owner (issue #158): the
+// What a private profile serves to everyone but its owner: the
 // username and the flag, never the content. `stats` is the discriminant.
 interface PrivateTeaser {
   username: string;
@@ -57,7 +57,7 @@ interface PrivateTeaser {
 
 type PublicProfile = FullProfile | PrivateTeaser;
 
-// Compact link to the dedicated achievements page (issue #201) — the grid
+// Compact link to the dedicated achievements page — the grid
 // used to render here and crowded the page. The count is earned/total; the
 // page itself still shows unlocked only (a public profile is a brag wall,
 // not a checklist of what the person hasn't done), so zero earned hides the
@@ -80,10 +80,10 @@ function PublicAchievements({ username, ids }: { username: string; ids: string[]
 
 type Relation = "none" | "following" | "self";
 
-// Mutual control on a mutual's profile (issue #255): a handshake "Mutuals"
+// Mutual control on a mutual's profile: a handshake "Mutuals"
 // button that only shows its menu when clicked — one Unfollow item, behind
 // the same confirm dialog as the plain "Following" button. Replaces the
-// always-a-dropdown native select from issue #199. The menu closes on
+// always-a-dropdown native select. The menu closes on
 // outside click, Escape (refocusing the trigger), or focus leaving it.
 function MutualMenu({
   username,
@@ -172,7 +172,7 @@ function MutualMenu({
 // Renders as a fragment inside the page's .public-actions row so it sits
 // beside the share button. `onChange` fires after a successful follow or
 // unfollow — on a private profile the relationship decides what the server
-// serves (issue #184), so the page refetches: following back reveals a
+// serves, so the page refetches: following back reveals a
 // mutual's full profile, and unfollowing drops the viewer back to the teaser
 // instead of leaving revoked-access content on screen.
 function FollowActions({ username, onChange }: { username: string; onChange?: () => void }) {
@@ -226,7 +226,7 @@ function FollowActions({ username, onChange }: { username: string; onChange?: ()
   };
 
   // You follow each other — one "Mutuals" control replaces the "Following"
-  // button + "Follows you" note pair (issue #199, redesigned in #255).
+  // button + "Follows you" note pair.
   const mutual = relation === "following" && followsYou;
 
   return (
@@ -259,13 +259,13 @@ export function PublicProfilePage() {
   const path = `/public/profile/${encodeURIComponent(username!)}`;
   const { data, loading, error, reload } = useApi<PublicProfile>(path);
 
-  // Keep the tab title the Worker baked in for public profiles (issue #219)
+  // Keep the tab title the Worker baked in for public profiles
   // once the SPA takes over — DocumentTitleSync only spares this route from
   // the default reset; the canonical DB casing arrives with the data.
   useDocumentTitle(data && `@${data.username}`);
 
-  // A private profile served in full is no-store on the wire (issues
-  // #158/#184) — the service worker honors that, and this mirrors it in the
+  // A private profile served in full is no-store on the wire
+  // — the service worker honors that, and this mirrors it in the
   // in-memory page cache: drop the entry so navigating back after access is
   // revoked (unfollowed, or the owner unfollowed) cold-loads fresh instead
   // of warm-painting the old private payload.
@@ -284,11 +284,11 @@ export function PublicProfilePage() {
           <p>This profile doesn&rsquo;t exist.</p>
         </div>
       ) : !data.stats ? (
-        // Private profile teaser (issue #158): the server sent the username
+        // Private profile teaser: the server sent the username
         // and nothing else. Signed-in visitors keep the follow affordance —
         // following works regardless of profile visibility, and following
         // back someone who already follows you makes the pair mutual, so
-        // the refetch swaps the teaser for the full profile (issue #184).
+        // the refetch swaps the teaser for the full profile.
         <>
           <h1 className="page-title">{data.username}</h1>
           {user && (
@@ -305,12 +305,12 @@ export function PublicProfilePage() {
         </>
       ) : (
         <>
-          {/* Share sits as a bare glyph right of the name (issue #241),
+          {/* Share sits as a bare glyph right of the name,
               matching the owner's view of the same page. It's withheld on a
-              private profile served in full to a mutual follow (issue #184)
+              private profile served in full to a mutual follow
               — other visitors would only get the teaser — with no privacy
               note either: this viewer already has access, so the message is
-              noise (issue #198). Just the usual follow affordance below. */}
+              noise. Just the usual follow affordance below. */}
           <div className="profile-head">
             <h1 className="page-title">{data.username}</h1>
             {!data.private && (
@@ -329,7 +329,7 @@ export function PublicProfilePage() {
           )}
           {user?.isAdmin && <AdminTools username={data.username} tz={user.tz} />}
           <StatsGrid stats={data.stats} />
-          {/* Watch history rows (issue #245), above Achievements — only ever
+          {/* Watch history rows, above Achievements — only ever
               present on a full profile payload (the teaser branch above never
               has it), so profile visibility is the one and only gate. The
               headings open this user's public library. */}

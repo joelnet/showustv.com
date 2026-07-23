@@ -40,7 +40,7 @@ export const comments = new Hono<AppEnv>();
 // Read endpoints (listing, load-more, continue-thread, edit history), split
 // out so index.ts can mount them BEFORE the auth wall: comments on public
 // titles are themselves public, so a signed-out visitor on a shared link can
-// read the thread (issue #159). Each route runs optionalAuth — a signed-in
+// read the thread. Each route runs optionalAuth — a signed-in
 // reader still gets their own myVote/mine flags; an anonymous reader gets the
 // same public thread with myVote 0, mine false, and shadow-banned authors
 // ghosted (they never match the missing uid). No write path lives here.
@@ -54,8 +54,8 @@ const TARGET_TABLE: Record<string, { table: string; pk: string }> = {
 };
 
 // List comments are only open when the owner made the list public AND turned
-// comments on; a private or comments-off list must not accept or serve comments
-// (issue #98). Other target types have no such gate.
+// comments on; a private or comments-off list must not accept or serve comments.
+// Other target types have no such gate.
 async function listCommentsClosed(c: Context<AppEnv>, targetType: string, targetId: number): Promise<boolean> {
   if (targetType !== "list") return false;
   const open = await c.env.DB.prepare(
@@ -97,7 +97,7 @@ interface Row {
 interface TreeNode {
   row: Row;
   children: TreeNode[];
-  ghost: boolean; // shadow-banned author, and the viewer isn't them (issue #18)
+  ghost: boolean; // shadow-banned author, and the viewer isn't them
   visible: boolean; // false → pruned (deleted/ghost with no visible descendants)
   size: number; // visible nodes in this subtree, self included
   score: number;
@@ -165,7 +165,7 @@ async function loadTree(c: Context<AppEnv>, targetType: string, targetId: number
   const roots: TreeNode[] = [];
   const uid = c.get("uid");
   for (const row of results) {
-    // Shadow ban (issue #18): to everyone but their author, a banned user's
+    // Shadow ban: to everyone but their author, a banned user's
     // comments take the deleted-comment path — placeholder or prune below.
     // The author sees their own posts untouched, so nothing tips them off.
     const ghost = !!row.user_banned && row.user_id !== uid;
@@ -248,14 +248,14 @@ function shapeLevel(
 const badTarget = (targetType: string, targetId: number) =>
   !TARGET_TABLE[targetType] || !Number.isInteger(targetId) || targetId <= 0;
 
-// Issue #159 opened comment reads on show/movie/episode titles only. List
+// Comment reads are open on show/movie/episode titles only. List
 // comment threads keep their prior behavior — a session is required to read
 // them (the public-list page gates its comments behind sign-in), so an
 // anonymous request for a list thread stays a 401 exactly as before.
 const listReadBlocked = (c: Context<AppEnv>, targetType: string): boolean =>
   targetType === "list" && c.get("uid") == null;
 
-// Commenting, voting, and deleting require a verified email (issue #13) —
+// Commenting, voting, and deleting require a verified email —
 // reading (listings, load-more, thread) stays open to any signed-in user.
 async function verifiedEmail(c: Context<AppEnv>): Promise<boolean> {
   const row = await c.env.DB.prepare("SELECT email_verified_at FROM users WHERE id = ?1")
@@ -286,7 +286,7 @@ commentReads.get("/:id/thread", optionalAuth, async (c) => {
     .bind(id)
     .first<{ target_type: string; target_id: number }>();
   if (!target) return c.json({ error: "not found" }, 404);
-  // Same list gate as the /:type/:id listing (issue #205): a private or
+  // Same list gate as the /:type/:id listing: a private or
   // comments-off list must not serve its threads through a remembered
   // comment id either. 404, not an empty page — a hidden thread shouldn't
   // even confirm the comment exists, which is also why this outranks the
@@ -314,12 +314,12 @@ commentReads.get("/:id/history", optionalAuth, async (c) => {
     .bind(id)
     .first<{ target_type: string; target_id: number; deleted_at: string | null; user_id: number; shadow_banned: number }>();
   if (!cm || cm.deleted_at) return c.json({ error: "not found" }, 404);
-  // Same list gate as the listing route (issue #205): history on a hidden or
+  // Same list gate as the listing route: history on a hidden or
   // comments-off list thread 404s without confirming the comment exists —
   // checked before the anonymous 401 so a signed-out probe can't tell hidden
   // list comments (401) apart from ids that never existed (404).
   if (await listCommentsClosed(c, cm.target_type, cm.target_id)) return c.json({ error: "not found" }, 404);
-  // List comment history keeps its pre-#159 sign-in requirement.
+  // List comment history keeps its original sign-in requirement.
   if (listReadBlocked(c, cm.target_type)) return c.json({ error: "unauthorized" }, 401);
   // A ghost's comment reads as [deleted] to others — its history must too.
   if (cm.shadow_banned && cm.user_id !== c.get("uid")) return c.json({ error: "not found" }, 404);
@@ -439,14 +439,14 @@ comments.post("/", async (c) => {
     .bind(targetType, targetId, uid, body, parentId)
     .first<{ id: number; created_at: string }>();
   // This reply may have just unlocked the PARENT author's thread-starter —
-  // the middleware only checks the mutating user (issue #19).
+  // the middleware only checks the mutating user.
   if (parentUserId != null && parentUserId !== uid) {
     c.executionCtx.waitUntil(
       checkAchievements(c.env, parentUserId).catch((e) => console.error("achievement check failed", e))
     );
   }
-  // Tell the commenter's followers who also track this title (issue #141),
-  // then everyone else tracking it (issue #236) — off the response path like
+  // Tell the commenter's followers who also track this title,
+  // then everyone else tracking it — off the response path like
   // the watch routes. Sequential on purpose: the tracker fan-out dedupes
   // against follow_comment rows, so the follow fan-out must land first for a
   // follower-who-tracks to get exactly one notification (the follow-flavored
@@ -490,7 +490,7 @@ comments.post("/", async (c) => {
   return c.json({ comment: node }, 201);
 });
 
-// Edit own comment (issue #14). Same validation as create — and the prior
+// Edit own comment. Same validation as create — and the prior
 // body is snapshotted first, so the marker always has history behind it.
 comments.put("/:id", async (c) => {
   const uid = c.get("uid");
@@ -535,8 +535,8 @@ comments.put("/:id/vote", async (c) => {
     .bind(id)
     .first<{ target_type: string; target_id: number; deleted_at: string | null; user_id: number; shadow_banned: number }>();
   if (!cm) return c.json({ error: "not found" }, 404);
-  // A thread the viewer can't read is a thread they can't vote in (issue
-  // #205): the same list gate as the listing route, checked before the
+  // A thread the viewer can't read is a thread they can't vote in:
+  // the same list gate as the listing route, checked before the
   // deleted/ghost branch so a hidden thread's comment 404s without even
   // confirming it exists.
   if (await listCommentsClosed(c, cm.target_type, cm.target_id)) return c.json({ error: "not found" }, 404);
@@ -559,7 +559,7 @@ comments.put("/:id/vote", async (c) => {
     .bind(id)
     .first<{ score: number }>();
   // This vote may have just unlocked the comment AUTHOR's crowd-pleaser —
-  // the middleware only checks the mutating user (issue #19).
+  // the middleware only checks the mutating user.
   if (cm.user_id !== uid) {
     c.executionCtx.waitUntil(
       checkAchievements(c.env, cm.user_id).catch((e) => console.error("achievement check failed", e))

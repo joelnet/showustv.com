@@ -1,6 +1,6 @@
 ---
 title: How a title is categorized as Anime
-purpose: The rule that puts a show or movie in the Anime tab, where the classification runs, and how the underlying data (original_language) is populated and backfilled. Issue #85.
+purpose: The rule that puts a show or movie in the Anime tab, where the classification runs, and how the underlying data (original_language) is populated and backfilled.
 ---
 
 ## The rule
@@ -23,8 +23,8 @@ stay identical — each carries a `KEEP THE TWO IN SYNC` comment.
   Used when the server has already loaded rows and splits them in memory, and on
   the client for grouping list items (`src/web/pages/lists.tsx`).
 - **SQL:** `animeCond(tableAlias)` in `src/worker/lib/library.ts`. Used where a
-  query must `LIMIT` each section independently (e.g. profile history rows, issue
-  #245) so a fetch-then-split-in-JS can't let recent anime starve the Shows row.
+  query must `LIMIT` each section independently (e.g. profile history rows)
+  so a fetch-then-split-in-JS can't let recent anime starve the Shows row.
 
 ```ts
 // src/shared/anime.ts

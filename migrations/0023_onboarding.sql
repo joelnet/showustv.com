@@ -1,4 +1,4 @@
--- Secondary signup step (issue #160). After creating an account the user
+-- Secondary signup step. After creating an account the user
 -- lands on a preferences screen (username + timezone, both prefilled) and
 -- presses "Finish Signup". NULL = the account exists but hasn't completed
 -- that step yet, so the app routes it back to /welcome until it does.

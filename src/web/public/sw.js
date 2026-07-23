@@ -1,4 +1,4 @@
-// Offline support (issue #8). Three runtime caches, all versioned so a
+// Offline support. Three runtime caches, all versioned so a
 // future VERSION bump abandons old data wholesale on activate:
 //   static — the SPA shell + hashed /assets/* (content-addressed, safe to
 //            serve cache-first forever), manifest, icons, web fonts.
@@ -14,7 +14,7 @@
 // runtime network-first navigation handler. Caches are capped, trimmed
 // oldest-first.
 //
-// New-version detection (issue #172): the build stamps BUILD below with a
+// New-version detection: the build stamps BUILD below with a
 // hash of the built app (vite.config.ts), so every deploy changes sw.js and
 // the browser installs the update. Install no longer skipWaiting()s — the
 // fresh worker parks in `waiting`, the page shows an update toast
@@ -27,9 +27,9 @@
 //
 // The app also warms these caches proactively (src/web/precache.ts): when
 // Watch Next loads, it fills any missing or stale Continue Watching detail
-// payloads and hero art through this worker (issue #139), and after sign-in
+// payloads and hero art through this worker, and after sign-in
 // a background pass warms the user's entire library — index payloads, every
-// show/movie detail, and their posters (issue #183) — so the whole library
+// show/movie detail, and their posters — so the whole library
 // browses offline. Both passes skip whatever Cache Storage already holds
 // fresh, so a warm client re-fetches nothing on reload. Comments are deliberately never precached (space); they
 // are only readable offline when normal browsing already cached them.
@@ -61,7 +61,7 @@ const STATIC_EXTRAS = [
   "/icons/apple-touch-icon.png",
 ];
 
-// Caps sized for a whole library offline (issue #183): the precache pass is
+// Caps sized for a whole library offline: the precache pass is
 // itself bounded (500 titles), leaving api headroom for indexes, comment
 // threads, and everything runtime browsing adds. Rough worst case ~30MB of
 // JSON + ~20MB of posters — well inside Cache Storage quotas. Oldest-first
@@ -71,19 +71,19 @@ const MAX_API = 700;
 const MAX_IMG = 700;
 
 self.addEventListener("install", (event) => {
-  // No skipWaiting here (issue #172): an updated worker parks in `waiting`
+  // No skipWaiting here: an updated worker parks in `waiting`
   // until the page posts SKIP_WAITING (the user pressed Update in the toast)
   // or every tab closes. A first-ever install has no predecessor, so it
   // still activates immediately and clients.claim() takes the open page.
   event.waitUntil(precache());
 });
 
-// The page posts this when the user accepts the update toast (issue #172):
+// The page posts this when the user accepts the update toast:
 // promote the waiting worker now. Activation fires controllerchange in every
 // open tab; the one that asked reloads itself into the new version.
 self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "SKIP_WAITING") self.skipWaiting();
-  // Capability handshake (issue #183): the page asks the ACTIVE worker for
+  // Capability handshake: the page asks the ACTIVE worker for
   // its cache caps before running the full-library precache. An older worker
   // (predating this message) never answers, so the pass skips instead of
   // churning a smaller-capped cache — the parked update activates once every
@@ -137,11 +137,11 @@ self.addEventListener("fetch", (event) => {
   if (req.method !== "GET") {
     // Never cached — but any identity change must empty the API cache.
     // Sign-out: the next visitor on this browser must not replay this
-    // user's data. Sign-in/register (issue #159): the new session must not
+    // user's data. Sign-in/register: the new session must not
     // inherit responses cached before it — another account's payloads, or
     // the anonymous title payloads (user: null), which would render a
     // signed-in detail page with no state on an offline fallback.
-    // Finish Signup (issue #160): the cached /api/auth/me still says
+    // Finish Signup: the cached /api/auth/me still says
     // onboarded: false, which an offline boot would replay and bounce an
     // already-onboarded user back to /welcome.
     const identityChange =
@@ -196,7 +196,7 @@ self.addEventListener("fetch", (event) => {
 // When the signed-in identity last changed (login/logout/register/onboarding
 // above, or a 401 below) — the moment the api cache was wiped. Any GET that
 // was already in flight across that wipe belongs to the PREVIOUS session and
-// must not be re-inserted after it (issue #183: the full-library warm keeps
+// must not be re-inserted after it (the full-library warm keeps
 // a request in flight for most of a long pass, so this race is real, and a
 // stale personal payload would then serve the next account's offline reads).
 // In-memory on purpose: an SW restart can't straddle an in-flight request.
@@ -249,9 +249,9 @@ async function shellNetworkFirst(req) {
   try {
     const res = await fetch(req);
     // Every route serves the same SPA HTML — except the pages whose <head>
-    // the Worker rewrites with per-page social meta: title pages (issue #211)
-    // and, under /u/, public profiles (issue #219) and shared lists (issue
-    // #335). Skip those so one show's/profile's/list's tags can't become the
+    // the Worker rewrites with per-page social meta: title pages
+    // and, under /u/, public profiles and shared lists.
+    // Skip those so one show's/profile's/list's tags can't become the
     // offline boot shell for every route; install() already caches the generic
     // "/" copy. (/u/ sub-paths the Worker leaves untouched serve that same
     // generic shell, so skipping them here changes nothing but the source.)
@@ -311,7 +311,7 @@ function trim(cache, max) {
     .catch(() => {});
 }
 
-// ---------- Web Push (issue #129) ----------
+// ---------- Web Push ----------
 // The Worker sends JSON payloads (see src/worker/lib/push.ts): { title,
 // body, url, tag, unread }. We subscribed with userVisibleOnly, so every
 // push MUST show a notification — Chrome shows a generic "site updated in
@@ -319,7 +319,7 @@ function trim(cache, max) {
 // replaces the previous notification instead of stacking.
 //
 // `unread` is the recipient's exact unread count at send time; it drives the
-// installed PWA's app-icon badge (issue #142) so the count is right even
+// installed PWA's app-icon badge so the count is right even
 // when no page is alive. While a page IS alive, its unread store applies the
 // same number on every refresh (src/web/notifications.ts), so the two
 // writers converge instead of fighting.

@@ -4,7 +4,7 @@ import path from "node:path";
 import { defineConfig, type Plugin, type ResolvedConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-// New-version detection (issue #172). public/sw.js is copied verbatim, so
+// New-version detection. public/sw.js is copied verbatim, so
 // without this its bytes never change and browsers never see a deploy as a
 // service-worker update. Stamp its __BUILD_ID__ placeholder with a hash of
 // every other emitted client file (hashed bundles, index.html, icons,

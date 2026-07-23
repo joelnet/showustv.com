@@ -1,4 +1,4 @@
-// The secondary signup step (issue #160). Right after creating an account
+// The secondary signup step. Right after creating an account
 // the user lands here — stage 2 of 2, "Preferences" — to confirm the two
 // things the app already picked for them: the auto-assigned username (the
 // register handle algorithm; it arrives on the auth user, so this screen

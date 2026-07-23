@@ -1,4 +1,4 @@
--- Email-change safety (issue #358). When a verified account's email is swapped
+-- Email-change safety. When a verified account's email is swapped
 -- to a new address (POST /auth/verify-email), the PREVIOUS address is emailed a
 -- security notice carrying a one-click revert link. This table holds that
 -- single-use, short-lived revert token.

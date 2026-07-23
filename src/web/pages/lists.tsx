@@ -31,16 +31,16 @@ interface ListSummary {
   is_shared: number;
   count: number;
   posters: string[];
-  // Only present when /lists is fetched with a title (issue #318): 1 if that
+  // Only present when /lists is fetched with a title: 1 if that
   // title is already in this list, so the add-to-list picker can pre-check it.
   has_item?: number;
 }
-// The owner list shares the visitor's rich item shape (issue #325): overview +
-// per-item owner comment (issue #322) come through so the owner sees the same
+// The owner list shares the visitor's rich item shape: overview +
+// per-item owner comment come through so the owner sees the same
 // cards a visitor does. `genres_json`/`original_language` are extra fields the
-// favorites Shows/Movies/Anime split needs (issue #103).
+// favorites Shows/Movies/Anime split needs.
 interface ListItem extends ListViewItem {
-  // Present for the favorites view's Shows/Movies/Anime split (issue #103).
+  // Present for the favorites view's Shows/Movies/Anime split.
   genres_json?: string | null;
   original_language?: string | null;
 }
@@ -106,7 +106,7 @@ export function ListsPage() {
   );
 }
 
-// Optional list preamble (issue #94): the owner can add a short note about the
+// Optional list preamble: the owner can add a short note about the
 // list. Shown here and on the public share page. Empty saves clear it.
 function ListPreamble({ id, preamble, onSaved }: { id: string; preamble: string | null; onSaved: () => void }) {
   const [editing, setEditing] = useState(false);
@@ -169,12 +169,12 @@ function ListPreamble({ id, preamble, onSaved }: { id: string; preamble: string 
   );
 }
 
-// Rename a list inline (issue #321), mirroring the profile's username editor
+// Rename a list inline, mirroring the profile's username editor
 // (profile.tsx): the pencil in the list header mounts just this form while
 // editing, so the input and any error start fresh each open. `busy` lives in
 // the parent so the pencil can't unmount the form (and eat the error)
 // mid-save. On success the parent reloads /lists/:id, which re-runs the
-// canonicalize effect and rewrites the URL slug (issue #319) to the new name.
+// canonicalize effect and rewrites the URL slug to the new name.
 function ListTitleEditor({
   id,
   name,
@@ -206,7 +206,7 @@ function ListTitleEditor({
     try {
       await put(`/lists/${id}`, { name: next });
       // The /lists grid predates the rename — drop it so it can't repaint the
-      // old name when the reader navigates back (issue #154).
+      // old name when the reader navigates back.
       dropCached("/lists");
       close();
       reload();
@@ -238,9 +238,9 @@ function ListTitleEditor({
   );
 }
 
-// Owner-only "Danger zone" at the very bottom of the list (issue #336):
+// Owner-only "Danger zone" at the very bottom of the list:
 // deleting is irreversible, so the Delete button opens a confirmation modal
-// (issue #336 follow-up) rather than deleting inline. The modal is built on the
+// rather than deleting inline. The modal is built on the
 // same native <dialog> chrome as the site-wide useConfirm dialog so it matches
 // the rest of the site, and it stays a no-op until the owner types exactly
 // "DELETE" (all caps) — that arms the destructive button. Escape, a backdrop
@@ -340,7 +340,7 @@ function DangerZone({ name, onConfirm }: { name: string; onConfirm: () => Promis
 }
 
 export function ListDetailPage() {
-  // The URL is /u/:username/lists/:id-slug now (issue #319); only the leading
+  // The URL is /u/:username/lists/:id-slug now; only the leading
   // digits identify the list — the slug is advisory (see paths.ts).
   const id = idFromParam(useParams().id);
   const navigate = useNavigate();
@@ -363,7 +363,7 @@ export function ListDetailPage() {
   const [busy, setBusy] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleBusy, setTitleBusy] = useState(false);
-  // The comments eye-toggle updates optimistically (issue #336): flip locally,
+  // The comments eye-toggle updates optimistically: flip locally,
   // then settle on the server. The override is cleared whenever fresh list data
   // lands (below), so a successful toggle + reload leaves the server's value in
   // charge and a failed one reverts.
@@ -402,7 +402,7 @@ export function ListDetailPage() {
     }
   };
 
-  // Making a pinned list private removes it from the profile (issue #33), so
+  // Making a pinned list private removes it from the profile, so
   // warn first. The server clears the pin either way; this just surfaces it.
   async function toggleVisibility() {
     const goingPrivate = !!data!.list.is_shared;
@@ -432,7 +432,7 @@ export function ListDetailPage() {
     }
   }
 
-  // Optimistic comments on/off (issue #336): flip the eye immediately, then
+  // Optimistic comments on/off: flip the eye immediately, then
   // settle on the server; revert with a toast if the write fails.
   const commentsEnabled = commentsOverride ?? !!data.list.comments_enabled;
   async function toggleComments() {
@@ -455,7 +455,7 @@ export function ListDetailPage() {
     await del(`/lists/${id}`);
     // Mutate-then-navigate: the cached /lists grid (and this list's own entry)
     // predate the delete — drop them so the grid we land on can't flash the
-    // deleted list (issue #154).
+    // deleted list.
     dropCached("/lists");
     dropCached(`/lists/${id}`);
     toast("List deleted");
@@ -470,7 +470,7 @@ export function ListDetailPage() {
           <h1 className="page-title">
             {data.list.kind === "favorites" && <IconHeart size={20} />} {data.list.name}
           </h1>
-          {/* Icon-only share, right of the name (issue #319). The address bar
+          {/* Icon-only share, right of the name. The address bar
               is already the clean, shareable URL, so the old "Anyone with this
               link can view…" note and Copy-link button are gone. Only public
               lists are shareable — a private list's link just 404s a visitor. */}
@@ -482,7 +482,7 @@ export function ListDetailPage() {
               path={publicListPath(user!.username, data.list.id, data.list.name)}
             />
           )}
-          {/* Rename the list inline (issue #321), same pencil affordance as the
+          {/* Rename the list inline, same pencil affordance as the
               profile's username editor (profile.tsx). Owner-only: this whole
               page is the owner view — visitors get PublicListPage instead. */}
           <button
@@ -496,7 +496,7 @@ export function ListDetailPage() {
             <IconPencil size={15} />
           </button>
         </div>
-        {/* Visibility stays at the top (issue #336): whether the list is public
+        {/* Visibility stays at the top: whether the list is public
             is the first decision, and it gates everything below it. Comments
             (an eye toggle) moved down by the comments; delete lives in the
             bottom Danger zone. */}
@@ -525,7 +525,7 @@ export function ListDetailPage() {
         />
       )}
 
-      {/* Byline matches the visitor's view (issue #325) — the whole point is
+      {/* Byline matches the visitor's view — the whole point is
           that the owner sees the same list a visitor does. Favorites carry no
           byline (they're organized into sections, not a single share). */}
       {data.list.kind !== "favorites" && <ListByline username={user!.username} count={data.items.length} />}
@@ -537,7 +537,7 @@ export function ListDetailPage() {
           <Empty title="No favorites yet" hint="Tap the heart on any show or movie to add it here." />
         ) : (
           (() => {
-            // Split favorites into Shows / Movies / Anime (issue #103); anime is
+            // Split favorites into Shows / Movies / Anime; anime is
             // Animation genre + Japanese origin, matching the Library's Anime tab.
             const groups: Record<"shows" | "movies" | "anime", ListItem[]> = { shows: [], movies: [], anime: [] };
             for (const it of data!.items) {
@@ -590,8 +590,8 @@ export function ListDetailPage() {
       ) : !data.items.length ? (
         <Empty title="This list is empty" hint="Open any show or movie and use “Add to list”." />
       ) : (
-        // Same rich cards a visitor sees (issue #325) — descriptions and the
-        // per-item owner comment (issue #322) — with the owner's reorder/remove
+        // Same rich cards a visitor sees — descriptions and the
+        // per-item owner comment — with the owner's reorder/remove
         // controls layered on via `controls`.
         <ListItems
           items={data.items}
@@ -614,14 +614,14 @@ export function ListDetailPage() {
         onToggleComments={toggleComments}
       />
 
-      {/* The Favorites system list is auto-created and can't be deleted (issue
-          #351) — no Danger Zone for it; the server rejects its deletion too. */}
+      {/* The Favorites system list is auto-created and can't be deleted
+          — no Danger Zone for it; the server rejects its deletion too. */}
       {data.list.kind !== "favorites" && <DangerZone name={data.list.name} onConfirm={deleteList} />}
     </div>
   );
 }
 
-// "Add to list" picker used on show/movie pages (issue #318). A scrollable,
+// "Add to list" picker used on show/movie pages. A scrollable,
 // multi-select CHECKBOX menu of the viewer's custom lists — checked means the
 // title is already in that list; toggling adds/removes it immediately
 // (optimistic, with revert-on-error). The Favorites system list is deliberately
@@ -664,7 +664,7 @@ export function AddToList({ type, id }: { type: "show" | "movie"; id: number }) 
     if (open) ref.current?.showModal();
   }, [open]);
 
-  // Favorites never appear here — the heart button owns them (issue #318).
+  // Favorites never appear here — the heart button owns them.
   const custom = (lists ?? []).filter((l) => l.kind !== "favorites");
 
   async function toggle(l: ListSummary) {
@@ -680,7 +680,7 @@ export function AddToList({ type, id }: { type: "show" | "movie"; id: number }) 
       if (has) await del(`/lists/${l.id}/items/${type}/${id}`);
       else await post(`/lists/${l.id}/items`, { type, id });
       // These mutations happen away from the Lists pages, so drop their cached
-      // copies — the grid count and the list's items can't render stale (#154).
+      // copies — the grid count and the list's items can't render stale.
       dropCached("/lists");
       dropCached(`/lists/${l.id}`);
     } catch {

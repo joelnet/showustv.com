@@ -1,7 +1,7 @@
-// Notifications client plumbing (issue #129): the unread-count store behind
+// Notifications client plumbing: the unread-count store behind
 // the header bell, and the Web Push subscribe/unsubscribe flow the settings
 // page drives. The store also mirrors the count onto the installed PWA's
-// app icon via the Badging API (issue #142).
+// app icon via the Badging API.
 
 import { useEffect, useSyncExternalStore } from "react";
 import { api, post } from "./api";
@@ -19,7 +19,7 @@ const subscribe = (cb: () => void) => {
   };
 };
 
-// App-icon badging (issue #142): keep the home-screen/dock icon's badge in
+// App-icon badging: keep the home-screen/dock icon's badge in
 // lockstep with the bell. Best-effort by design — the API only exists in
 // some browsers, only does anything for an installed PWA, and the promise
 // can reject — so every failure mode is swallowed; the in-app bell is the
@@ -85,10 +85,10 @@ export function useUnreadNotifications(): number {
   return count;
 }
 
-// ---------- Push-nudge store (issue #276) ----------
+// ---------- Push-nudge store ----------
 // While this device COULD receive pushes but isn't subscribed — the same
 // off-but-enable-able condition the notifications page's PushToggle discover
-// mode uses (issue #237): push supported, VAPID key configured, no current
+// mode uses: push supported, VAPID key configured, no current
 // subscription — the bell badge shows at least (1) to pull people onto the
 // page where the enable toggle lives. Purely a display nudge: the real
 // unread store above (and the server's read state) is never touched.

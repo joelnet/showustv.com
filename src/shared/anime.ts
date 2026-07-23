@@ -1,4 +1,4 @@
-// Anime classification, shared by shows and movies (issue #85). A title is
+// Anime classification, shared by shows and movies. A title is
 // treated as anime when it's animated *and* Japanese in origin: the genre list
 // includes "Animation" and the original language is Japanese ("ja"). TMDB
 // exposes the same `genres` + `original_language` fields on both the /tv and

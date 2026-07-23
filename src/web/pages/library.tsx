@@ -7,12 +7,12 @@ import { PosterCard, Progress, Empty, ErrorNote } from "../components/ui";
 import { PosterGridSkeleton } from "../components/skeleton";
 import { mediaPath } from "../paths";
 
-// The Library's tabs partition every tracked show. "Watching" (issue #253) is
+// The Library's tabs partition every tracked show. "Watching" is
 // tracked shows that are not up to date, not finished, and not abandoned —
 // i.e. with unwatched aired episodes remaining, whether started or not,
 // active or gone quiet. (Watch Next still queues those episodes; the Library
 // lists the shows. "Abandoned" is the display label for the stored 'stopped'
-// state — issue #222.) "Watch Later" (issue #257) is the shows half of the
+// state.) "Watch Later" is the shows half of the
 // retired top-level Watchlist tab — saved-for-later shows, fed by the
 // payload's separate watchlistShows bucket rather than derived state.
 const STATE_SECTIONS: [string, string][] = [
@@ -24,8 +24,8 @@ const STATE_SECTIONS: [string, string][] = [
 ];
 
 // Derived watching (stale or not) and not-started shows with aired episodes
-// fall under the Watching tab — tracked with something left to watch (issue
-// #253). A followed show with nothing aired yet has nothing to be behind on,
+// fall under the Watching tab — tracked with something left to watch.
+// A followed show with nothing aired yet has nothing to be behind on,
 // so it counts as up to date. The reference states map 1:1; every show lands
 // in exactly one bucket.
 function showBucket(s: LibShow): string {
@@ -34,10 +34,10 @@ function showBucket(s: LibShow): string {
   return s.derivedState;
 }
 
-// The Library sort (issue #267): one control, shared by the Shows, Movies,
+// The Library sort: one control, shared by the Shows, Movies,
 // and Anime tabs — each with its own persisted choice, so sorting Movies A–Z
 // doesn't reorder Shows. The keys are viewer-local UI preferences, which is
-// why the public library (issue #245) shares them too: the sort belongs to
+// why the public library shares them too: the sort belongs to
 // whoever is looking, not to whose library it is.
 type LibrarySort = "last_watched" | "alphabetical";
 const SHOW_SORT_KEY = "library-show-sort";
@@ -102,7 +102,7 @@ export interface LibShow {
   aired: number;
   total: number;
   last_watched_at: string | null;
-  // Hidden from the owner's public surfaces (issue #260). Only the owner's
+  // Hidden from the owner's public surfaces. Only the owner's
   // own payload ever carries it — the public library filters hidden shows
   // server-side — so the marker below can never render for a visitor.
   hidden?: boolean;
@@ -121,7 +121,7 @@ export interface WatchlistItem {
 }
 
 // The progress meta line under a show poster, with a subtle "hidden" marker
-// (issue #260) so the owner can spot — and go unhide — shows they've taken
+// so the owner can spot — and go unhide — shows they've taken
 // off their public profile. The show page's eye toggle is where that happens.
 const showSub = (s: LibShow) => `${s.watched}/${s.aired}${s.hidden ? " · hidden" : ""}`;
 
@@ -129,10 +129,10 @@ const showSub = (s: LibShow) => `${s.watched}/${s.aired}${s.hidden ? " · hidden
 // Abandoned / Watch Later — only tabs that have shows appear), and the active
 // tab's poster grid. Since the buckets partition the payload, the zero-tabs
 // empty state only shows when there are no tracked or saved shows at all.
-// Exported for the public library page (issue #245), which is read-only —
+// Exported for the public library page, which is read-only —
 // this component already is: it only navigates and sorts. `empty` swaps the
 // owner-directed zero-tabs message for visitor copy there; `watchlist` is
-// owner-only (issue #257) — the public payload never carries the bucket, so
+// owner-only — the public payload never carries the bucket, so
 // no Watch Later tab can appear there.
 export function ShowsLibrary({ shows, watchlist = [], empty }: { shows: LibShow[]; watchlist?: WatchlistItem[]; empty?: ReactElement }) {
   const [sort, setSort] = useLibrarySort(SHOW_SORT_KEY);
@@ -184,7 +184,7 @@ export function ShowsLibrary({ shows, watchlist = [], empty }: { shows: LibShow[
           <SortBar sort={sort} onChange={setSort} />
           <div className="poster-grid">
             {activeShows.map((s) =>
-              // Finished shows (issue #223): every episode is watched, so the
+              // Finished shows: every episode is watched, so the
               // watched/aired meta line and the always-full progress bar say
               // nothing — just the poster with an episode-count pill.
               activeKey === "finished" ? (
@@ -210,8 +210,8 @@ export function ShowsLibrary({ shows, watchlist = [], empty }: { shows: LibShow[
 }
 
 // The movies tab's poster grid. `tz` shapes the watched-at sub line — the
-// viewer's saved timezone here, the visitor's own on the public library page
-// (issue #245), where AnimeLibrary below is reused as-is. Renders in the
+// viewer's saved timezone here, the visitor's own on the public library page,
+// where AnimeLibrary below is reused as-is. Renders in the
 // order given; sorting is the caller's business (AnimeLibrary shares one
 // sort across its two sections, so the bar can't live in here).
 export function MovieGrid({ movies, tz }: { movies: LibMovie[]; tz: string }) {
@@ -230,7 +230,7 @@ export function MovieGrid({ movies, tz }: { movies: LibMovie[]; tz: string }) {
   );
 }
 
-// MovieGrid under the Shows tab's sort bar (issue #267): watched movies,
+// MovieGrid under the Shows tab's sort bar: watched movies,
 // sortable just like shows. Both movie surfaces render this — the owner
 // Library's Seen subtab and the public library's Movies tab — so the one
 // persisted key follows the viewer across them.
@@ -244,7 +244,7 @@ export function SortedMovieGrid({ movies, tz }: { movies: LibMovie[]; tz: string
   );
 }
 
-// The movies library (issue #257): a subtab bar mirroring ShowsLibrary's.
+// The movies library: a subtab bar mirroring ShowsLibrary's.
 // Movies have exactly two states (0001_init.sql CHECK: watched / watchlist),
 // so Seen and Watch Later fully partition them — Seen is the payload's
 // `movies` bucket (anime movies excluded there, they live on the Anime tab),
@@ -298,7 +298,7 @@ function MoviesLibrary({ movies, watchlist = [], tz }: { movies: LibMovie[]; wat
 
 // The anime tab: shows (with progress) and movies as two headed sections.
 // Callers guarantee at least one of the two is non-empty. One sort bar
-// (issue #267) orders both sections — they're one collection split by medium,
+// orders both sections — they're one collection split by medium,
 // not two lists that would each earn a control.
 export function AnimeLibrary({ shows, movies, tz }: { shows: LibShow[]; movies: LibMovie[]; tz: string }) {
   const [sort, setSort] = useLibrarySort(ANIME_SORT_KEY);
@@ -328,7 +328,7 @@ export function AnimeLibrary({ shows, movies, tz }: { shows: LibShow[]; movies: 
   );
 }
 
-// The top-level tabs are media categories only (issue #257): the old
+// The top-level tabs are media categories only: the old
 // Watchlist tab — a planning list posing as a peer of Shows/Movies/Anime, and
 // the root of the "is Movies things I've watched?" confusion — is folded into
 // Watch Later subtabs under Shows and Movies (/library/watchlist redirects
@@ -340,7 +340,7 @@ export function LibraryPage({ tab }: { tab: "shows" | "movies" | "anime" }) {
     movies: LibMovie[];
     animeShows: LibShow[];
     animeMovies: LibMovie[];
-    // Optional: tolerates service-worker-cached pre-#257 payloads, which lack
+    // Optional: tolerates older service-worker-cached payloads, which lack
     // the Watch Later buckets — they paint before revalidation (hooks.ts).
     watchlistShows?: WatchlistItem[];
     watchlistMovies?: WatchlistItem[];

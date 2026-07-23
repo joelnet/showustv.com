@@ -1,4 +1,4 @@
-// Forgot-password flow (issue #216). Two public pages: /forgot-password asks
+// Forgot-password flow. Two public pages: /forgot-password asks
 // for the account email and always gets the same generic confirmation (the
 // server never says whether the address has an account), and /reset-password
 // is where the emailed link lands. Like /verify-email, the reset page does

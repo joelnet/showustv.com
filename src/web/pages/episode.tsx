@@ -26,7 +26,7 @@ interface EpisodePayload {
     overview: string | null;
     still: string | null;
   };
-  // Null on the anonymous payload (issue #159) — the server never ships
+  // Null on the anonymous payload — the server never ships
   // user-shaped fields without a session.
   user: {
     watched: boolean;
@@ -50,7 +50,7 @@ export function EpisodePage() {
 
   useEffect(() => setQueuedState(null), [data]); // fresh data supersedes the override
 
-  // Canonicalize the address bar to the slugged URL (issue #11) so bare or
+  // Canonicalize the address bar to the slugged URL so bare or
   // stale-slug links become shareable SEO-friendly ones once the title loads.
   useEffect(() => {
     if (!data) return;
@@ -58,7 +58,7 @@ export function EpisodePage() {
     if (location.pathname !== canonical) navigate(canonical + location.search, { replace: true });
   }, [data, location, navigate]);
 
-  // Tab title (issue #211) — same "Show S01E05: Name" the Worker bakes into
+  // Tab title — same "Show S01E05: Name" the Worker bakes into
   // a hard load of this page.
   const epMeta = data?.episode;
   useDocumentTitle(
@@ -74,10 +74,10 @@ export function EpisodePage() {
 
   const { episode: ep } = data;
   // No profile timezone without a session — the browser's own stands in for
-  // signed-out visitors on shared links (issue #159).
+  // signed-out visitors on shared links.
   const tz = user ? user.tz : Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-  // Signed-out visitors (shared links, issue #159): public catalog content,
+  // Signed-out visitors (shared links): public catalog content,
   // no watch/rating controls. Comments render read-only (the thread is public
   // for a public title); the Comments component itself shows a quiet sign-in
   // line in place of the composer.
@@ -121,8 +121,8 @@ export function EpisodePage() {
       // brings the server truth.
       if (r?.queued) setQueuedState(queuedAs ?? queuedState);
       else reload();
-      // The watch endpoint flags when this mark just finished the show (issue
-      // #53). Only the mark-watched post carries it, so undo/rating never fire.
+      // The watch endpoint flags when this mark just finished the show.
+      // Only the mark-watched post carries it, so undo/rating never fire.
       if (r?.caughtUp) celebrate(r.showTitle ?? ep.showTitle);
     } finally {
       setBusy(false);

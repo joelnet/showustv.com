@@ -24,7 +24,7 @@ interface Episode {
   title: string | null;
   air_date: string | null;
   aired: boolean;
-  // Viewer state — absent on the anonymous payload (issue #159).
+  // Viewer state — absent on the anonymous payload.
   watched?: boolean;
   playCount?: number;
 }
@@ -42,15 +42,15 @@ interface ShowPayload {
     imdbId: string | null;
   };
   seasons: { id: number; number: number; name: string | null; episodes: Episode[] }[];
-  // `user` and `progress` are null on the anonymous payload (issue #159) —
+  // `user` and `progress` are null on the anonymous payload —
   // the server never ships user-shaped fields without a session.
   user: {
     followed: boolean;
     state: string | null;
     rating: { score: number | null } | null;
     favorited: boolean;
-    // Hidden from the viewer's public surfaces (issue #260). Optional so a
-    // service-worker-cached pre-#260 payload still renders.
+    // Hidden from the viewer's public surfaces. Optional so a
+    // stale service-worker-cached payload still renders.
     hidden?: boolean;
   } | null;
   progress: { watched: number; aired: number; total: number } | null;
@@ -79,7 +79,7 @@ function withUser(d: ShowPayload, user: Partial<NonNullable<ShowPayload["user"]>
   return { ...d, user: d.user && { ...d.user, ...user } };
 }
 
-// Full removal (issue #20): drop the show from the account and reset every
+// Full removal: drop the show from the account and reset every
 // bit of local state it contributed — history, progress, rating, favorite.
 function cleared(d: ShowPayload): ShowPayload {
   return {
@@ -95,7 +95,7 @@ function cleared(d: ShowPayload): ShowPayload {
 
 // Fully caught up: every aired regular-season episode is watched. Uses the
 // same aired-only progress counts the server sends, so it matches the app's
-// definition of "no episodes left to watch right now" (issue #53).
+// definition of "no episodes left to watch right now".
 const isCaughtUp = (d: ShowPayload) =>
   d.progress != null && d.progress.aired > 0 && d.progress.watched >= d.progress.aired;
 
@@ -114,27 +114,27 @@ function priorUnwatched(d: ShowPayload, target: Episode): number {
 // first regular season with an aired unwatched episode. Fully-watched seasons
 // never open, and a caught-up viewer (isCaughtUp — the same aired
 // regular-episode counts behind Finished/Up to date) gets every season
-// collapsed instead of a force-opened one (issue #264). An abandoned show
-// (state 'stopped', issue #302) collapses every season too — the viewer has
+// collapsed instead of a force-opened one. An abandoned show
+// (state 'stopped') collapses every season too — the viewer has
 // stopped and won't be marking new episodes watched, even if aired unwatched
 // ones remain — so that check comes first, before the working-season lookup.
 // Only a show with nothing aired yet (and specials-only shows never counted)
 // keeps the old first-regular-season fallback so upcoming air dates stay
 // visible. Shared so a cache seed and a fresh fetch derive it the same way.
 function pickOpenSeason(d: ShowPayload): number | null {
-  // Nothing left to mark watched — collapse every season (issues #264, #302).
+  // Nothing left to mark watched — collapse every season.
   if (d.user?.state === "stopped" || isCaughtUp(d)) return null;
   const current = d.seasons.find((s) => s.number > 0 && s.episodes.some((e) => e.aired && !e.watched));
   if (current) return current.number;
   return d.seasons.find((s) => s.number > 0)?.number ?? null;
 }
 
-// Episode display order (issue #187). Ascending is the server's order (season
+// Episode display order. Ascending is the server's order (season
 // 1 first, E1 first). Descending mirrors both levels — latest season first,
 // latest episode first within each season — so the most recent episode is the
 // first row on the page; specials (season 0) fall to the bottom. One global
 // preference per user, never per-show or per-season, stored under a per-user
-// key like the Watch Now section layout (issue #185) so two accounts on the
+// key like the Watch Now section layout so two accounts on the
 // same browser keep separate choices. Signed-out viewers can flip the order
 // for the visit, but nothing is persisted without an account.
 type EpisodeSort = "asc" | "desc";
@@ -168,7 +168,7 @@ function orderSeasons(seasons: ShowPayload["seasons"], sort: EpisodeSort): ShowP
 }
 
 // The order dropdown above the seasons list — the Library's sort-bar control,
-// same styling and label placement (issue #187).
+// same styling and label placement.
 function EpisodeSortBar({ sort, onChange }: { sort: EpisodeSort; onChange: (s: EpisodeSort) => void }) {
   return (
     <div className="sort-bar">
@@ -208,7 +208,7 @@ function AlsoWatching({ showId }: { showId: string }) {
   );
 }
 
-// Signed-out view of a show (issue #159): the public catalog content — hero,
+// Signed-out view of a show: the public catalog content — hero,
 // overview, where-to-watch, seasons and air dates — plus the read-only
 // comment thread. No tracking controls, watch state, progress, or rating: the
 // server omits those fields from anonymous payloads. Seasons start collapsed
@@ -327,18 +327,18 @@ export function ShowPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const cacheKey = `/shows/${id}`;
-  // Seed instantly from the Continue Watching precache when present (issue
-  // #154 follow-up): a tile that was warmed for offline paints its detail
+  // Seed instantly from the Continue Watching precache when present:
+  // a tile that was warmed for offline paints its detail
   // page from cache with no loading skeleton; the fetch below then refreshes
   // it in the background. A cold (unseeded) show still shows the skeleton.
   const seed = getCached<ShowPayload>(cacheKey);
   const [data, setData] = useState<ShowPayload | null>(seed ?? null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  // Signed-out viewers (issue #159) start with every season collapsed; only a
+  // Signed-out viewers start with every season collapsed; only a
   // signed-in visit auto-opens the season they're working through.
   const [openSeason, setOpenSeason] = useState<number | null>(seed && user ? pickOpenSeason(seed) : null);
-  // Global episode order (issue #187): restored once per mount from the
+  // Global episode order: restored once per mount from the
   // per-user key and kept across show-to-show navigation — it's one setting
   // for the whole account, so no per-show reset.
   const [episodeSort, setEpisodeSort] = useState<EpisodeSort>(() => loadEpisodeSort(user?.id));
@@ -349,7 +349,7 @@ export function ShowPage() {
 
   // Re-read the order preference if the signed-in identity changes while the
   // page stays mounted, so one account's in-memory choice can't bleed into
-  // another's session (the same cross-account hygiene as issue #185).
+  // another's session (the same cross-account hygiene used elsewhere).
   useEffect(() => {
     setEpisodeSort(loadEpisodeSort(user?.id));
   }, [user?.id]);
@@ -359,7 +359,7 @@ export function ShowPage() {
   // before the mount refetch lands, which is the only way they race.
   const dirty = useRef(false);
 
-  // Canonicalize the address bar to the slugged URL (issue #11) so bare or
+  // Canonicalize the address bar to the slugged URL so bare or
   // stale-slug links become shareable SEO-friendly ones once the title loads.
   useEffect(() => {
     if (!data) return;
@@ -367,7 +367,7 @@ export function ShowPage() {
     if (location.pathname !== canonical) navigate(canonical + location.search, { replace: true });
   }, [data, location, navigate]);
 
-  // Tab title (issue #211) — matches the <title> the Worker bakes into a
+  // Tab title — matches the <title> the Worker bakes into a
   // hard load of this page.
   useDocumentTitle(data?.show.title);
 
@@ -386,12 +386,12 @@ export function ShowPage() {
     // The open-season pick is settled once it came from a payload the viewer
     // could see (and may have toggled since). A skeleton-only paint — an
     // anonymous SW-cached copy replayed for a signed-in viewer — must not pin
-    // a stale default open (issue #264): the fresh fetch re-picks it below.
+    // a stale default open: the fresh fetch re-picks it below.
     let pickSettled = cached !== undefined && renders(cached);
     if (cached) setOpenSeason(user ? pickOpenSeason(cached) : null);
     if (cached === undefined) {
-      // Cold load: paint the service worker's offline copy instantly (issue
-      // #183) while the fetch below revalidates — a precached library show
+      // Cold load: paint the service worker's offline copy instantly
+      // while the fetch below revalidates — a precached library show
       // skips the skeleton even online. Not written to the page cache: the
       // refetch below stores the fresher copy.
       void readApiCache<ShowPayload>(cacheKey).then((hit) => {
@@ -413,7 +413,7 @@ export function ShowPage() {
         // Only pick the open season when nothing the viewer could interact
         // with settled it — a cold load, or a warm paint that only reached
         // the skeleton (any season the user has since toggled stays put).
-        // Anonymous viewers keep everything collapsed (issue #159).
+        // Anonymous viewers keep everything collapsed.
         if (!pickSettled) setOpenSeason(user ? pickOpenSeason(d) : null);
       })
       .catch((e) => {
@@ -442,7 +442,7 @@ export function ShowPage() {
   if (error) return <ErrorNote message={error} />;
   if (!data) return <ShowPageSkeleton />;
 
-  // Signed-out visitors (shared links, issue #159): the public catalog view
+  // Signed-out visitors (shared links): the public catalog view
   // with a sign-in CTA in place of the tracking controls. The server omits
   // all user state from anonymous payloads, so nothing personal can render
   // here even by accident.
@@ -483,7 +483,7 @@ export function ShowPage() {
   // One API call per action; the UI updates from what we already know.
   // `apply` is pure, so any watch action that flips the show from "behind" to
   // "caught up" is caught here in one place — single episode, whole season,
-  // mark-all, or a catch-up sweep (issue #53). Detection runs off the captured
+  // mark-all, or a catch-up sweep. Detection runs off the captured
   // `data` (single-flight thanks to `busy`), keeping the side effect out of the
   // state updater so a double-invoked render can't replay the confetti.
   const run = (fn: () => Promise<unknown>, apply: (d: ShowPayload) => ShowPayload) => async () => {
@@ -542,10 +542,10 @@ export function ShowPage() {
     )();
   };
 
-  // Hide/unhide from the viewer's public surfaces (issue #260): profile
+  // Hide/unhide from the viewer's public surfaces: profile
   // history rows, public library, activity feed, also-watching, and
   // notifications about the show — while it stays fully intact right here and
-  // in their own Library. The toast (issue #244 chrome) announces the new
+  // in their own Library. The toast announces the new
   // state, matching the profile privacy eye; errors toast too, like
   // togglePrivacy there.
   const toggleHidden = async () => {
@@ -576,12 +576,12 @@ export function ShowPage() {
     if (ok) run(() => del(`/shows/${show.id}/remove`), cleared)();
   };
 
-  // Unfollow — and, for a show you're partway through, ABANDON it (issue #314).
+  // Unfollow — and, for a show you're partway through, ABANDON it.
   // The standalone "Abandon show" button is gone, so unfollow carries that flow:
   // a partially-watched show (some aired regular-season episodes watched but not
-  // caught up — the #258 rule the server re-checks) drops into the abandoned
+  // caught up — the rule the server re-checks) drops into the abandoned
   // 'stopped' state and stays in the Library's Abandoned tab, with every season
-  // collapsing (#302, keyed off state 'stopped'). Anything else — nothing
+  // collapsing (keyed off state 'stopped'). Anything else — nothing
   // watched, fully caught up, or a hidden row — unfollows outright, dropping the
   // library row while keeping watch history, exactly as before. The optimistic
   // update mirrors the server's DELETE /shows/:id/follow branch.
@@ -621,7 +621,7 @@ export function ShowPage() {
                       Following ✓
                     </button>
                     {mine.state === "stopped" && (
-                      // A show abandoned by unfollowing (issue #314) reads as
+                      // A show abandoned by unfollowing reads as
                       // still followed (state 'stopped'); Resume takes it back to
                       // 'watching'. There is no separate Abandon button anymore —
                       // unfollowing a partially-watched show is what abandons it.
@@ -667,9 +667,9 @@ export function ShowPage() {
                 >
                   {mine.favorited ? <IconHeart size={18} /> : <IconHeartOutline size={18} />}
                 </button>
-                {/* Privacy toggle (issue #260): icon-only like the profile's
-                    privacy toggle (issue #244). The hat-and-glasses "incognito"
-                    glyph (issue #314) reads as hide-from-public; the `is-on`
+                {/* Privacy toggle: icon-only like the profile's
+                    privacy toggle. The hat-and-glasses "incognito"
+                    glyph reads as hide-from-public; the `is-on`
                     state + aria-pressed carry hidden vs visible. Offered
                     whenever the show has any trace in the account (inLibrary),
                     since watch history alone is what leaks on the profile. */}

@@ -1,4 +1,4 @@
--- Session revocation (issue #355). Sessions are self-contained 30-day HMAC
+-- Session revocation. Sessions are self-contained 30-day HMAC
 -- cookies (lib/session.ts) with no server-side record, so nothing could revoke
 -- one before it expired: a password reset, an email change, or a soft-deleted
 -- account all left previously issued cookies fully alive.

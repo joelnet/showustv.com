@@ -1,4 +1,4 @@
--- issue #141: comments notify followers. When someone you follow comments on
+-- Comments notify followers. When someone you follow comments on
 -- a show or movie you also track, you get a 'follow_comment' notification.
 --
 -- No new notification columns: a comment notification reuses the 0020/0021

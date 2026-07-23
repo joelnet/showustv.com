@@ -1,4 +1,4 @@
--- Wait list (issue #26). The site is closed pending licensing data, so new
+-- Wait list. The site is closed pending licensing data, so new
 -- sign-ups join a wait list: the account is created (holding their email +
 -- password) but flagged, which blocks sign-in until the site opens.
 ALTER TABLE users ADD COLUMN waitlisted INTEGER NOT NULL DEFAULT 0 CHECK (waitlisted IN (0,1));

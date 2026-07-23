@@ -1,5 +1,5 @@
 // The signed-in user's own profile. It lives at the shareable custom URL —
-// /u/<username>, the same address visitors use (issue #220) — so the address
+// /u/<username>, the same address visitors use — so the address
 // bar always shows the link worth copying; the old /profile path just
 // redirects here (app.tsx). On top of everything visitors see (stats,
 // achievements, conversations), the owner gets the management
@@ -7,7 +7,7 @@
 // and the lists pinned to the profile (add / remove / reorder).
 // Email verification lives on the Settings page (settings.tsx). Visitors'
 // view: public-profile.tsx, which reuses the section components defined here.
-// The achievements grid lives on its own page (achievements.tsx, issue #201)
+// The achievements grid lives on its own page (achievements.tsx)
 // — here it's just a linked count.
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -63,11 +63,11 @@ interface ProfileData {
   otherLists: Omit<ProfileList, "posters">[];
 }
 
-// Rename the auto-assigned handle (issue #23). Sign-up gives a random
+// Rename the auto-assigned handle. Sign-up gives a random
 // username; this lets the user change it, updating the auth context so the
 // rest of the app (share links, etc.) reflects it immediately. Just the
-// inline form: the trigger is the pencil button in the profile header (issue
-// #182), and the parent mounts this only while editing, so the input and any
+// inline form: the trigger is the pencil button in the profile header,
+// and the parent mounts this only while editing, so the input and any
 // error start fresh each time it opens. `busy` lives in the parent so the
 // pencil can't unmount the form (and eat the error) mid-save.
 function UsernameEditor({
@@ -102,7 +102,7 @@ function UsernameEditor({
       if (user) setUser({ ...user, username: r.username });
       close();
       reload();
-      // The page's address contains the name (issue #220), so a successful
+      // The page's address contains the name, so a successful
       // rename moves to the new URL — otherwise the router would treat the
       // old address as someone else's (now nonexistent) profile. Replace,
       // not push: Back shouldn't step onto a dead URL this action created.
@@ -137,9 +137,9 @@ function UsernameEditor({
   );
 }
 
-// The watch stats as a "Stats" slider (issue #250): the stat cards
+// The watch stats as a "Stats" slider: the stat cards
 // ride the same horizontal section chrome as the Shows / Movies / Anime
-// history rows below (issue #245), so on phones they side-scroll like every
+// history rows below, so on phones they side-scroll like every
 // other row instead of stacking into a wall of cards. The heading is plain
 // text — unlike the history rows there's no fuller page behind it.
 export function StatsGrid({ stats }: { stats: WatchStats }) {
@@ -179,12 +179,12 @@ export function StatsGrid({ stats }: { stats: WatchStats }) {
 
 // ---------- Sections shared with the public view (public-profile.tsx) ----------
 
-// The watch-history rows (issue #245): Shows, Movies, and Anime as Watch-Now-
+// The watch-history rows: Shows, Movies, and Anime as Watch-Now-
 // style side-scrolling tile rows, each already deduped server-side to one
 // tile per show (the latest-watched episode) so a binge can't flood a row.
 // Rendered ABOVE Achievements on both profile views. Each heading opens the
 // matching library tab — `base` is the owner's own /library on their page,
-// /u/:username/library (the public library, issue #245) for visitors.
+// /u/:username/library (the public library) for visitors.
 // Visibility rides the profile gate alone — no per-section toggle: the
 // server only puts `history` in payloads it already deemed visible, and an
 // all-empty history renders nothing at all.
@@ -207,7 +207,7 @@ export function ProfileHistory({ history, base }: { history: ProfileHistoryData;
 
 export interface ProfileComment {
   // The comment snippet, shown to every viewer the profile is — signed-out
-  // visitors included (issue #349). Still nullable only to tolerate pre-#349
+  // visitors included. Still nullable only to tolerate older
   // cached payloads that withheld it from anonymous viewers; the render below
   // degrades to metadata-only for those.
   body: string | null;
@@ -222,9 +222,9 @@ export interface ProfileComment {
   };
 }
 
-// Recent comment activity (issue #16): what shows this user is talking
+// Recent comment activity: what shows this user is talking
 // about, each row linking into the thread's page. Bodies are public to every
-// viewer the profile is (issue #349) — a signed-out visitor sees the same
+// viewer the profile is — a signed-out visitor sees the same
 // snippets the owner does; the `c.body != null` guards below only cover
 // legacy cached payloads that withheld them from anonymous viewers.
 export function ProfileComments({ comments }: { comments: ProfileComment[] }) {
@@ -261,7 +261,7 @@ interface ActivityRow {
   status: number;
 }
 
-// Admin-only (issues #17/#18): the user's recent audit trail from
+// Admin-only: the user's recent audit trail from
 // activity_log, plus the shadow-ban toggle. The server re-checks is_admin
 // on every call; this render gate is UX only.
 export function AdminTools({ username, tz }: { username: string; tz: string }) {
@@ -365,12 +365,12 @@ export function AdminTools({ username, tz }: { username: string; tz: string }) {
 // ---------- The owner's page ----------
 
 // The slice of the /public/profile payload this page renders alongside the
-// /profile data. The server always serves the owner their own full profile
-// (issues #158/#184), so unlike public-profile.tsx there is no teaser shape
+// /profile data. The server always serves the owner their own full profile,
+// so unlike public-profile.tsx there is no teaser shape
 // to discriminate here.
 interface OwnPublicData {
   private?: boolean;
-  history?: ProfileHistoryData; // optional: tolerates cached pre-#245 payloads
+  history?: ProfileHistoryData; // optional: tolerates older cached payloads
   comments: ProfileComment[];
 }
 
@@ -379,7 +379,7 @@ export function ProfilePage() {
   const toast = useToast();
   const { user } = useAuth();
   const { data, loading, error, reload } = useApi<ProfileData>("/profile");
-  // The visitor-facing feed sections (conversations, issue #16) come from
+  // The visitor-facing feed sections (conversations) come from
   // the same public payload /u/<name> serves everyone — fetched alongside
   // /profile so this page shows exactly what visitors get. Canonical
   // casing from the auth context, not the URL param, keys the cache entry
@@ -390,13 +390,13 @@ export function ProfilePage() {
   const [editingUsername, setEditingUsername] = useState(false);
   const [usernameBusy, setUsernameBusy] = useState(false);
 
-  // Keep the tab title the Worker baked in for /u/ hard loads (issue #219)
+  // Keep the tab title the Worker baked in for /u/ hard loads
   // once the SPA takes over, matching the public view of the same URL —
   // DocumentTitleSync only spares this route from the default reset.
   useDocumentTitle(data && `@${data.username}`);
 
   // Cache hygiene mirrored from public-profile.tsx: the owner's payload is
-  // no-store on the wire when the profile is private (issues #158/#184) —
+  // no-store on the wire when the profile is private —
   // drop the in-memory copy too so nothing warm-paints it later.
   useEffect(() => {
     if (pubPath && pub && pub.private) dropCached(pubPath);
@@ -416,7 +416,7 @@ export function ProfilePage() {
     }
   };
 
-  // The privacy eye is icon-only (issue #244) — no status text beside it —
+  // The privacy eye is icon-only — no status text beside it —
   // so the toast is what tells the user which state they just landed in.
   // It fires only after the PUT succeeds; a failure toasts the error instead
   // of claiming a state change that didn't persist.
@@ -435,7 +435,7 @@ export function ProfilePage() {
   };
 
   // Pinning a private list to the profile offers to publish it — a private
-  // list stays hidden on the public profile otherwise (issue #33). Declining
+  // list stays hidden on the public profile otherwise. Declining
   // still pins it (shown with a "private — hidden" note); dismissing aborts.
   async function addListToProfile(id: number) {
     const list = data!.otherLists.find((l) => l.id === id);
@@ -470,14 +470,14 @@ export function ProfilePage() {
 
   return (
     <div>
-      {/* The username is the page title (issue #162) — a "Profile" heading told
-          you nothing. Bare glyphs beside it (issue #241, no button chrome):
+      {/* The username is the page title — a "Profile" heading told
+          you nothing. Bare glyphs beside it (no button chrome):
           share first — it shares/copies this page's address, which is the
-          profile URL (issue #220), so the old visible-URL row could go —
-          then the rename pencil (issue #182) that toggles the inline form
+          profile URL, so the old visible-URL row could go —
+          then the rename pencil that toggles the inline form
           below. The privacy toggle (eye = public, lock = private, matching
           the public page's lock teaser) sits alone at the far right of the
-          row (issue #244) — no status text; aria-label/title still spell the
+          row — no status text; aria-label/title still spell the
           state out, and toggling toasts the new state. Share is hidden while
           private: the link would only show visitors the teaser. */}
       <div className="profile-head">
@@ -526,7 +526,7 @@ export function ProfilePage() {
         />
       )}
 
-      {/* Following/Followers counts (issue #130). The header nav dropped its
+      {/* Following/Followers counts. The header nav dropped its
           Following link, so this row is the entry point to /following on every
           screen size (the mobile tab bar keeps its 5 slots). The ?? 0 tolerates
           an offline-cached /profile body from before these fields existed. */}
@@ -541,19 +541,19 @@ export function ProfilePage() {
 
       {/* Admins keep the same tools on their own page that they get on
           anyone's — parity with the public view this page replaced at
-          /u/<name> (issue #220). */}
+          /u/<name>. */}
       {user?.isAdmin && <AdminTools username={data.username} tz={user.tz} />}
 
       <StatsGrid stats={data.stats} />
 
-      {/* Watch history rows (issue #245), above Achievements. From the public
+      {/* Watch history rows, above Achievements. From the public
           payload like the feed sections below — so this doubles as the
           visitor preview — but the headings link to the owner's own /library
           tabs: that page (with the Watch Later subtabs) is the useful one
           here. */}
       {pub?.history && <ProfileHistory history={pub.history} base="/library" />}
 
-      {/* The grid moved to its own page (issue #201) — the heading itself is
+      {/* The grid moved to its own page — the heading itself is
           now the link, with the earned/total count, so the profile stays
           tidy. Zero earned still links out: the page doubles as the goal
           catalog, so it answers "how do I get one?" better than a hint. */}

@@ -1,9 +1,9 @@
 // Per-page social previews. `run_worker_first` sends /show/*, /movie/*, and
-// /episode/* (issue #211) plus /u/* (issue #219) to the Worker, which serves
+// /episode/* plus /u/* to the Worker, which serves
 // the SPA shell with the <head> rewritten for that specific page so link
 // unfurlers (Discord, Slack, iMessage, Twitter/X, Facebook) render the
 // title's name, overview, and artwork, a public profile's username, or a
-// shared list's name and cover (issue #335) — instead of the generic
+// shared list's name and cover — instead of the generic
 // landing-page card. Real visitors get the same shell — the SPA hydrates
 // regardless of what's in <head> — so there is no crawler user-agent
 // sniffing to keep in sync.
@@ -24,14 +24,14 @@ import type { Env } from "../env";
 // pages (the SPA route is exactly /show/:id) and must not get a title card.
 const TITLE_PATH_RE = /^\/(show|movie|episode)\/(\d+)(?:-[^/]*)?\/?$/;
 
-// Profile pages: exactly /u/:username (issue #219). The charset mirrors
+// Profile pages: exactly /u/:username. The charset mirrors
 // USERNAME_RE (src/worker/lib/username.ts) — anything else can't be a real
 // username. Shared-list sub-paths get their own card (LIST_PATH_RE below);
 // other sub-paths like /u/:username/library or /u/:username/achievements keep
 // the landing card.
 const USER_PATH_RE = /^\/u\/([A-Za-z0-9_]{3,20})\/?$/;
 
-// Public list pages: /u/:username/lists/:id-slug (issue #319, preview #335).
+// Public list pages: /u/:username/lists/:id-slug.
 // Like TITLE_PATH_RE, only the leading digits identify the list; the "-slug"
 // is advisory. Anchored to the exact SPA route (/u/:username/lists/:id, see
 // src/web/app.tsx) so deeper sub-paths never get a list card.
@@ -59,7 +59,7 @@ interface PreviewMeta {
   ogType: string;
   url: string; // canonical URL with fresh slug
   image: Artwork | null; // null → leave the landing og.png tags in place
-  feedUrl?: string; // public profiles only: RSS autodiscovery target (issue #330)
+  feedUrl?: string; // public profiles only: RSS autodiscovery target
 }
 
 // Every title- and profile-page request lands here (all methods —
@@ -122,7 +122,7 @@ export async function serveSocialPreview(req: Request, env: Env): Promise<Respon
         .on('meta[name="twitter:image:alt"]', content(meta.image.alt));
     }
     if (meta.feedUrl) {
-      // RSS autodiscovery (issue #330). Unlike the meta rewrites above,
+      // RSS autodiscovery. Unlike the meta rewrites above,
       // el.append() with { html: true } does NOT auto-escape — so href/title
       // are run through attr() by hand. Both derive from the request origin
       // and a [A-Za-z0-9_] username, but escaping keeps the invariant local.
@@ -255,7 +255,7 @@ async function lookupMeta(env: Env, type: MediaType, id: number, origin: string)
   };
 }
 
-// Public profile preview (issue #219). The ONE gate that matters is baked
+// Public profile preview. The ONE gate that matters is baked
 // into the query: profile_public = 1. This is the same server-side rule
 // /api/public/profile/:username enforces (src/worker/routes/public.ts),
 // minus its session-based unlocks (owner, mutual follow) — unfurlers are
@@ -280,7 +280,7 @@ async function lookupUserMeta(env: Env, username: string, origin: string): Promi
     ogType: "profile",
     url: `${origin}/u/${row.username}`,
     image: null, // users have no avatars — the landing og.png stays in place
-    // Autodiscovery target for feed readers/browsers (issue #330). Only set
+    // Autodiscovery target for feed readers/browsers. Only set
     // for public profiles — the same gate as this whole function — so a
     // private profile's shell never advertises a feed.
     feedUrl: `${origin}/u/${row.username}/feed.xml`,
@@ -295,7 +295,7 @@ interface ListRow {
   poster: string | null; // first item's poster, or NULL for an empty/art-less list
 }
 
-// Public list preview (issue #335). The gate is baked into the WHERE, mirroring
+// Public list preview. The gate is baked into the WHERE, mirroring
 // GET /api/public/lists/:username/:id (src/worker/routes/public.ts): a list is
 // previewable only when is_shared = 1 and its owner isn't deleted — the exact
 // server-side rule the shared-list page itself enforces. A private/unshared
@@ -325,7 +325,7 @@ async function lookupListMeta(env: Env, username: string, id: number, origin: st
   const owner = row.username;
   const noun = row.count === 1 ? "title" : "titles";
   const preamble = (row.preamble ?? "").trim();
-  // Attribute the shared card to its owner in the title itself (issue #344):
+  // Attribute the shared card to its owner in the title itself:
   // "<list name> by <owner>". HTMLRewriter escapes both the og:title/
   // twitter:title attribute and the <title> text, so the user-authored list
   // name is safe here as everywhere else in this file.
@@ -333,7 +333,7 @@ async function lookupListMeta(env: Env, username: string, id: number, origin: st
   return {
     name: shareTitle,
     tab: shareTitle,
-    // The owner's note when they wrote one (issue #94), else attribution + size,
+    // The owner's note when they wrote one, else attribution + size,
     // mirroring the app's own share text ("A list by <owner> on Show Us TV.").
     description: preamble ? clamp(preamble) : `A list by @${owner} — ${row.count} ${noun} on Show Us TV.`,
     ogType: "website", // Open Graph has no list/collection type

@@ -6,7 +6,7 @@ import { Empty, ErrorNote } from "../components/ui";
 import { IconEye, IconEyeSlash } from "../components/icons";
 import { HomeSkeleton, TileGridSkeleton } from "../components/skeleton";
 // The tile, row, and drag-scroll mechanics moved to components/tiles.tsx
-// (issue #245) so the profile's history rows render with the exact same look.
+// so the profile's history rows render with the exact same look.
 import { Tile, Row, type TileItem } from "../components/tiles";
 import { precacheContinueWatching } from "../precache";
 
@@ -22,8 +22,8 @@ interface HomeData {
 type SectionKey = "continue" | "upcoming" | "haven" | "notstarted" | "history" | "friends";
 
 // "Not Started" (shows you follow but haven't begun) sits just above History —
-// the Library no longer carries it or "Watching" (issue #115); Watch Next owns
-// those now. "From People You Follow" (issue #128) anchors the bottom: shows
+// the Library no longer carries it or "Watching"; Watch Next owns
+// those now. "From People You Follow" anchors the bottom: shows
 // your followees watched recently, each credited to the watcher and naming
 // the exact episode they reached.
 const SECTIONS: { key: SectionKey; label: string; field: keyof HomeData }[] = [
@@ -36,22 +36,22 @@ const SECTIONS: { key: SectionKey; label: string; field: keyof HomeData }[] = [
 ];
 
 // The queue sections mid-watch: their tiles name the user's exact next-up
-// episode, so they carry a mark-watched check button (issue #186). The other
+// episode, so they carry a mark-watched check button. The other
 // sections don't — Upcoming episodes haven't aired, History is already
 // watched, and friends tiles track someone else's viewing. Not Started is
-// excluded too (issue #300 follow-up): its poster tiles are solely about the
+// excluded too: its poster tiles are solely about the
 // show, so they drop the episode meta and the check — the user clicks through
 // to the show to start the first episode there.
 const MARKABLE_SECTIONS: ReadonlySet<SectionKey> = new Set(["continue", "haven"]);
 
 // Sections whose tiles show the show's portrait poster ("show art") rather
-// than the episode still (issue #300). Only Not Started: its shows are
+// than the episode still. Only Not Started: its shows are
 // unstarted, so the poster sells them better than a still from an episode the
 // user hasn't reached. The queue's other sections track a specific episode
 // mid-watch, where the still is the right, more informative image.
 const POSTER_ART_SECTIONS: ReadonlySet<SectionKey> = new Set(["notstarted"]);
 
-// Sections the user has hidden on Watch Now (issue #185), persisted per user
+// Sections the user has hidden on Watch Now, persisted per user
 // so two accounts on the same browser keep separate layouts. A per-device UI
 // preference, so localStorage is the right home (no API round-trip; the
 // tradeoff is it doesn't follow the account to other devices). Keyed by the
@@ -85,9 +85,9 @@ function saveHiddenSections(userId: number | undefined, hidden: Set<SectionKey>)
   }
 }
 
-// Home: horizontally-scrollable rows (issue #105), one per section, each with a
+// Home: horizontally-scrollable rows, one per section, each with a
 // clickable header that opens the full list for that section. Each section
-// header also carries an eye toggle at the far right (issue #185): hiding a
+// header also carries an eye toggle at the far right: hiding a
 // section collapses its row and sinks the whole section to the bottom of the
 // page — visible sections keep their normal order up top, hidden ones sit
 // below in their original relative order, no divider between the two. A
@@ -98,7 +98,7 @@ export function WatchNext() {
   const [hidden, setHidden] = useState<Set<SectionKey>>(() => loadHiddenSections(user?.id));
 
   // While online, warm the offline cache for the Continue Watching shows so
-  // tapping one of these tiles still works in airplane mode (issue #139).
+  // tapping one of these tiles still works in airplane mode.
   useEffect(() => {
     if (data?.continueWatching?.length) precacheContinueWatching(data.continueWatching);
   }, [data]);
@@ -116,7 +116,7 @@ export function WatchNext() {
   }
 
   // Empty sections never render (so they never get a toggle); hidden ones
-  // sink below the visible ones (issue #185).
+  // sink below the visible ones.
   const sections = SECTIONS.map((s) => ({ ...s, items: data[s.field] ?? [] })).filter((s) => s.items.length > 0);
   const rows = [...sections.filter((s) => !hidden.has(s.key)), ...sections.filter((s) => hidden.has(s.key))];
   if (rows.length === 0) {
@@ -164,7 +164,7 @@ export function WatchNext() {
   );
 }
 
-// The "list view for that type" behind each section header (#105): the full
+// The "list view for that type" behind each section header: the full
 // section as a poster grid.
 export function WatchSectionPage() {
   const { key } = useParams();

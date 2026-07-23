@@ -7,7 +7,7 @@ import { airedCond } from "../lib/aired";
 
 export const catalog = new Hono<AppEnv>();
 
-// Show/movie/episode detail reads (issue #159), split out of `catalog` so
+// Show/movie/episode detail reads, split out of `catalog` so
 // index.ts can mount them BEFORE the auth wall: shared title links must open
 // for signed-out visitors. Each route runs optionalAuth — the public catalog
 // payload is served to everyone, and the viewer's own state (watched,
@@ -17,7 +17,7 @@ export const catalog = new Hono<AppEnv>();
 // user-scoped data is ever reachable without auth. Anonymous requests are
 // also served exclusively from rows already cached in D1 — a cache miss 404s
 // without calling ensureShow/ensureMovie, so unauthenticated traffic can
-// never trigger TMDB ingestion or D1 writes (issue #213). GET-only by
+// never trigger TMDB ingestion or D1 writes. GET-only by
 // construction; the watch/favorite/follow mutations on neighboring paths
 // live in library.ts behind requireAuth.
 export const titles = new Hono<AppEnv>();
@@ -52,13 +52,13 @@ titles.get("/shows/:id", optionalAuth, async (c) => {
   const id = intParam(c.req.param("id"));
   if (!id) return c.json({ error: "bad id" }, 400);
 
-  // Anonymous viewers (shared links, issue #159) have no session: no uid to
+  // Anonymous viewers (shared links) have no session: no uid to
   // query user state with, and no profile timezone — UTC is the neutral
   // stand-in for the aired cutoff.
   const uid = c.get("uid") ?? null;
   const today = todayInTz(c.get("tz") ?? "UTC");
 
-  // TMDB ingestion is signed-in only (issue #213). A shared link points at a
+  // TMDB ingestion is signed-in only. A shared link points at a
   // title the sharer's own page view already synced into D1, so anonymous
   // requests read the cached row and 404 on a miss — they must never reach
   // ensureShow, or an anonymous loop over ids could force-feed TMDB's entire
@@ -160,7 +160,7 @@ titles.get("/shows/:id", optionalAuth, async (c) => {
     show: showJson,
     seasons: seasonsFrom(episodes),
     user: {
-      // A state-'hidden' row is the issue-#260 tombstone (a hidden show that
+      // A state-'hidden' row is the hidden-show tombstone (a hidden show that
       // was unfollowed, kept only so the privacy flag survives) — it must
       // not read as followed, or the page would offer Unfollow on a show
       // that isn't tracked.
@@ -168,7 +168,7 @@ titles.get("/shows/:id", optionalAuth, async (c) => {
       state: userShow?.state === "hidden" ? null : (userShow?.state ?? null),
       rating: showRating ? { score: showRating.score, emoji: showRating.emoji_reaction } : null,
       favorited: favR.results.length > 0,
-      // Per-user privacy flag (issue #260) — drives the show page's eye
+      // Per-user privacy flag — drives the show page's eye
       // toggle. Only ever the viewer's own bit; never anyone else's.
       hidden: !!userShow?.hidden,
     },
@@ -187,7 +187,7 @@ titles.get("/movies/:id", optionalAuth, async (c) => {
   if (!id) return c.json({ error: "bad id" }, 400);
 
   const uid = c.get("uid") ?? null;
-  // Signed-in only, mirroring /shows/:id (issue #213): anonymous requests
+  // Signed-in only, mirroring /shows/:id: anonymous requests
   // serve the already-cached row and 404 on a miss — never TMDB.
   if (uid != null) await ensureMovie(c.env, id);
   const stmts = [c.env.DB.prepare("SELECT * FROM movies WHERE tmdb_id = ?1").bind(id)];
@@ -221,7 +221,7 @@ titles.get("/movies/:id", optionalAuth, async (c) => {
   };
   const watch = await watchProviders(c.env, "movie", id, movieJson.title);
 
-  // Anonymous (issue #159): catalog content only — `user: null`, never an
+  // Anonymous: catalog content only — `user: null`, never an
   // empty user object.
   if (uid == null) return c.json({ movie: movieJson, user: null, watch });
 
@@ -282,7 +282,7 @@ titles.get("/episodes/:id", optionalAuth, async (c) => {
     still: e.still_url,
   };
 
-  // Anonymous (issue #159): catalog content only.
+  // Anonymous: catalog content only.
   if (uid == null) return c.json({ episode: episodeJson, user: null });
 
   const w = watchedR.results[0] as any;

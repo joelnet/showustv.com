@@ -1,4 +1,4 @@
-// Skeleton loaders (issue #138): slate placeholder blocks shaped like the
+// Skeleton loaders: slate placeholder blocks shaped like the
 // content they stand in for, so a loading view reads as the page assembling
 // instead of a spinner blocking it. Each composed skeleton reuses the real
 // layout classes (poster-grid, wn-row, show-hero, ...) so the geometry matches
@@ -74,8 +74,8 @@ export function TrendingSkeleton() {
   );
 }
 
-// One Watch Next tile: 16:9 thumbnail + show + episode lines (issue #106).
-// `posterArt` tiles (Not Started, issue #300) stand in for the 2:3 poster the
+// One Watch Next tile: 16:9 thumbnail + show + episode lines.
+// `posterArt` tiles (Not Started) stand in for the 2:3 poster the
 // loaded tile shows, so the grid doesn't jump when data lands.
 function TileSkeleton({ i, posterArt }: { i: number; posterArt?: boolean }) {
   return (
@@ -108,7 +108,7 @@ export function HomeSkeleton({ sections = 3 }: { sections?: number }) {
 }
 
 // The full-section tile grid behind each home row (/watch/:key). Poster-art
-// sections (Not Started, issue #300) render 2:3 tile skeletons so the grid
+// sections (Not Started) render 2:3 tile skeletons so the grid
 // keeps its shape when the real posters arrive.
 export function TileGridSkeleton({ count = 12, posterArt }: { count?: number; posterArt?: boolean }) {
   return (
@@ -217,9 +217,9 @@ export function PubListSkeleton({ count = 4 }: { count?: number }) {
 }
 
 // Profile (own and public): username title (plus the bare share/pencil icons,
-// privacy toggle, and its status text on your own, issues #162/#182/#241),
+// privacy toggle, and its status text on your own),
 // the Stats slider — a section head over a wn-row of stat cards, matching
-// the real slider chrome (issue #250) — then a section of rows.
+// the real slider chrome — then a section of rows.
 export function ProfileSkeleton({ action = false }: { action?: boolean }) {
   return (
     <SkeletonShell>

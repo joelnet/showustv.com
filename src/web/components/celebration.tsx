@@ -1,4 +1,4 @@
-// Caught-up celebration (issue #53). Imperative, fire-and-forget:
+// Caught-up celebration. Imperative, fire-and-forget:
 //
 //   const celebrate = useCelebrate();
 //   celebrate("The Bear"); // → confetti burst + "You're all caught up on The Bear!"

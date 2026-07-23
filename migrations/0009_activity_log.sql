@@ -1,4 +1,4 @@
--- Admin audit log (issue #15): one row per mutating API request — comments,
+-- Admin audit log: one row per mutating API request — comments,
 -- votes, follows, watches, email codes, everything — written by middleware
 -- in worker/index.ts, so new routes are covered automatically. For
 -- troubleshooting, not for user-facing features (the social feed keeps its

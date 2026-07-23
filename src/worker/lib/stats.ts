@@ -1,7 +1,7 @@
 // Watch stats shared by the own-profile and public-profile endpoints.
 //
 // "Time watched" sums runtime_min over the user's watched episodes plus
-// watched movies (issue #259 — the "TV time" tile covers both). TMDB
+// watched movies (the "TV time" tile covers both). TMDB
 // omits per-episode runtimes for plenty of (mostly older) episodes, so a NULL
 // runtime falls back to the average runtime of that show's episodes that do
 // have one; a show with no runtimes at all contributes 0 rather than a guess.

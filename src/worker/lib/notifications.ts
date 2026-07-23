@@ -1,4 +1,4 @@
-// Notification fan-out (issue #129, comments added by #141). When a user
+// Notification fan-out. When a user
 // watches something, every follower who has the follow-watch notification
 // type enabled gets an in-app notification row; when a user comments on a
 // show/movie, every follower who ALSO tracks that title gets one. Both are
@@ -31,7 +31,7 @@ const MAX_PUSHES_PER_EVENT = 30;
 
 // Best-effort Web Push of one payload to every subscribed device of the
 // recipients that just got a new notification row. Shared by every fan-out.
-// Each send carries that recipient's exact unread count (issue #142) so the
+// Each send carries that recipient's exact unread count so the
 // service worker can badge the app icon without a page alive.
 async function pushToRecipients(
   env: Env,
@@ -149,11 +149,11 @@ export async function notifyFollowersOfWatch(
      JOIN users au ON au.id = f.followee_id
      WHERE f.followee_id = ?1 AND f.state = 'active'
        -- "X watched Y" IS the actor's watch activity, so it obeys the same
-       -- visibility rule as the activity feed (issue #205): the actor's profile
+       -- visibility rule as the activity feed: the actor's profile
        -- is public or mutual with the recipient. And like the feed, a show the
-       -- ACTOR hid (issue #260) never fans out — the notification would
+       -- ACTOR hid never fans out — the notification would
        -- broadcast exactly what hiding conceals. The separate activity_public
-       -- gate was dropped (issue #308): #249 removed the toggle that set it, so
+       -- gate was dropped: an earlier change removed the toggle that set it, so
        -- gating on that frozen flag permanently silenced watch notifications to
        -- the followers of any user whose flag was 0.
        AND (?2 != 'show' OR NOT EXISTS (SELECT 1 FROM user_shows ah
@@ -192,8 +192,7 @@ export async function notifyFollowersOfWatch(
 
   // Title stays short (`<user> watched`) so it never truncates away the
   // important part; the show + episode ride in the body, which Android/iOS
-  // give more room and wrap. No marketing tail — it was noise (issue #129
-  // follow-up).
+  // give more room and wrap. No marketing tail — it was noise.
   await pushToRecipients(env, created.map((r) => r.user_id), {
     title: `${actor} watched`,
     body: pushBody(targetType, title, ep),
@@ -202,7 +201,7 @@ export async function notifyFollowersOfWatch(
   }, "low");
 }
 
-// Comment fan-out (issue #141). When a user comments on a show, movie, or
+// Comment fan-out. When a user comments on a show, movie, or
 // episode, notify each of their followers who ALSO tracks that title —
 // "tracks" meaning the show is in their library in any non-hidden state
 // (the same "also watching" membership /social/also-watching uses), or the
@@ -236,7 +235,7 @@ export async function notifyFollowersOfComment(
 
   // Follower-tracks-the-title test, resolved here (not with CASE in SQL) so
   // each shape keeps its own indexed EXISTS probe. A recipient who HID the
-  // show (issue #260) doesn't count as tracking it: a push naming it on
+  // show doesn't count as tracking it: a push naming it on
   // their lock screen would leak exactly what hiding conceals.
   const tracksTitle =
     targetType === "show"
@@ -261,7 +260,7 @@ export async function notifyFollowersOfComment(
      JOIN users au ON au.id = f.followee_id AND au.deleted_at IS NULL AND au.shadow_banned = 0
      JOIN users ru ON ru.id = f.follower_id AND ru.deleted_at IS NULL
      WHERE f.followee_id = ?1 AND f.state = 'active'
-       -- The ACTOR hid this show (issue #260): the comment stays public on
+       -- The ACTOR hid this show: the comment stays public on
        -- its thread, but no notification may broadcast the association.
        AND (?2 != 'show' OR NOT EXISTS (SELECT 1 FROM user_shows ah
                                         WHERE ah.user_id = ?1 AND ah.show_id = ?3 AND ah.hidden = 1))
@@ -311,7 +310,7 @@ export async function notifyFollowersOfComment(
 // follower ids win, deterministically). The push cap still applies on top.
 const MAX_FAVORITE_FANOUT = 500;
 
-// Favorite fan-out (issue #266). When a user favorites a show or movie,
+// Favorite fan-out. When a user favorites a show or movie,
 // their followers hear about it — "X favorited Y" — linking to the title
 // page. The routes (the heart endpoints, and the list-items endpoint when
 // the target list is the Favorites system list) only call this when the
@@ -340,7 +339,7 @@ export async function notifyFollowersOfFavorite(
      JOIN users au ON au.id = f.followee_id AND au.deleted_at IS NULL AND au.shadow_banned = 0
      JOIN users ru ON ru.id = f.follower_id AND ru.deleted_at IS NULL
      WHERE f.followee_id = ?1 AND f.state = 'active'
-       -- A show the ACTOR hid (issue #260) never fans out — the notification
+       -- A show the ACTOR hid never fans out — the notification
        -- would broadcast exactly what hiding conceals.
        AND (?2 != 'show' OR NOT EXISTS (SELECT 1 FROM user_shows ah
                                         WHERE ah.user_id = ?1 AND ah.show_id = ?3 AND ah.hidden = 1))
@@ -348,7 +347,7 @@ export async function notifyFollowersOfFavorite(
        -- list is visible to mutuals only (public.ts profileGate), so the
        -- notification obeys the same rule — a follower who couldn't see the
        -- favorite on the profile doesn't hear about it either. This is now the
-       -- same visibility rule the watch fan-out uses, after issue #308 dropped
+       -- same visibility rule the watch fan-out uses, after a later change dropped
        -- the old (frozen, unsettable) activity_public gate from that path.
        AND (au.profile_public = 1 OR EXISTS (
              SELECT 1 FROM follows r
@@ -393,7 +392,7 @@ export async function notifyFollowersOfFavorite(
 // invocation. The push cap above still applies on top.
 const MAX_LIST_FANOUT = 500;
 
-// New-list fan-out (issue #331). When a user's custom list first becomes BOTH
+// New-list fan-out. When a user's custom list first becomes BOTH
 // public (custom_lists.is_shared = 1) AND pinned to their profile
 // (profile_position IS NOT NULL), their followers hear about it — "X created a
 // new list: <name>" — linking to the list. The two callers (the visibility
@@ -462,7 +461,7 @@ export async function notifyFollowersOfListCreated(
   }, "low");
 }
 
-// Follow notification (issue #273). When A follows B, B hears about it —
+// Follow notification. When A follows B, B hears about it —
 // "A followed you", or "A followed you back" when B already follows A (A's
 // follow reciprocated one of B's). Single recipient, not a fan-out. The row
 // stores type + actor only (target_type/target_id stay NULL — the actor IS
@@ -505,8 +504,8 @@ export async function notifyUserOfFollow(env: Env, actorId: number, followeeId: 
   if (!created || !vapidConfigured(env)) return;
 
   // Push copy: the event IS the whole message, so the title carries it and
-  // the body suggests the next step. Deep link to the notifications page
-  // (issue #280), not the actor's profile — that's where the Follow back
+  // the body suggests the next step. Deep link to the notifications page,
+  // not the actor's profile — that's where the Follow back
   // button lives, so following back is one tap away, and the actor's name
   // there still links their profile for anyone who wants the detour.
   const actor = await env.DB.prepare("SELECT username FROM users WHERE id = ?1 AND deleted_at IS NULL")
@@ -523,7 +522,7 @@ export async function notifyUserOfFollow(env: Env, actorId: number, followeeId: 
   });
 }
 
-// Admin test notification (issue #275): the admin page's "Send test
+// Admin test notification: the admin page's "Send test
 // notification" button targets the admin THEMSELVES, so they can verify the
 // whole pipeline — the in-app row behind the bell plus Web Push to this
 // account's subscribed devices — without involving anyone else. Deliberately
@@ -557,7 +556,7 @@ export async function notifyTestNotification(env: Env, uid: number): Promise<voi
 // still applies on top.
 const MAX_TRACKER_FANOUT = 500;
 
-// Tracker fan-out (issue #236). When ANY user comments on a show, movie, or
+// Tracker fan-out. When ANY user comments on a show, movie, or
 // episode, notify every OTHER user who tracks that title — same "tracks"
 // membership as the follow_comment fan-out above (show in the library in any
 // non-hidden state, or any user_movies row) but without the follows edge:
@@ -600,8 +599,8 @@ export async function notifyTrackersOfComment(
   // are skipped, and a shadow-banned or deleted actor drops the whole
   // fan-out — their comments render as [deleted] to everyone else, so a
   // notification would advertise a comment nobody can see (and leak the ban).
-  // As in the follow_comment fan-out, a tracker who hid the show (issue
-  // #260) is skipped — no notification (or lock-screen push) may name it.
+  // As in the follow_comment fan-out, a tracker who hid the show
+  // is skipped — no notification (or lock-screen push) may name it.
   const trackers =
     targetType === "show"
       ? `SELECT us.user_id AS uid FROM user_shows us
@@ -615,7 +614,7 @@ export async function notifyTrackersOfComment(
      JOIN users au ON au.id = ?1 AND au.deleted_at IS NULL AND au.shadow_banned = 0
      JOIN users ru ON ru.id = t.uid AND ru.deleted_at IS NULL
      WHERE t.uid != ?1
-       -- Actor-hid-the-show guard (issue #260), as in the follow fan-outs.
+       -- Actor-hid-the-show guard, as in the follow fan-outs.
        AND (?2 != 'show' OR NOT EXISTS (SELECT 1 FROM user_shows ah
                                         WHERE ah.user_id = ?1 AND ah.show_id = ?3 AND ah.hidden = 1))
        AND COALESCE((SELECT np.tracked_comment FROM notification_prefs np

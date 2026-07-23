@@ -1,4 +1,4 @@
--- issue #266: favoriting a show or movie notifies your followers. The
+-- Favoriting a show or movie notifies your followers. The
 -- notification reuses the 0020 shape — type 'follow_favorite',
 -- target_type/target_id point at the favorited show or movie, episode_id
 -- stays NULL — so no new notification columns.

@@ -47,20 +47,20 @@ export interface User {
   tz: string;
   emailVerified: boolean;
   isAdmin: boolean;
-  // True once this user's PWA install has been recorded (issue #145). Only
+  // True once this user's PWA install has been recorded. Only
   // guards the install self-report in App so re-launches don't re-ping — it
   // must never gate the Install button, which stays on runtime isStandalone()
-  // so it self-heals after an iOS uninstall (issue #82). Older cached users
+  // so it self-heals after an iOS uninstall. Older cached users
   // may lack it — treat a missing value as false.
   installed: boolean;
-  // False until the account finishes the post-signup preferences step
-  // (issue #160); Shell routes such users to /welcome. Older cached users
+  // False until the account finishes the post-signup preferences step;
+  // Shell routes such users to /welcome. Older cached users
   // may lack it — treat a missing value as onboarded (check `=== false`),
   // so an offline boot from a stale cache never strands anyone there.
   onboarded: boolean;
 }
 
-// Last-known signed-in identity, mirrored to localStorage (issue #51). On an
+// Last-known signed-in identity, mirrored to localStorage. On an
 // offline refresh the boot /auth/me call can't reach the server, so we fall
 // back to this instead of bouncing a signed-in user to /login — they keep
 // navigating the app from the service-worker cache until they're back online.
@@ -99,8 +99,8 @@ const AuthCtx = createContext<{ user: User | null; setUser: (u: User | null) => 
   setUser: () => {},
 });
 
-// Tab-title reset (issue #211): a hard load of a title page — or a public
-// profile (issue #219) — arrives with that name baked into <title> by the
+// Tab-title reset: a hard load of a title page — or a public
+// profile — arrives with that name baked into <title> by the
 // Worker (social previews), and those pages maintain it client-side
 // (useDocumentTitle). Without this, navigating from one of them to any other
 // route would leave the last show/movie/username stuck in the tab. Only the
@@ -115,7 +115,7 @@ function DocumentTitleSync() {
   return null;
 }
 
-// Scroll reset on navigation (issue #281): clicking through to a new page
+// Scroll reset on navigation: clicking through to a new page
 // from a scrolled list used to leave the new page at the old scroll offset —
 // the document is the scroll container (the shell has no overflow wrapper),
 // and client-side route changes don't reset it. Only a PUSH to a different
@@ -142,7 +142,7 @@ function ScrollToTop() {
 
 export const useAuth = () => useContext(AuthCtx);
 
-// Where "your profile" lives (issue #220): the shareable /u/<name> address
+// Where "your profile" lives: the shareable /u/<name> address
 // everyone else sees, so clicking Profile puts the copyable URL straight in
 // the address bar. The /profile fallback never renders for a signed-out
 // visitor (the nav only exists inside Shell), but if it ever did, that path
@@ -152,7 +152,7 @@ function useProfilePath(): string {
   return user ? `/u/${user.username}` : "/profile";
 }
 
-// /u/:username is everyone's profile address (issue #220). When the name is
+// /u/:username is everyone's profile address. When the name is
 // the signed-in user's own (case-insensitive, matching the server's COLLATE
 // NOCASE username lookups), the route renders the owner view with the
 // management affordances; any other name gets the read-only public view.
@@ -164,7 +164,7 @@ function OwnOrPublic({ own, other }: { own: React.ReactElement; other: React.Rea
   return user && username && username.toLowerCase() === user.username.toLowerCase() ? own : other;
 }
 
-// The retired own-profile address (issue #220): old bookmarks and deep links
+// The retired own-profile address: old bookmarks and deep links
 // to /profile land on the custom URL instead. Shell already bounced the
 // signed-out to /login before this renders; the guard just keeps it total.
 function ProfileRedirect({ sub = "" }: { sub?: string }) {
@@ -172,7 +172,7 @@ function ProfileRedirect({ sub = "" }: { sub?: string }) {
   return <Navigate to={user ? `/u/${user.username}${sub}` : "/login"} replace />;
 }
 
-// Lists moved to owner-scoped, SEO-friendly URLs (issue #319):
+// Lists moved to owner-scoped, SEO-friendly URLs:
 // /u/:username/lists/:id-slug. Old /lists/:id bookmarks and links redirect to
 // the owner's canonical URL — signed-in visitors here are always the owner
 // (the old address only ever rendered your own list), so their username builds
@@ -189,7 +189,7 @@ function Shell() {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
   // A brand-new account that hasn't finished the preferences step yet is
-  // sent back to it (issue #160) — a reload or a later login resumes the
+  // sent back to it — a reload or a later login resumes the
   // onboarding until "Finish Signup" completes it. Explicit `=== false`:
   // older cached users lack the flag and must never be bounced.
   if (user.onboarded === false) return <Navigate to="/welcome" replace />;
@@ -208,8 +208,8 @@ function Shell() {
   );
 }
 
-// Chrome for signed-out visitors on shared title pages (issue #159) and
-// public profiles (issue #200): the brand header with a sign-in affordance
+// Chrome for signed-out visitors on shared title pages and
+// public profiles: the brand header with a sign-in affordance
 // instead of the signed-in app nav.
 function PublicShell() {
   return (
@@ -238,11 +238,11 @@ function Header() {
   // Show the install affordance unless the app is already running installed.
   // `available` is false in standalone mode (isStandalone()), so this naturally
   // hides inside the installed PWA and returns in a browser tab after an
-  // uninstall — no persisted per-user flag to go stale (issue #82). Chromium
+  // uninstall — no persisted per-user flag to go stale. Chromium
   // additionally drops `available` once beforeinstallprompt is consumed; on iOS
   // the button just links to the /install instructions.
   const showInstall = available;
-  // On the profile page (issue #289) a phone header is tight, and there's room
+  // On the profile page a phone header is tight, and there's room
   // reserved for future profile chrome. When the Install button is showing,
   // trade the logo for it: the modifier drops the wordmark and leads with
   // Install (see the mobile rules in styles.css). CSS-gated to phone width, so
@@ -257,8 +257,8 @@ function Header() {
       </Link>
       <nav className="header-nav" aria-label="Primary">
         <NavLink to="/" end>Watch now</NavLink>
-        {/* Socials → the Following page (issue #290 follow-up). The mobile footer
-            got this tab in #296, but the desktop header nav (this element, which
+        {/* Socials → the Following page. The mobile footer
+            got this tab first, but the desktop header nav (this element, which
             is CSS-hidden ≤719px where the tabbar takes over) had no way to reach
             it. Text-only to match the sibling desktop nav links; order mirrors
             the footer (after Watch now). Scoping is automatic — .header-nav is
@@ -290,7 +290,7 @@ function Header() {
           </button>
         ))}
       {/* Icon-only search for phone widths, where the search pill above is
-          hidden (issue #290): the footer tab bar dropped its Search item, so
+          hidden: the footer tab bar dropped its Search item, so
           this keeps /search reachable from the header. Sits with the other
           header icons (before the bell); desktop uses the pill, so this is
           CSS-hidden there. Placed after Install so the sibling margin rules in
@@ -308,7 +308,7 @@ function Header() {
 }
 
 // Thin indeterminate progress sweep pinned to the header's bottom edge
-// (issue #204) — a loading BAR, deliberately not a circular spinner. Visible
+// — a loading BAR, deliberately not a circular spinner. Visible
 // while activity is syncing (the offline queue replaying) or being downloaded
 // to the local cache (the precache passes); hidden otherwise. Always rendered
 // so it can fade in/out; the CSS delays the fade-in so near-instant passes
@@ -329,14 +329,14 @@ function HeaderProgress() {
   );
 }
 
-// The bell (issue #129): unread-count badge like other social apps; clicking
+// The bell: unread-count badge like other social apps; clicking
 // it opens the notifications page, which marks everything read.
 function NotificationBell() {
   const count = useUnreadNotifications();
   const nudge = usePushNudge();
   // While push is off but enable-able on this device, the badge floors at
-  // (1) so the bell leads people to the notifications page's enable toggle
-  // (issue #276). Display-only: `count`, the app-icon badge, and read
+  // (1) so the bell leads people to the notifications page's enable toggle.
+  // Display-only: `count`, the app-icon badge, and read
   // marking all keep using the real unread number.
   const shown = nudge ? Math.max(count, 1) : count;
   const label =
@@ -389,7 +389,7 @@ function NetBanner() {
   return null;
 }
 
-// New-version toast (issue #172): rendered app-wide (any page, signed in or
+// New-version toast: rendered app-wide (any page, signed in or
 // out) once a fresh deploy's service worker is installed and waiting.
 // Update promotes it and reloads into the new version; Later leaves this
 // page as it is (the waiting worker activates on the next full app launch,
@@ -431,7 +431,7 @@ export function App() {
   // Persist every auth transition (login, sign-out, boot) so an offline
   // refresh can restore the signed-in user — see loadCachedUser above.
   const setUser = useCallback((u: User | null) => {
-    // The page-data cache (issue #154) is per-account — drop it the moment
+    // The page-data cache is per-account — drop it the moment
     // the signed-in identity changes (sign-out, or signing into a different
     // account), synchronously, before any page renders under the new user,
     // so cached pages never leak across accounts. No-op when the id is
@@ -477,7 +477,7 @@ export function App() {
     if (user) void syncPushSubscription();
   }, [user?.id]);
 
-  // Warm the offline cache for the whole library (issue #183) once a
+  // Warm the offline cache for the whole library once a
   // signed-in, onboarded session is known — delayed so boot traffic (auth,
   // the landing page's own data) settles first. Keyed on id + onboarded, not
   // the user object, so profile edits don't re-trigger it; precacheLibrary
@@ -489,7 +489,7 @@ export function App() {
     return () => window.clearTimeout(t);
   }, [user?.id, user?.onboarded]);
 
-  // Track a successful install in the activity logs (issue #145). Chromium
+  // Track a successful install in the activity logs. Chromium
   // fires appinstalled only when an install actually completes (never on a
   // dismissed prompt); iOS fires nothing, so the installed app self-reports
   // on its first signed-in standalone boot instead. The server records it in
@@ -521,7 +521,7 @@ export function App() {
 
   // Logged-out visitors normally get the marketing page at "/". But when the
   // app is running installed (standalone / iOS home-screen), there's no reason
-  // to re-pitch the product — send them straight to Login instead (issue #46).
+  // to re-pitch the product — send them straight to Login instead.
   const loggedOutRoot = isStandalone() ? <Login /> : <Landing />;
 
   return (
@@ -538,16 +538,16 @@ export function App() {
               and land on Watch Next as before. */}
           {!user && <Route path="/" element={loggedOutRoot} />}
           <Route path="/login" element={<Login />} />
-          {/* Post-signup preferences step (issue #160) — full-screen card
+          {/* Post-signup preferences step — full-screen card
               like /login, outside the app Shell. Guards itself: logged-out
               visitors go to /login, onboarded users into the app. */}
           <Route path="/welcome" element={<WelcomePage />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
-          {/* Email-change revert (issue #358) — public like /verify-email: the
+          {/* Email-change revert — public like /verify-email: the
               clicker's sessions were revoked by the change, so they're logged
               out by definition; the emailed token is the proof. */}
           <Route path="/revert-email" element={<RevertEmailPage />} />
-          {/* Forgot-password flow (issue #216) — public like /verify-email:
+          {/* Forgot-password flow — public like /verify-email:
               the reset-link clicker is logged out by definition. */}
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
@@ -560,7 +560,7 @@ export function App() {
           {/* Legal pages — public so they're reachable signed in or out (footer). */}
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/terms" element={<TermsPage />} />
-          {/* Shared title pages (issue #159) and user profiles (issue #200):
+          {/* Shared title pages and user profiles:
               signed-out visitors open these links with public chrome instead
               of bouncing to /login. Signed-in users skip these (the branch
               doesn't register) and keep the full app Shell versions below. */}
@@ -574,7 +574,7 @@ export function App() {
               <Route path="/u/:username/library" element={<PublicLibraryPage tab="shows" />} />
               <Route path="/u/:username/library/movies" element={<PublicLibraryPage tab="movies" />} />
               <Route path="/u/:username/library/anime" element={<PublicLibraryPage tab="anime" />} />
-              {/* Shared list (issue #319): a signed-out visitor from a list
+              {/* Shared list: a signed-out visitor from a list
                   link gets the read-only public view in public chrome. */}
               <Route path="/u/:username/lists/:id" element={<PublicListPage />} />
             </Route>
@@ -590,10 +590,10 @@ export function App() {
             <Route path="/library/movies" element={<LibraryPage tab="movies" />} />
             <Route path="/library/anime" element={<LibraryPage tab="anime" />} />
             {/* The Watchlist tab folded into Watch Later subtabs under Shows
-                and Movies (issue #257); old bookmarks land on the Library. */}
+                and Movies; old bookmarks land on the Library. */}
             <Route path="/library/watchlist" element={<Navigate to="/library" replace />} />
             <Route path="/lists" element={<ListsPage />} />
-            {/* Lists live at their owner-scoped, SEO-friendly URL (issue #319);
+            {/* Lists live at their owner-scoped, SEO-friendly URL;
                 the old /lists/:id addresses redirect so bookmarks keep working.
                 Your own list renders the owner (editable) view; anyone else's
                 the read-only public one — mirroring the profile split above. */}
@@ -604,22 +604,22 @@ export function App() {
             />
             <Route path="/following" element={<FollowingPage />} />
             <Route path="/notifications" element={<NotificationsPage />} />
-            {/* Your profile lives at its shareable custom URL (issue #220);
+            {/* Your profile lives at its shareable custom URL;
                 the old /profile addresses redirect so bookmarks and older
                 links keep working. */}
             <Route path="/profile" element={<ProfileRedirect />} />
             <Route path="/profile/achievements" element={<ProfileRedirect sub="/achievements" />} />
             {/* Every profile gets the same app chrome as any other
-                signed-in page (issue #200); your own name renders the owner
-                view, anyone else's the public one (issue #220). The
-                achievements pages (issue #201) split the same way: the full
+                signed-in page; your own name renders the owner
+                view, anyone else's the public one. The
+                achievements pages split the same way: the full
                 goal catalog for you, unlocked-only for everyone else. */}
             <Route path="/u/:username" element={<OwnOrPublic own={<ProfilePage />} other={<PublicProfilePage />} />} />
             <Route
               path="/u/:username/achievements"
               element={<OwnOrPublic own={<MyAchievementsPage />} other={<PublicAchievementsPage />} />}
             />
-            {/* The public library (issue #245) renders the same for every
+            {/* The public library renders the same for every
                 signed-in viewer — the server gates by profile visibility and
                 serves the owner their own in full, so no OwnOrPublic split:
                 on your own username it doubles as the visitor preview (your
@@ -629,7 +629,7 @@ export function App() {
             <Route path="/u/:username/library/movies" element={<PublicLibraryPage tab="movies" />} />
             <Route path="/u/:username/library/anime" element={<PublicLibraryPage tab="anime" />} />
             <Route path="/settings" element={<SettingsPage />} />
-            {/* Admin tools (issue #275). The page redirects non-admins home;
+            {/* Admin tools. The page redirects non-admins home;
                 the real gate is server-side — /api/admin answers 404 to
                 anyone without users.is_admin. */}
             <Route path="/admin" element={<AdminPage />} />

@@ -1,4 +1,4 @@
--- Friend graph (issue #3): mutual friendships with an accept step.
+-- Friend graph: mutual friendships with an accept step.
 -- One row per pair, stored directionally as requester → addressee so
 -- "who asked whom" survives; status flips to 'accepted' in place.
 -- (The Phase-2 `follows` table from 0001 stays reserved for a future

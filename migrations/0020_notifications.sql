@@ -1,4 +1,4 @@
--- Notifications (issue #129): in-app notification rows behind the header
+-- Notifications: in-app notification rows behind the header
 -- bell, plus the per-user "someone you follow watched a show" preference.
 -- The Phase-3 tables reserved in 0001 come into service alongside this:
 -- push_subscriptions stores each device's Web Push endpoint as-is, and

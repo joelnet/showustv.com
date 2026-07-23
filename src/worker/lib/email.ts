@@ -71,7 +71,7 @@ function escapeHtml(s: string): string {
 // vertical-align:-3px (not `middle`) so the TV body brackets the "SHOW US"
 // caps — top just above cap height, bottom a touch below the baseline — the
 // same look the live wordmark gets from its `transform: translateY(-0.2em)`
-// lift; a plain `middle` sits ~0.2 cap-heights too low (issue #54). A negative
+// lift; a plain `middle` sits ~0.2 cap-heights too low. A negative
 // vertical-align length is used rather than a CSS transform or negative margin
 // because it renders consistently across clients and, where a client ignores
 // the length (older Outlook), degrades gracefully to plain baseline alignment

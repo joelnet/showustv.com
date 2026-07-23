@@ -1,4 +1,4 @@
-// Landing page for the emailed verification link (issue #13). Public route:
+// Landing page for the emailed verification link. Public route:
 // the clicker may be logged out or on a different device — the token is the
 // proof. Deliberately does nothing on load; the token is consumed only by
 // the button press, so mail scanners prefetching the link can't verify an
@@ -45,7 +45,7 @@ export function VerifyEmailPage() {
             </Link>
           ) : (
             // A failed verification needs the resend flow, which now lives on
-            // Settings (issue #55) — send them there rather than to the profile.
+            // Settings — send them there rather than to the profile.
             <Link className="btn" to="/settings">
               Go to settings
             </Link>

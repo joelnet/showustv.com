@@ -1,4 +1,4 @@
-// The public, read-only library at /u/:username/library (issue #245): the
+// The public, read-only library at /u/:username/library: the
 // same Shows / Movies / Anime views as the owner's Library — literally the
 // same components (library.tsx) over the same server-side payload shape —
 // with the username up top so it's unmistakably theirs, and no Watch Later
@@ -8,8 +8,8 @@
 // profiles are shareable, and the profile's history-row headings land here.
 //
 // Visibility is the profile's, nothing more and nothing less (no separate
-// toggle): the server applies the same gate as /u/:username (issues
-// #158/#184), so a private profile serves the same teaser here — owner and
+// toggle): the server applies the same gate as /u/:username,
+// so a private profile serves the same teaser here — owner and
 // mutual follows see it in full, everyone else gets the lock. The server
 // decides; this page just renders what it's sent.
 import { useEffect } from "react";
@@ -24,7 +24,7 @@ import { ShowsLibrary, SortedMovieGrid, AnimeLibrary, type LibShow, type LibMovi
 interface FullLibrary {
   username: string;
   // True when a private profile's library is served in full — to the owner
-  // or a mutual follow (issue #184).
+  // or a mutual follow.
   private?: boolean;
   shows: LibShow[];
   movies: LibMovie[];
@@ -33,7 +33,7 @@ interface FullLibrary {
 }
 
 // What a private profile serves to everyone else — same teaser as the
-// profile endpoint (issue #158). `shows` is the discriminant.
+// profile endpoint. `shows` is the discriminant.
 interface LibraryTeaser {
   username: string;
   private: true;
@@ -71,7 +71,7 @@ export function PublicLibraryPage({ tab }: { tab: "shows" | "movies" | "anime" }
       </div>
     );
 
-  // Private teaser — same face the profile page shows (issue #158).
+  // Private teaser — same face the profile page shows.
   if (!data.shows)
     return (
       <>
@@ -88,7 +88,7 @@ export function PublicLibraryPage({ tab }: { tab: "shows" | "movies" | "anime" }
   return (
     <div>
       <Link to={`/u/${data.username}`} className="crumb">‹ {data.username}</Link>
-      {/* The username in the title is the point (issue #245): this page looks
+      {/* The username in the title is the point: this page looks
           like the Library, so it must say whose library it is. */}
       <h1 className="page-title">{data.username}&rsquo;s Library</h1>
       <nav className="tabs" aria-label="Library sections">

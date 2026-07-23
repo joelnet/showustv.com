@@ -1,4 +1,4 @@
--- Achievements (issue #19). The catalog (ids, titles, unlock rules) lives in
+-- Achievements. The catalog (ids, titles, unlock rules) lives in
 -- code — src/shared/achievements.ts — so it ships with deploys and the web
 -- renders it without a fetch; only unlocks are rows. Awards are computed
 -- from existing data by src/worker/lib/achievements.ts after each mutation,

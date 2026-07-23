@@ -137,7 +137,7 @@ export function ImportPage() {
       const outcome = await importAll(groups, movies, (p) => setStage({ name: "busy", verb: "Importing", progress: p }));
       setStage({ name: "done", outcome });
       // The library just grew by (possibly) hundreds of titles the boot-time
-      // pass never saw — warm them for offline now (issue #183). Fresh
+      // pass never saw — warm them for offline now. Fresh
       // indexes (the cached ones predate the import); already-cached titles
       // are skipped, so this only fetches what the import added.
       precacheLibrary(true);

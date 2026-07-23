@@ -1,4 +1,4 @@
-// Per-user RSS 2.0 watch-history feed (issue #330). `run_worker_first` already
+// Per-user RSS 2.0 watch-history feed. `run_worker_first` already
 // routes /u/* to the Worker; index.ts matches /u/:username/feed.xml here BEFORE
 // the social-preview handler (which also owns /u/*) and calls serveUserFeed.
 //
@@ -11,7 +11,7 @@
 // "anyone". So the gate is exactly the social-preview rule (profile_public =
 // 1); a private or unknown user 404s with an identical body, so the feed
 // neither leaks a private profile's watches nor confirms the account exists.
-// Hidden shows (issue #260) are excluded, matching the profile history rows in
+// Hidden shows are excluded, matching the profile history rows in
 // routes/public.ts (both the `hidden = 1` flag and the `state = 'hidden'`
 // tombstone). Every dynamic value is XML-escaped — nothing is trusted raw.
 

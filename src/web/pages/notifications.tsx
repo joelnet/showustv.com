@@ -1,4 +1,4 @@
-// Notifications page (issue #129): everything behind the header bell, newest
+// Notifications page: everything behind the header bell, newest
 // first. Landing here marks the lot read (the badge clears), but rows that
 // were unread when the page loaded keep their highlight for this visit so
 // what's new is still visible.
@@ -30,7 +30,7 @@ interface NotificationItem {
   season: number | null;
   number: number | null;
   episodeTitle: string | null;
-  // Follow rows (issue #273) only: whether I follow the actor right now,
+  // Follow rows only: whether I follow the actor right now,
   // computed by the server at read time. Null for every other type.
   youFollowActor: boolean | null;
   read: boolean;
@@ -38,9 +38,9 @@ interface NotificationItem {
 }
 
 // The verb-and-target phrase after the actor's name, branched per type:
-// 'follow_watch' (issue #129), 'follow_comment' (issue #141),
-// 'tracked_comment' (issue #236 — same phrase; only the reason you got it
-// differs) and 'follow_favorite' (issue #266). The target links to its
+// 'follow_watch', 'follow_comment',
+// 'tracked_comment' (same phrase; only the reason you got it
+// differs) and 'follow_favorite'. The target links to its
 // show/movie page (with its title as the anchor), and an episode row names
 // the episode inline: "watched S02·E05 · Waiting of Dexter". An episode
 // comment links the episode itself — that page is where the thread lives.
@@ -48,7 +48,7 @@ interface NotificationItem {
 // episode) degrades to "watched an episode of Dexter" / "commented on
 // Dexter" / "watched Inception".
 function NotificationBody({ n }: { n: NotificationItem }) {
-  // Follow rows (issue #273) have no media target — the actor IS the story,
+  // Follow rows have no media target — the actor IS the story,
   // and their name (rendered by the caller) already links their profile. The
   // wording was fixed at creation time: 'follow_back' means the actor's
   // follow reciprocated one the recipient already had.
@@ -56,13 +56,13 @@ function NotificationBody({ n }: { n: NotificationItem }) {
     return <>{n.type === "follow_back" ? "followed you back" : "followed you"}</>;
   }
 
-  // Admin test rows (issue #275): the admin is their own actor, so this reads
+  // Admin test rows: the admin is their own actor, so this reads
   // "<username> sent a test notification". No target — nothing to link.
   if (n.type === "test") {
     return <>sent a test notification</>;
   }
 
-  // New-list rows (issue #331): the actor (the list owner) IS the URL owner, so
+  // New-list rows: the actor (the list owner) IS the URL owner, so
   // the link goes to their shared list page. Falls back to a plain label if the
   // list was since deleted or the owner's account is gone.
   if (n.type === "list_created") {
@@ -120,7 +120,7 @@ function NotificationBody({ n }: { n: NotificationItem }) {
   return <>watched {targetLink}</>;
 }
 
-// The follow-back affordance (issue #273), shown on a follow row only while
+// The follow-back affordance, shown on a follow row only while
 // the recipient doesn't already follow the actor. The server computes that
 // live at read time, so a follow made anywhere (their profile, the following
 // page) means the button simply doesn't render on the next load — this
@@ -152,7 +152,7 @@ function FollowBackButton({ username, done, onDone }: { username: string; done: 
   );
 }
 
-// Extra path to turn on push (issue #237): people live on this page (it's
+// Extra path to turn on push: people live on this page (it's
 // where the bell lands) long before they ever open settings, so surface the
 // same per-device opt-in here when this browser could receive pushes but
 // isn't subscribed. PushToggle's `discover` mode keeps it invisible unless

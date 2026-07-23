@@ -1,9 +1,9 @@
-// The list owner's own most-recent top-level comment per item (issue #322),
+// The list owner's own most-recent top-level comment per item,
 // surfaced read-only inside each list card and linking back to the title page
 // where a reader can actually reply. One windowed query for the whole list (no
 // N+1). Shared by the owner's list endpoint (routes/lists.ts) and the public
 // share (routes/public.ts) so the projection can't drift between the two views
-// that issue #325 unified — the same comment must read identically to owner and
+// that were deliberately unified — the same comment must read identically to owner and
 // visitor. Callers own the access decision (a shadow-banned owner's comments
 // stay hidden from others; the owner endpoint is already ownership-checked).
 export type OwnerComment = { body: string; createdAt: string; editedAt: string | null };

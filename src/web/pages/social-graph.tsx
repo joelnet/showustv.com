@@ -45,7 +45,7 @@ function FavoriteMarks({ item }: { item: TasteGraphMedia }) {
 }
 
 // The social-graph section (taste graph + list) renders inline on the Following
-// page (issue #284) rather than on its own route. It owns its /social/taste-graph
+// page rather than on its own route. It owns its /social/taste-graph
 // fetch and every loading/empty/error state so the Following page can drop it in
 // as one self-contained section right after the follow form.
 export function SocialGraphSection() {

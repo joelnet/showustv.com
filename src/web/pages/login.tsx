@@ -18,7 +18,7 @@ export function Login() {
     <div className="login-page">
       {/* Installed (standalone) users have no marketing landing page to
           return to — "/" renders Login itself — so drop the dead escape
-          hatch there and keep it for browser visitors (issue #46). */}
+          hatch there and keep it for browser visitors. */}
       <AuthCard
         initialMode={params.get("mode") === "register" ? "register" : "login"}
         close={!isStandalone()}

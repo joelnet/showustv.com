@@ -7,8 +7,8 @@
   "observability": { "enabled": true },
 
   // SPA + API from one Worker: static assets answer everything except /api/*
-  // and the shareable title/profile pages. Title pages (issue #211) and user
-  // profiles (issue #219) run the Worker first so it can rewrite the SPA
+  // and the shareable title/profile pages. Title pages and user
+  // profiles run the Worker first so it can rewrite the SPA
   // shell's OG/Twitter meta per title or per public profile; the ASSETS
   // binding is how it fetches that shell (and falls back to plain asset
   // serving when a title is unknown or a profile is private/unknown).
@@ -27,7 +27,7 @@
   // record + route and manage TLS.
   "routes": [{ "pattern": "showustv.com", "custom_domain": true }],
   // Single front door: kill the *.workers.dev URL and per-version Preview URLs
-  // so showustv.com is the ONLY public origin (issue #357). Otherwise
+  // so showustv.com is the ONLY public origin. Otherwise
   // showustv.workers.dev serves the full prod app + API against the SAME prod
   // D1, but as a second origin that bypasses the zone-level WAF / rate-limiting
   // / Access rules attached only to showustv.com, disables the Cache API
@@ -49,7 +49,7 @@
     "TMDB_IMG_BASE": "https://image.tmdb.org/t/p",
     "EMAIL_FROM": "noreply@showustv.com",
     "EMAIL_FROM_NAME": "Show Us TV",
-    // VAPID "subject" claim (Web Push, issue #129) — how a push service can
+    // VAPID "subject" claim (Web Push) — how a push service can
     // contact the operator if a sender misbehaves.
     "VAPID_SUBJECT": "https://showustv.com"
   },
@@ -58,7 +58,7 @@
   // no API key. Onboard once: `wrangler email sending enable showustv.com`.
   "send_email": [{ "name": "EMAIL" }],
   // Secrets (wrangler secret put): TMDB_TOKEN (v4 read token or v3 key), SESSION_SECRET,
-  // VAPID_PUBLIC_KEY + VAPID_PRIVATE_KEY (Web Push, issue #129 — generate with
+  // VAPID_PUBLIC_KEY + VAPID_PRIVATE_KEY (Web Push — generate with
   // `npx web-push generate-vapid-keys`; push stays dormant until both are set)
 
   // staging.showustv.com (`wrangler deploy --env staging`): a second Worker

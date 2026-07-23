@@ -1,4 +1,4 @@
-// CSRF defense-in-depth (issue #360). The session cookie is SameSite=Lax
+// CSRF defense-in-depth. The session cookie is SameSite=Lax
 // (lib/session.ts), which is the primary CSRF barrier — but it's the *only*
 // one, and same-site sibling subdomains stay in scope. For unsafe methods
 // (anything that mutates) this middleware adds two cheap, header-only checks

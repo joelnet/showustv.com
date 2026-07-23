@@ -1,4 +1,4 @@
-// Admin-only endpoints (issue #17). Mounted behind requireAuth; the
+// Admin-only endpoints. Mounted behind requireAuth; the
 // middleware below additionally requires users.is_admin. Non-admins get an
 // indistinguishable 404 — the admin surface shouldn't be enumerable.
 import { Hono } from "hono";
@@ -38,7 +38,7 @@ admin.get("/users/:username", async (c) => {
   });
 });
 
-// Toggle shadow ban (issue #18). The mutation lands in activity_log via the
+// Toggle shadow ban. The mutation lands in activity_log via the
 // global middleware, so the ban/unban itself is audited.
 admin.put("/users/:username/shadow-ban", async (c) => {
   const b = await c.req.json().catch(() => ({}));
@@ -52,7 +52,7 @@ admin.put("/users/:username/shadow-ban", async (c) => {
   return c.json({ ok: true, shadowBanned: b.banned });
 });
 
-// Test notification (issue #275): the admin page's button. Sends the caller
+// Test notification: the admin page's button. Sends the caller
 // themselves an in-app notification (and Web Push to their subscribed
 // devices) so an admin can verify the pipeline end to end. Awaited — the
 // button's toast should mean the row really exists — and safe to await:
@@ -64,7 +64,7 @@ admin.post("/test-notification", async (c) => {
   return c.json({ ok: true });
 });
 
-// A user's recent audit trail (activity_log, issue #15) for troubleshooting.
+// A user's recent audit trail (activity_log) for troubleshooting.
 // Works for any account, public profile or not. Reading it is itself
 // recorded: the global middleware only logs mutations, so this GET inserts
 // its own row — admin oversight must be auditable too.

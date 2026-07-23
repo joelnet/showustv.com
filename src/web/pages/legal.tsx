@@ -1,4 +1,4 @@
-// Privacy Policy and Terms of Service (issue #42). Public, standalone pages
+// Privacy Policy and Terms of Service. Public, standalone pages
 // (reachable signed in or out) that share a lightweight landing-style chrome
 // and the site footer. The copy describes what the app actually does today:
 // email + password accounts, a signed session cookie, watch history, and the

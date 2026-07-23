@@ -3,7 +3,7 @@
 // (no programmatic install) it links to the /install walkthrough page.
 // Renders nothing when unavailable — callers can gate wrappers on
 // useInstallPrompt(). Mirrors the signed-in app header's install button
-// (download icon + label) so the landing header matches it (issue #125).
+// (download icon + label) so the landing header matches it.
 import { Link } from "react-router-dom";
 import { useInstallPrompt } from "../pwa";
 import { IconDownload } from "./icons";

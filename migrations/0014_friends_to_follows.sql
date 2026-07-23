@@ -1,4 +1,4 @@
--- issue #39: replace the mutual friendships model with asymmetric,
+-- Replace the mutual friendships model with asymmetric,
 -- Instagram-style follows. The `follows` table (reserved in 0001) becomes the
 -- live social graph. Every account is public today (users.is_private is never
 -- set anywhere), so a follow is always 'active' and needs no approval; the

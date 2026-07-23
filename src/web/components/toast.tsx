@@ -1,4 +1,4 @@
-// App-wide transient toast (issue #244). Imperative, fire-and-forget, in the
+// App-wide transient toast. Imperative, fire-and-forget, in the
 // mold of celebration.tsx:
 //
 //   const toast = useToast();

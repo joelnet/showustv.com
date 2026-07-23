@@ -1,7 +1,7 @@
-// Client-side sync log (issue #372). A small, capped ring buffer that the
+// Client-side sync log. A small, capped ring buffer that the
 // background-sync steps write to as they work, so an admin can see — live, in
 // the admin panel (/admin) — exactly what the header's sync indicator
-// (issue #204) is doing: the library and Continue Watching precache passes
+// is doing: the library and Continue Watching precache passes
 // (precache.ts) and the offline mutation-queue replay (offline.ts).
 //
 // Same useSyncExternalStore pattern as activity.ts / offline.ts.

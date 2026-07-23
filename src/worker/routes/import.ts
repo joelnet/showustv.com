@@ -255,7 +255,7 @@ importer.post("/shows/:id/episodes", async (c) => {
   });
 });
 
-// Import TV Time favorites (issue #21). Favorites are a system-kind list,
+// Import TV Time favorites. Favorites are a system-kind list,
 // created once here so the concurrent per-show import can't race two into
 // existence. Adds are idempotent — re-running never duplicates an entry.
 importer.post("/favorites", async (c) => {
@@ -301,7 +301,7 @@ importer.post("/favorites", async (c) => {
   return c.json({ ok: true, added, existing, failed });
 });
 
-// Import TV Time archived shows (issue #29). An archived show maps to our
+// Import TV Time archived shows. An archived show maps to our
 // "stopped" state ("Stopped Watching"). Runs after the per-show episode import
 // so it overrides the 'watching' state that importing watch history sets —
 // the export's archived flag is the user's final word on the show.

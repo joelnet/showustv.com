@@ -1,9 +1,9 @@
-// Old-address notification + one-click revert (issue #358). When a verified
+// Old-address notification + one-click revert. When a verified
 // account's email is swapped to a new address (POST /auth/verify-email), the
 // PREVIOUS address is emailed a security notice with a single-use revert link,
 // so a silent takeover always leaves a signal the rightful owner can act on.
 //
-// Mirrors the forgot-password token flow (issue #216): only the token's
+// Mirrors the forgot-password token flow: only the token's
 // SHA-256 digest is stored (the raw token lives solely in the email, so a DB
 // leak can't revert anyone's email), one pending revert per user (a newer
 // change replaces the row), a short TTL, and the worker deletes the row on

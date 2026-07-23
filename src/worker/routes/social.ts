@@ -1,4 +1,4 @@
-// Follows (issue #39): an asymmetric, Instagram-style social graph. You follow
+// Follows: an asymmetric, Instagram-style social graph. You follow
 // people; they don't have to follow back. Mounted behind requireAuth — every
 // query is scoped to the signed-in user.
 //
@@ -38,14 +38,14 @@ async function findUser(c: Context<AppEnv>, username: string): Promise<{ id: num
 
 // The people the signed-in user follows WHOSE ACTIVITY THIS VIEWER MAY SEE,
 // as a CTE prefix. ?1 = uid. Follows are instant and self-granted, so the
-// follow edge alone must not unlock anything (issue #205); a followee's
+// follow edge alone must not unlock anything; a followee's
 // watch/rating activity is served only under the visibility rule from
-// issues #202/#184: their profile is visible to this viewer — public, or
+// Their profile is visible to this viewer — public, or
 // private-but-mutual (the owner following the viewer back is the deliberate
-// unlock signal). The separate activity_public gate was dropped (issue #308):
-// #249 removed the eye toggle that set that flag, freezing it, so gating on it
+// unlock signal). The separate activity_public gate was dropped:
+// an earlier change removed the eye toggle that set that flag, freezing it, so gating on it
 // permanently hid the activity of any user whose flag was 0 from their
-// followers/mutuals — the exact symptom in that issue.
+// followers/mutuals — the exact symptom this gate now avoids.
 const FOLLOWING_CTE = `WITH following(fid) AS (
   SELECT f.followee_id FROM follows f
   JOIN users fu ON fu.id = f.followee_id
@@ -59,14 +59,14 @@ const FOLLOWING_CTE = `WITH following(fid) AS (
 
 // Everything the Following page needs in one request: mutuals (we follow each
 // other), who I follow but who doesn't follow back, and who follows me but whom
-// I don't follow back. The three lists are disjoint (issue #288) — a mutual
+// I don't follow back. The three lists are disjoint — a mutual
 // appears only under Mutuals, never duplicated into Following or Followers — so
 // each account shows in exactly one section and the section counts don't
 // double-count.
 social.get("/follows", async (c) => {
   const uid = c.get("uid");
 
-  // Mutuals (issue #130): the intersection of following and followers. `since`
+  // Mutuals: the intersection of following and followers. `since`
   // is the later of the two follow dates — when the pair became mutual.
   const mutuals = await c.env.DB.prepare(
     `SELECT u.username, MAX(f.created_at, r.created_at) AS since
@@ -79,8 +79,8 @@ social.get("/follows", async (c) => {
     .bind(uid)
     .all();
 
-  // Following minus mutuals: people I follow who do NOT follow me back (issue
-  // #288). The NOT EXISTS drops any followee with a reciprocal edge — those
+  // Following minus mutuals: people I follow who do NOT follow me back.
+  // The NOT EXISTS drops any followee with a reciprocal edge — those
   // belong to the Mutuals list above.
   const following = await c.env.DB.prepare(
     `SELECT u.username, f.created_at AS since
@@ -94,8 +94,8 @@ social.get("/follows", async (c) => {
     .bind(uid)
     .all();
 
-  // Followers minus mutuals: people who follow me whom I do NOT follow back
-  // (issue #288). The NOT EXISTS drops anyone I already follow — those are
+  // Followers minus mutuals: people who follow me whom I do NOT follow back.
+  // The NOT EXISTS drops anyone I already follow — those are
   // mutuals. Every row here is therefore non-mutual, so youFollow is always
   // false; it's kept for response-shape stability and drives the client's
   // "Follow back" button.
@@ -401,7 +401,7 @@ social.post("/follow", async (c) => {
   )
     .bind(uid, target.id)
     .run();
-  // Notify the followee (issue #273), off the response path — the same hook
+  // Notify the followee, off the response path — the same hook
   // shape as the watch/favorite routes. meta.changes detects the transition
   // INTO following: the ON CONFLICT no-op reports 0 changes, so re-following
   // someone you already follow never re-notifies.
@@ -500,7 +500,7 @@ social.get("/activity", async (c) => {
        JOIN episodes e ON e.id = ue.episode_id
        JOIN shows s ON s.tmdb_id = e.show_id
        WHERE ue.watched_at >= ?2
-         -- The watcher hid this show (issue #260): their episode watches on
+         -- The watcher hid this show: their episode watches on
          -- it are private activity, off the feed entirely.
          AND NOT EXISTS (SELECT 1 FROM user_shows h
                          WHERE h.user_id = ue.user_id AND h.show_id = e.show_id AND h.hidden = 1)
@@ -536,7 +536,7 @@ social.get("/activity", async (c) => {
        LEFT JOIN movies m ON r.target_type = 'movie' AND m.tmdb_id = r.target_id
        WHERE r.target_type IN ('show', 'movie') AND r.score IS NOT NULL
          AND r.created_at >= ?2 AND r.created_at <= ?3
-         -- A rating on a hidden show (issue #260) would out it just like a
+         -- A rating on a hidden show would out it just like a
          -- watch; movie ratings pass through (hiding is per-show).
          AND NOT EXISTS (SELECT 1 FROM user_shows h
                          WHERE r.target_type = 'show'

@@ -1,5 +1,5 @@
 // The Watch Now tile row, extracted from watchnext.tsx so other pages can
-// reuse the exact same look (issue #245: the profile's Shows / Movies / Anime
+// reuse the exact same look (the profile's Shows / Movies / Anime
 // history rows). A TileItem is one landscape tile — a show (usually with an
 // episode slate) or a movie; Row is the drag-scrollable horizontal strip of
 // them; TileSection wraps a Row in the Watch Now section chrome: the linked
@@ -15,7 +15,7 @@ import { mediaPath } from "../paths";
 
 // A tile for any media item — a show (with its next/last episode) or a movie.
 // Most sections render the landscape 16:9 thumb (episode still / show
-// backdrop). `posterArt` tiles (Not Started, issue #300) instead show the
+// backdrop). `posterArt` tiles (Not Started) instead show the
 // show's portrait poster — the app's key "show art" everywhere else (search,
 // library, lists) — since an unstarted show is better sold by its poster than
 // by a screenshot of an episode you haven't reached.
@@ -30,29 +30,29 @@ export interface TileItem {
   number?: number;
   episodeTitle?: string | null;
   count?: number;
-  username?: string; // "From People You Follow": who watched it (issue #128)
+  username?: string; // "From People You Follow": who watched it
   // The exact episode behind the tile: what a followee watched on friends
-  // tiles (issue #128), the next-up episode on the queue sections' tiles —
-  // there it's what the mark-watched button marks (issue #186).
+  // tiles, the next-up episode on the queue sections' tiles —
+  // there it's what the mark-watched button marks.
   episodeId?: number | null;
-  airDate?: string | null; // Upcoming tiles: the episode's air date, 'YYYY-MM-DD' (issue #175)
+  airDate?: string | null; // Upcoming tiles: the episode's air date, 'YYYY-MM-DD'
 }
 
-// The thumbnail and titles link to the show/movie; watch actions happen there
-// (#106). Landscape thumbnail, bold title, and one muted "S02·E05 - Episode
+// The thumbnail and titles link to the show/movie; watch actions happen there.
+// Landscape thumbnail, bold title, and one muted "S02·E05 - Episode
 // title" line — the episode code uses the shared epCode slate format; the
-// " - " separator stays the tile convention (#106). Friend-watched
+// " - " separator stays the tile convention. Friend-watched
 // tiles add a "Watched by <user>" line whose username links to that person's
-// profile — a separate sibling link, since anchors can't nest (issue #128) —
+// profile — a separate sibling link, since anchors can't nest —
 // and their media link goes to the exact episode the followee watched, so
-// tracking their progress is one tap (issue #128 follow-up); the queue
-// sections' tiles carry an episodeId too now (issue #186) but keep linking
-// to the show, where the full watch flow lives (#106). Missing episode
+// tracking their progress is one tap; the queue
+// sections' tiles carry an episodeId too now but keep linking
+// to the show, where the full watch flow lives. Missing episode
 // fields degrade to the plain show link. Upcoming tiles carry an airDate and
-// wear it as a "Jan 17"-style pill on the thumb (issue #175), in the corner
+// wear it as a "Jan 17"-style pill on the thumb, in the corner
 // the count pill uses elsewhere — the two never appear on the same tile.
 //
-// `markable` tiles (the queue sections, issue #186) get the app's check
+// `markable` tiles (the queue sections) get the app's check
 // button on the right edge of the tile body, marking exactly the next-up
 // episode the tile names. It sits OUTSIDE .wn-tile-link in the DOM —
 // interactive content can't nest inside an anchor, and as a sibling its
@@ -69,7 +69,7 @@ export function Tile({ item, markable, onWatched, posterArt }: { item: TileItem;
   // advances the tile to the next episode.
   const [markedId, setMarkedId] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
-  // Poster-art tiles (Not Started, issue #300) show the show's portrait poster;
+  // Poster-art tiles (Not Started) show the show's portrait poster;
   // every other section leads with the episode still, then the show backdrop,
   // and only falls back to the poster. A missing poster degrades to the same
   // .poster-fallback placeholder the app's other poster tiles use.
@@ -78,7 +78,7 @@ export function Tile({ item, markable, onWatched, posterArt }: { item: TileItem;
     item.username && item.episodeId != null && item.season != null && item.number != null
       ? mediaPath("episode", item.episodeId, item.episodeTitle)
       : mediaPath(item.kind, item.id, item.title);
-  // Poster-art tiles are solely about the show (issue #300 follow-up): an
+  // Poster-art tiles are solely about the show: an
   // unstarted show is always at S01E01, so the episode number/title line is
   // redundant, and the mark-watched check is dropped too — the user clicks
   // through to the show to start the first episode there. So poster tiles are
@@ -109,9 +109,9 @@ export function Tile({ item, markable, onWatched, posterArt }: { item: TileItem;
       const r = await post(`/episodes/${episodeId}/watch`);
       // Queued offline: keep the optimistic check; refetching now would only
       // serve the stale pre-change cache. The offline queue's post-sync
-      // revalidation refreshes /home once the mark lands (issue #183).
+      // revalidation refreshes /home once the mark lands.
       if (!r?.queued) onWatched?.();
-      // Same catch-up confetti as the episode/show pages (issue #53).
+      // Same catch-up confetti as the episode/show pages.
       if (r?.caughtUp) celebrate(r.showTitle ?? item.title);
     } catch {
       setMarkedId(null); // rejected — unwind the optimistic check
@@ -170,7 +170,7 @@ export function Tile({ item, markable, onWatched, posterArt }: { item: TileItem;
 }
 
 // Click-and-drag horizontal scrolling for the tile rows on desktop, matching
-// the native touch-drag that already works on mobile (issue #114). Once a drag
+// the native touch-drag that already works on mobile. Once a drag
 // moves past a few pixels it also swallows the click, so releasing on a tile
 // scrolls the row instead of navigating into the show.
 function useDragScroll<T extends HTMLElement>() {
@@ -238,9 +238,9 @@ function useDragScroll<T extends HTMLElement>() {
 
 // The bare horizontal scroller: a .wn-row strip of whatever the caller puts
 // in it, drag-scrollable on desktop. Row feeds it Tiles; the profile's Stats
-// slider (issue #250) feeds it stat cards — one scroller, so the drag/click
-// behavior can never fork between them. `posterArt` rows (Not Started, issue
-// #300) mark the strip `.is-poster` so its portrait tiles take a narrower
+// slider feeds it stat cards — one scroller, so the drag/click
+// behavior can never fork between them. `posterArt` rows (Not Started)
+// mark the strip `.is-poster` so its portrait tiles take a narrower
 // column and drop the deliberate half-tile peek other rows use (see styles).
 export function ScrollRow({ children, posterArt }: { children: React.ReactNode; posterArt?: boolean }) {
   const drag = useDragScroll<HTMLDivElement>();
@@ -268,10 +268,10 @@ export function Row({ items, markable, onWatched, posterArt }: { items: TileItem
   );
 }
 
-// A ScrollRow of arbitrary children in the Watch Now section chrome (issue
-// #105): the heading bar over the strip. With `to` the heading is itself the
+// A ScrollRow of arbitrary children in the Watch Now section chrome:
+// the heading bar over the strip. With `to` the heading is itself the
 // link — h2 plus a chevron — opening the fuller page behind the row; without
-// it the heading is plain text (the profile's Stats slider, issue #250, has
+// it the heading is plain text (the profile's Stats slider has
 // no page behind it).
 export function SliderSection({ title, to, className, children }: { title: string; to?: string; className?: string; children: React.ReactNode }) {
   return (
@@ -295,7 +295,7 @@ export function SliderSection({ title, to, className, children }: { title: strin
 
 // Tiles in the section chrome. An empty section renders nothing, heading
 // included, so pages composing several of these never show a bar with no
-// tiles under it (issue #245).
+// tiles under it.
 export function TileSection({ title, to, items }: { title: string; to: string; items: TileItem[] }) {
   if (items.length === 0) return null;
   return (

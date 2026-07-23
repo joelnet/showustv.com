@@ -302,9 +302,9 @@ export interface WatchInfo {
 
 // US flatrate providers for the where-to-watch strip, one row per service.
 // TMDB's watch-provider data is JustWatch's, so the shelf links straight to
-// JustWatch rather than TMDB's own watch page (issue #310). New clients build
+// JustWatch rather than TMDB's own watch page. New clients build
 // that URL from the title themselves; `link` is the same JustWatch search so
-// still-running pre-#310 clients (which read `link`) also land on JustWatch.
+// still-running older clients (which read `link`) also land on JustWatch.
 export async function watchProviders(
   env: Env,
   kind: "tv" | "movie",

@@ -1,5 +1,5 @@
-// Admin page (issue #275): site-wide admin tools that aren't tied to one
-// profile (those live in AdminTools on profile pages, issue #17). Linked from
+// Admin page: site-wide admin tools that aren't tied to one
+// profile (those live in AdminTools on profile pages). Linked from
 // Settings for admins only. The render gate below is UX, not security — a
 // non-admin who types /admin just lands back home; every /api/admin endpoint
 // re-checks users.is_admin server-side (routes/admin.ts) and answers an
@@ -55,8 +55,8 @@ export function AdminPage() {
   );
 }
 
-// Live view of the background sync the header progress bar (issue #204)
-// reflects (issue #372): the library and Continue Watching precache passes
+// Live view of the background sync the header progress bar
+// reflects: the library and Continue Watching precache passes
 // (precache.ts) and the offline mutation-queue replay (offline.ts) append to a
 // small capped client log store (synclog.ts) as they work; this renders it
 // newest-first and updates in place while a sync runs. Admin-only by virtue of

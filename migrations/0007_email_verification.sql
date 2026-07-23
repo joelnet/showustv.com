@@ -1,4 +1,4 @@
--- Email verification (issue #13). users.email (0001) stays the verified
+-- Email verification. users.email (0001) stays the verified
 -- address; the pending address lives here until its token is clicked, so an
 -- unconfirmed typo can never clobber a verified email. One pending
 -- verification per user — resending replaces the row.

@@ -1,4 +1,4 @@
--- issue #331: allow 'list' as a notification target_type so a "created a new
+-- Allow 'list' as a notification target_type so a "created a new
 -- list" notification can point at the list (target_id = custom_lists.id),
 -- resolved to the list name + owner username at read time like every other
 -- notification target. SQLite can't ALTER a CHECK, so the table is recreated

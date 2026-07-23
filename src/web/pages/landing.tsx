@@ -17,7 +17,7 @@ function JoelLink() {
   );
 }
 
-// FAQ content (issue #195). Questions render as native <details>/<summary>
+// FAQ content. Questions render as native <details>/<summary>
 // accordions: collapsed by default, click (or Enter/Space) toggles the answer.
 const FAQS: { q: string; a: React.ReactNode }[] = [
   {
@@ -61,7 +61,7 @@ export function Landing() {
         <Wordmark />
         <div className="landing-header-actions">
           {/* Install App lives in the header here, same as the signed-in app
-              header (Watch Next, Profile, …) rather than mid-page (issue #125). */}
+              header (Watch Next, Profile, …) rather than mid-page. */}
           <InstallAppButton buttonClass="header-install" />
           <Link to="/login" className="btn btn-ghost">
             Sign in
@@ -71,7 +71,7 @@ export function Landing() {
 
       <main className="landing-main">
         {/* --wall modifier: extra bottom padding keeps the poster wall inside
-            the hero so the free badge below never overlaps it (issue #218). */}
+            the hero so the free badge below never overlaps it. */}
         <section className="landing-hero landing-hero--wall">
           <h1>Track your shows. Pick up where you left off.</h1>
           <p className="landing-sub">
@@ -88,7 +88,7 @@ export function Landing() {
           <AuthCard initialMode="register" />
         </section>
 
-        {/* FAQ (issue #195): the last block before the footer. Native
+        {/* FAQ: the last block before the footer. Native
             <details> keeps the accordion keyboard-accessible with zero JS. */}
         <section className="landing-section landing-faq" aria-labelledby="faq-title">
           <div className="section-head">

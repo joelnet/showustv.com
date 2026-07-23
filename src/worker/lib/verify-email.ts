@@ -1,4 +1,4 @@
-// Email-verification dispatch, shared by register (issue #355 — a fresh signup
+// Email-verification dispatch, shared by register (a fresh signup
 // verifies immediately) and the profile "add/change email" flow. Storing the
 // pending address + token here, and only swapping users.email when the token is
 // clicked (routes/auth.ts POST /verify-email), keeps a typo or an unverified

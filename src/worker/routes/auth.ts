@@ -15,7 +15,7 @@ export const auth = new Hono<AppEnv>();
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// Issue #217: PBKDF2 hashes whatever it's given, so an unbounded password is
+// PBKDF2 hashes whatever it's given, so an unbounded password is
 // a CPU-DoS amplifier. Both register and login refuse anything longer BEFORE
 // any hashing (signInExistingUser is only reachable from register, after this
 // check). Generous enough for any passphrase; register enforces it, so no
@@ -23,7 +23,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_PASSWORD_CHARS = 256;
 const PASSWORD_RULES = { error: "Password must be between 8 and 256 characters" };
 
-// Sliding windows (issues #214/#207). Login counts only FAILED attempts —
+// Sliding windows. Login counts only FAILED attempts —
 // per IP and per normalized identifier — so ordinary sign-ins never brush
 // the limit; register counts every attempt, since mass signups are the
 // threat there, not guessing. Refused (429) requests are never recorded
@@ -33,14 +33,14 @@ const LOGIN_IP = { limit: 10, windowMs: 10 * 60_000 };
 const LOGIN_ID = { limit: 5, windowMs: 15 * 60_000 };
 const REGISTER_IP = { limit: 10, windowMs: 60 * 60_000 };
 const REGISTER_EMAIL = { limit: 5, windowMs: 60 * 60_000 };
-// Forgot-password (issue #216): every request counts (sending mail is the
+// Forgot-password: every request counts (sending mail is the
 // cost, like register), per IP and per target address so one IP can't spray
 // resets and one address can't be flooded from many IPs. Reset counts only
 // failures (token guessing is the threat), like login.
 const FORGOT_IP = { limit: 5, windowMs: 60 * 60_000 };
 const FORGOT_EMAIL = { limit: 3, windowMs: 60 * 60_000 };
 const RESET_IP = { limit: 10, windowMs: 15 * 60_000 };
-// Revert-email (issue #358): failures-only per IP, like reset — the token is an
+// Revert-email: failures-only per IP, like reset — the token is an
 // unguessable 128-bit digest, this just keeps anyone from trying at volume.
 const REVERT_IP = { limit: 10, windowMs: 15 * 60_000 };
 const RATE_LIMITED = { error: "Too many attempts. Please try again later" };
@@ -56,7 +56,7 @@ const loginKeys = (c: Context<AppEnv>, identifier: string) => ({
 });
 
 // Transparently upgrade a legacy (lower work-factor) password hash after a
-// SUCCESSFUL login (issue #359). Called only once the password has verified, so
+// SUCCESSFUL login. Called only once the password has verified, so
 // `password` is known-correct for this account. Best-effort and OFF the response
 // path: the re-derive (a full PBKDF2 at the new count) runs in waitUntil so the
 // login response isn't slowed, and any failure is swallowed — a hiccup on the
@@ -76,7 +76,7 @@ function upgradeHashOnLogin(c: Context<AppEnv>, userId: number, storedHash: stri
   );
 }
 
-// Sign-up asks only for an email (issue #23); the account gets a random,
+// Sign-up asks only for an email; the account gets a random,
 // human-friendly handle it can rename later on the profile page. Kept short
 // enough (<= 20 chars) to satisfy the username rules with room for the number.
 const HANDLE_ADJ = ["late","prime","static","neon","velvet","golden","rerun","binge","pixel","analog","noir","retro","turbo","lucid","hazy","cosmic","stellar","primetime"];
@@ -90,7 +90,7 @@ function randomHandle(): string {
   return `${a}${n}${buf[2] % 10000}`.slice(0, 20);
 }
 
-// Issue #174: submitting an existing account's email + correct password on
+// Submitting an existing account's email + correct password on
 // the create-account form means "sign me in", so /register hands the request
 // off here instead of erroring. Same password check (verifyPassword — PBKDF2
 // + timingSafeEqual) and same session (issueSession) as /login, and the same
@@ -101,8 +101,8 @@ function randomHandle(): string {
 // password (or deleted account) — the caller keeps today's 409, so this path
 // is indistinguishable from the old behavior when the sign-in doesn't happen.
 //
-// Because this is a login in disguise, it shares /login's brakes (issue
-// #214) — same keys, same windows, same dummy verify — or /register would be
+// Because this is a login in disguise, it shares /login's brakes
+// — same keys, same windows, same dummy verify — or /register would be
 // the unthrottled way to guess an existing account's password. When limited
 // it returns the generic 429 Response, which the caller passes through.
 async function signInExistingUser(c: Context<AppEnv>, email: string, password: string) {
@@ -131,7 +131,7 @@ async function signInExistingUser(c: Context<AppEnv>, email: string, password: s
     return null;
   }
   await clearAttempts(c.env.DB, [idKey]); // correct password ends the account's failure window
-  upgradeHashOnLogin(c, user.id, user.pw_hash, password); // best-effort work-factor upgrade (#359)
+  upgradeHashOnLogin(c, user.id, user.pw_hash, password); // best-effort work-factor upgrade
 
   await issueSession(c, user.id, user.tz);
   c.set("uid", user.id); // attribute this request in the activity log
@@ -150,7 +150,7 @@ async function signInExistingUser(c: Context<AppEnv>, email: string, password: s
 }
 
 auth.post("/register", async (c) => {
-  const rj = await readJson(c); // byte cap before parsing (issue #217)
+  const rj = await readJson(c); // byte cap before parsing
   if (!rj) return c.json({ error: "payload too large" }, 413);
   const { body } = rj;
   const email = String(body.email ?? "").trim().toLowerCase();
@@ -161,7 +161,7 @@ auth.post("/register", async (c) => {
     return c.json({ error: "That doesn't look like an email address" }, 400);
   if (password.length < 8 || password.length > MAX_PASSWORD_CHARS) return c.json(PASSWORD_RULES, 400);
 
-  // Mass-signup brake (issues #214/#207): a well-formed attempt counts when
+  // Mass-signup brake: a well-formed attempt counts when
   // it lands as a create or a 409 — a bot probing emails burns its budget
   // either way. Recording waits until the outcome is known so that neither a
   // 429 (from here or the sign-in handoff below) nor a successful sign-in
@@ -184,7 +184,7 @@ auth.post("/register", async (c) => {
   // Sign-up stores the email straight away (unverified) — it's the login. The
   // random handle can collide, so retry a few times before giving up. Sign-in is
   // open to everyone: the account is created and a session issued right away.
-  // profile_public = 1: new profiles start public (issue #243). The column's
+  // profile_public = 1: new profiles start public. The column's
   // schema default is still 0 (0003, and SQLite can't change it in place), so
   // this INSERT is the default; owners can flip private from the Profile page.
   for (let attempt = 0; attempt < 6; attempt++) {
@@ -197,7 +197,7 @@ auth.post("/register", async (c) => {
         .first<{ id: number }>();
       c.set("uid", row!.id); // attribute this request in the activity log
       await issueSession(c, row!.id, tz);
-      // Pre-hijacking mitigation (issue #355): the account is created with the
+      // Pre-hijacking mitigation: the account is created with the
       // email UNVERIFIED (email_verified_at stays NULL) and a verification mail
       // goes out immediately, so the third-party address is never treated as
       // trusted. Best-effort and off the response path — a mail hiccup must not
@@ -210,8 +210,8 @@ auth.post("/register", async (c) => {
           console.error("register: verification dispatch failed", e)
         )
       );
-      // onboarded: false routes the fresh account to the preferences step
-      // (issue #160), where it confirms this handle and timezone.
+      // onboarded: false routes the fresh account to the preferences step,
+      // where it confirms this handle and timezone.
       return c.json({
         user: { id: row!.id, username, tz, emailVerified: false, isAdmin: false, installed: false, onboarded: false },
       });
@@ -229,17 +229,17 @@ auth.post("/register", async (c) => {
 });
 
 auth.post("/login", async (c) => {
-  const rj = await readJson(c); // byte cap before parsing (issue #217)
+  const rj = await readJson(c); // byte cap before parsing
   if (!rj) return c.json({ error: "payload too large" }, 413);
   const { body } = rj;
   // Accept the email (the new login) or the username (existing accounts).
   const login = String(body.login ?? body.email ?? body.username ?? "").trim();
   const password = String(body.password ?? "");
   // No account can hold a password this long (register refuses them), so
-  // reject before the rate-limit reads and the PBKDF2 verify (issue #217).
+  // reject before the rate-limit reads and the PBKDF2 verify.
   if (password.length > MAX_PASSWORD_CHARS) return c.json(PASSWORD_RULES, 400);
 
-  // Brute-force brake (issues #214/#207): only failures are recorded (below),
+  // Brute-force brake: only failures are recorded (below),
   // so this trips on guessing, never on routine sign-ins.
   const { ipKey, idKey } = loginKeys(c, login);
   if (await isRateLimited(c.env.DB, [{ key: ipKey, ...LOGIN_IP }, { key: idKey, ...LOGIN_ID }]))
@@ -262,14 +262,14 @@ auth.post("/login", async (c) => {
 
   // Always run the full PBKDF2 — against a dummy record when the account
   // doesn't exist — so the not-found branch is no longer measurably faster
-  // than a wrong password (the timing oracle in issue #214).
+  // than a wrong password (the timing oracle).
   const ok = await verifyPassword(password, user?.pw_hash ?? DUMMY_PW_HASH);
   if (!user || !ok) {
     await recordAttempt(c.env.DB, [ipKey, idKey]);
     return c.json({ error: "Wrong email or password" }, 401);
   }
   await clearAttempts(c.env.DB, [idKey]); // correct password ends the account's failure window
-  upgradeHashOnLogin(c, user.id, user.pw_hash, password); // best-effort work-factor upgrade (#359)
+  upgradeHashOnLogin(c, user.id, user.pw_hash, password); // best-effort work-factor upgrade
 
   await issueSession(c, user.id, user.tz);
   c.set("uid", user.id); // attribute this request in the activity log
@@ -315,7 +315,7 @@ auth.get("/me", requireAuth, async (c) => {
   });
 });
 
-// A confirmed PWA install self-reports here (issue #145): Chromium's
+// A confirmed PWA install self-reports here: Chromium's
 // appinstalled event, or the first signed-in standalone boot on iOS (which
 // fires no install event at all). The activity_log middleware records the
 // POST, so the install lands in the activity logs attributed and timestamped
@@ -325,7 +325,7 @@ auth.get("/me", requireAuth, async (c) => {
 // one 201 — the tracked install event — and the client's `installed` flag
 // stops re-pings on later standalone launches. A duplicate ping still gets
 // an ordinary request-audit row (status 200) like every mutating endpoint
-// does; only the 201 row means "install recorded". Unlike the pre-#82 flag,
+// does; only the 201 row means "install recorded". Unlike the earlier install flag,
 // nothing gates the Install button on this.
 auth.post("/installed", requireAuth, async (c) => {
   const { meta } = await c.env.DB.prepare("UPDATE users SET installed_at = ?2 WHERE id = ?1 AND installed_at IS NULL")
@@ -357,15 +357,15 @@ auth.post("/verify-email", async (c) => {
   if (row.expires_at < nowIso()) return status("expired");
 
   // The address being replaced — captured BEFORE the swap so the OLD mailbox
-  // can be notified below (issue #358). UPDATE ... RETURNING gives the new
+  // can be notified below. UPDATE... RETURNING gives the new
   // value, so this must be a separate read.
   const before = await c.env.DB.prepare("SELECT email FROM users WHERE id = ?1")
     .bind(row.user_id)
     .first<{ email: string | null }>();
 
   try {
-    // Swap in the verified address AND bump session_epoch in one write (issue
-    // #355). Verifying an email is the pre-hijacking cut point: any session
+    // Swap in the verified address AND bump session_epoch in one write.
+    // Verifying an email is the pre-hijacking cut point: any session
     // opened before the address was proven — including one an attacker created
     // by pre-registering the victim's email — is revoked here.
     await c.env.DB.prepare(
@@ -380,7 +380,7 @@ auth.post("/verify-email", async (c) => {
   }
 
   // Notify the PREVIOUS address that the account email changed, with a
-  // single-use revert link (issue #358) — so a takeover always leaves a signal
+  // single-use revert link — so a takeover always leaves a signal
   // the rightful owner can act on. Only when the address actually changed (a
   // first-time verify of the signup email has old == new and needs no notice).
   // Off the response path: a mail hiccup must not fail the verification.
@@ -405,8 +405,8 @@ auth.post("/verify-email", async (c) => {
   return status("verified");
 });
 
-// The account-dependent half of /forgot, run OFF the response path (issue
-// #216). Looks up the account and, only if it exists, stores a fresh reset
+// The account-dependent half of /forgot, run OFF the response path.
+// Looks up the account and, only if it exists, stores a fresh reset
 // token digest (raw token exists only in the email — same bearer-credential
 // rule as email_verifications) and mails the link. One pending reset per
 // user: a new request replaces the old row, so stale links die early. If the
@@ -444,7 +444,7 @@ async function dispatchPasswordReset(env: Env, origin: string, email: string): P
   if (!sent) await env.DB.prepare("DELETE FROM password_resets WHERE user_id = ?1").bind(user.id).run();
 }
 
-// Start a password reset (issue #216). Non-enumerating BY CONSTRUCTION: after
+// Start a password reset. Non-enumerating BY CONSTRUCTION: after
 // the format check and the rate-limit gate — both of which treat every email
 // identically — the response is the same generic 200 whether or not the
 // address has an account, and all account-dependent work (lookup, token
@@ -452,7 +452,7 @@ async function dispatchPasswordReset(env: Env, origin: string, email: string): P
 // body, AND timing are flat. Every well-formed request is counted (like
 // register): the cost being limited is outbound mail, not failed guesses.
 auth.post("/forgot", async (c) => {
-  const rj = await readJson(c); // byte cap before parsing (issue #217)
+  const rj = await readJson(c); // byte cap before parsing
   if (!rj) return c.json({ error: "payload too large" }, 413);
   const email = String(rj.body.email ?? "").trim().toLowerCase();
   if (!EMAIL_RE.test(email) || email.length > 254)
@@ -472,7 +472,7 @@ auth.post("/forgot", async (c) => {
   return c.json({ ok: true });
 });
 
-// Consume a reset token and set the new password (issue #216). POST only,
+// Consume a reset token and set the new password. POST only,
 // same reasoning as /verify-email: the emailed link lands on the SPA page
 // /reset-password and nothing is consumed until the user submits the form
 // there, so a mail scanner prefetching the GET link burns nothing. The token
@@ -481,11 +481,11 @@ auth.post("/forgot", async (c) => {
 // or expired. Distinguishing invalid/expired here reveals nothing about
 // accounts — only about a token the caller already holds (same as verify).
 auth.post("/reset", async (c) => {
-  const rj = await readJson(c); // byte cap before parsing (issue #217)
+  const rj = await readJson(c); // byte cap before parsing
   if (!rj) return c.json({ error: "payload too large" }, 413);
   const token = String(rj.body.token ?? "");
   const password = String(rj.body.password ?? "");
-  // Same password rules as register — checked before any hashing (issue #217).
+  // Same password rules as register — checked before any hashing.
   if (password.length < 8 || password.length > MAX_PASSWORD_CHARS) return c.json(PASSWORD_RULES, 400);
 
   const status = (s: string) => c.json({ status: s });
@@ -508,7 +508,7 @@ auth.post("/reset", async (c) => {
   if (row.expires_at < nowIso()) return status("expired");
 
   const pwHash = await hashPassword(password);
-  // Set the new password AND bump session_epoch in one write (issue #355), so a
+  // Set the new password AND bump session_epoch in one write, so a
   // reset revokes every session issued before it — including an attacker's, the
   // whole point of "a password reset should invalidate existing sessions". The
   // reset flow has no logged-in actor to preserve (the user reached it from the
@@ -533,7 +533,7 @@ auth.post("/reset", async (c) => {
   return status("ok");
 });
 
-// Consume a revert token and restore the previous email (issue #358). The
+// Consume a revert token and restore the previous email. The
 // emailed security notice lands on the SPA page /revert-email; like
 // /verify-email and /reset, nothing is consumed until the user presses the
 // button there, so a mail scanner prefetching the GET link can't burn the
@@ -542,7 +542,7 @@ auth.post("/reset", async (c) => {
 // definition), so no requireAuth. Single-use: the row is deleted on first
 // presentation, valid or expired.
 auth.post("/revert-email", async (c) => {
-  const rj = await readJson(c); // byte cap before parsing (issue #217)
+  const rj = await readJson(c); // byte cap before parsing
   if (!rj) return c.json({ error: "payload too large" }, 413);
   const token = String(rj.body.token ?? "");
   const status = (s: string) => c.json({ status: s });
@@ -566,7 +566,7 @@ auth.post("/revert-email", async (c) => {
 
   try {
     // Restore the previous address, mark it verified again, AND bump
-    // session_epoch (issues #355/#358): reverting a hijacker's email change
+    // session_epoch: reverting a hijacker's email change
     // must also kill every session that change left alive. Clicking this link
     // proves control of prev_email (the notice was mailed there), so re-marking
     // it verified is warranted. No session is re-issued — like the reset flow,
@@ -595,7 +595,7 @@ auth.put("/settings", requireAuth, async (c) => {
   return c.json({ ok: true });
 });
 
-// "Finish Signup" on the preferences step (issue #160): one atomic call that
+// "Finish Signup" on the preferences step: one atomic call that
 // saves the username + timezone and marks onboarding complete, so a partial
 // failure can't strand an account half-onboarded. Validation matches the
 // standing rules exactly: PUT /profile/username's shape check and taken

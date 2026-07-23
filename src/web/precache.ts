@@ -1,21 +1,21 @@
-// Precache for offline browsing: Continue Watching (issue #139) and, since
-// issue #183, the user's whole library.
+// Precache for offline browsing: Continue Watching and
+// the user's whole library.
 //
-// Offline support (issue #51) caches API responses and images as they're
+// Offline support caches API responses and images as they're
 // fetched, so a show's detail page only works offline if the user happened
 // to open it while online. Two proactive passes close that gap:
 //
-//   - precacheContinueWatching (issue #139): when /home data arrives, warm
+// - precacheContinueWatching: when /home data arrives, warm
 //     each Continue Watching show's detail payload + hero art (poster AND
-//     w1280 backdrop). Since issue #183 the library pass covers CW payloads
+//     w1280 backdrop). The library pass covers CW payloads
 //     too, so this pass only fills what Cache Storage is missing (or holds
 //     stale) — its remaining unique jobs are the w1280 backdrops (the
 //     library pass deliberately never warms those) and covering a CW title
 //     before the slower library pass reaches it. When it does fetch, the
 //     parsed payload is seeded into the in-memory page cache (hooks.ts,
-//     issue #154 follow-up); already-cached titles need no seed — useApi
-//     paints them straight from the SW cache (issue #183).
-//   - precacheLibrary (issue #183): shortly after a signed-in session is
+// follow-up); already-cached titles need no seed — useApi
+// paints them straight from the SW cache.
+// - precacheLibrary: shortly after a signed-in session is
 //     known (app.tsx), warm the index payloads (/library, /watchlist,
 //     /lists, /home) and EVERY library title's detail payload + w342 poster
 //     (the same URL the Library grid and the detail hero render), so in
@@ -92,7 +92,7 @@ async function warm(url: string, init?: RequestInit): Promise<boolean> {
 }
 
 // Like warm(), but the detail payload is also parsed and seeded into the
-// in-memory page cache (hooks.ts, issue #154 follow-up) under `key` — the same
+// in-memory page cache (hooks.ts, follow-up) under `key` — the same
 // path the detail page reads — so opening this tile renders from cache with no
 // loading skeleton. Seeds ONLY a fresh network response: a cache fallback
 // (x-sw-fallback) or an error never masquerades as good page data, and the
@@ -163,15 +163,15 @@ export function precacheContinueWatching(items: PrecacheItem[]): void {
   }
 
   running = true;
-  // The header shows its sync progress bar while this pass runs (issue #204).
+  // The header shows its sync progress bar while this pass runs.
   const endActivity = beginBackgroundActivity();
-  // Aggregate counts for the admin sync log (issue #372): begin/summary only,
+  // Aggregate counts for the admin sync log: begin/summary only,
   // never one entry per title, so the log stays small and /admin never storms.
   let processed = 0;
   let fetched = 0; // titles whose detail payload a real network response cached
   let stopped: string | null = null;
   let failed = false;
-  // The "started" banner is deferred (issue #372 follow-up): a pass that finds
+  // The "started" banner is deferred (follow-up): a pass that finds
   // every CW title already cached — the common case, re-fired on each /home
   // revalidation — fetches nothing and stays completely silent. announce()
   // flushes the banner the moment the pass does real work (its first fetch) or
@@ -196,7 +196,7 @@ export function precacheContinueWatching(items: PrecacheItem[]): void {
           const base = `/${item.kind === "movie" ? "movies" : "shows"}/${item.id}`;
           // Skip payloads already cached fresh — same policy as the library
           // pass. An ONLINE tap paints from the SW cache regardless (useApi's
-          // readApiCache seed, issue #183), so refetching every page load
+          // readApiCache seed), so refetching every page load
           // bought nothing but traffic; this pass now only fills gaps the
           // library pass hasn't covered yet (a new CW title, a trimmed entry).
           if (!(await freshInCache(SW_API_CACHE, `/api${base}`, DETAIL_FRESH_MS))) {
@@ -250,14 +250,14 @@ export function precacheContinueWatching(items: PrecacheItem[]): void {
   })();
 }
 
-// ---------- Full-library precache (issue #183) ----------
+// ---------- Full-library precache ----------
 
 // Titles per pass. Keeps the pass comfortably inside the SW's api cache cap
 // (MAX_API in sw.js) with headroom left for indexes, comment threads, and
 // everything else runtime browsing caches.
 const LIBRARY_MAX = 500;
 
-// The TMDB cache-policy cap in ms (issue #1): api-terms-of-use §1.C allows
+// The TMDB cache-policy cap in ms: api-terms-of-use §1.C allows
 // caching TMDB data for at most 6 months. Same shared constant the Worker's
 // nightly ToS sweep derives from (src/worker/index.ts — the sweep refreshes
 // D1 rows a month EARLY, so a device copy at this age was already re-synced
@@ -268,7 +268,7 @@ const TMDB_CACHE_POLICY_MS = TMDB_CACHE_POLICY_DAYS * 24 * 60 * 60 * 1000;
 // offline — normal browsing (network-first) and the post-sync revalidation
 // keep pages the user actually opens perfectly fresh anyway; this only sets
 // how often the BACKGROUND passes re-download titles the user never opens.
-// Matching the 6-month policy cap (issue #1) keeps background re-warm
+// Matching the 6-month policy cap keeps background re-warm
 // traffic minimal, so repeat passes skip nearly everything. Accepted
 // trade-off: a never-opened title's OFFLINE fallback (metadata + its slice
 // of viewer state) can now age up to the cap instead of a week.
@@ -346,10 +346,10 @@ async function indexPayload<T>(path: string, gen: number, force = false): Promis
   }
 }
 
-// Ask the ACTIVE service worker for its cache caps (issue #183). After a
+// Ask the ACTIVE service worker for its cache caps. After a
 // deploy the page can be new while the controlling worker is still the old
 // one (updates park in `waiting` until the user accepts the toast or every
-// tab closes — issue #172). An old worker would trim the library warm right
+// tab closes). An old worker would trim the library warm right
 // back out of its smaller-capped caches, so the pass runs only once the
 // controller answers with caps that fit; an old worker never answers (it
 // predates GET_CAPS) and the timeout resolves null.
@@ -377,7 +377,7 @@ let libQueued = false; // triggered again mid-pass (e.g. account switch) — run
 let libWaiting = false; // parked on SW control / connectivity coming back
 let libForce = false; // the next pass must refetch the index payloads (post-import)
 
-// Warm the offline cache for the user's entire library (issue #183). Called
+// Warm the offline cache for the user's entire library. Called
 // from app.tsx shortly after a signed-in session is known, and again when an
 // import finishes; fire-and-forget. Cheap when repeated: everything cached
 // fresh is skipped (see the header comment), so only new and expired titles
@@ -409,14 +409,14 @@ export function precacheLibrary(freshIndexes = false): void {
   libRunning = true;
   void (async () => {
     try {
-      // A pre-#183 worker still controls the page — skip this session (see
+      // An older worker still controls the page — skip this session (see
       // controllerCaps above); the next launch runs under the new worker.
       const caps = await controllerCaps();
       if (!caps || caps.maxApi < LIBRARY_MAX) {
         logSync("Library precache skipped — service worker not ready for full-library caching");
         return;
       }
-      // Header sync progress bar (issue #204): counted only while passes
+      // Header sync progress bar: counted only while passes
       // actually run, not during the caps handshake above — a pass that
       // never starts (old SW in control) should never show progress.
       const endActivity = beginBackgroundActivity();
@@ -442,13 +442,13 @@ async function libraryPass(): Promise<void> {
   // the new account's own trigger re-runs the pass for its library).
   const gen = cacheGeneration();
 
-  // Admin sync log (issue #372): begin/summary + counts only (no per-title
+  // Admin sync log: begin/summary + counts only (no per-title
   // spam, no title names) so an open /admin sees the pass without a storm.
   let processed = 0;
   let fetched = 0; // titles whose detail payload a real network response cached
   let stopped: string | null = null;
   let failed = false;
-  // The "started"/"checking" banner is deferred (issue #372 follow-up): a pass
+  // The "started"/"checking" banner is deferred (follow-up): a pass
   // that finds the whole library already cached fresh — the common case, fired
   // on every boot and every account effect — fetches nothing and stays silent.
   // announce() flushes the banner the moment the pass does real work (its first
