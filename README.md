@@ -4,6 +4,8 @@ A Social TV show (and movie) tracker: follow shows, mark episodes watched, keep 
 
 The whole app is a single Cloudflare Worker: it serves a React SPA as static assets and handles `/api/*` with Hono, backed by a D1 (SQLite) database.
 
+[Join the Community on Discord](https://discord.gg/AxPcm4xjJC) to ask questions, share feedback, or follow along with development.
+
 ## Tech stack
 
 - **Frontend:** React 19 + React Router 7, built with Vite 6 (plain SPA, no SSR), [Lucide](https://lucide.dev/) icons (brand marks stay hand-inlined SVG)
