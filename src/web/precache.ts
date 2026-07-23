@@ -46,6 +46,7 @@ import { backdrop, poster } from "./img";
 import { beginBackgroundActivity } from "./activity";
 import { logSync } from "./synclog";
 import { cacheGeneration, setCached, getCached, readApiCache, SW_API_CACHE, SW_IMG_CACHE } from "./hooks";
+import { TMDB_CACHE_POLICY_DAYS } from "../shared/constants";
 
 export interface PrecacheItem {
   kind: "show" | "movie";
@@ -256,11 +257,22 @@ export function precacheContinueWatching(items: PrecacheItem[]): void {
 // everything else runtime browsing caches.
 const LIBRARY_MAX = 500;
 
-// A detail payload cached within the last week is "warm enough" for offline —
-// normal browsing (network-first) and the post-sync revalidation keep pages
-// the user actually opens fresher than this anyway. Sized to keep background
-// re-warm traffic low: a full library pass refetches at most weekly.
-const DETAIL_FRESH_MS = 7 * 24 * 60 * 60 * 1000;
+// The TMDB cache-policy cap in ms (issue #1): api-terms-of-use §1.C allows
+// caching TMDB data for at most 6 months. Same shared constant the Worker's
+// nightly ToS sweep derives from (src/worker/index.ts — the sweep refreshes
+// D1 rows a month EARLY, so a device copy at this age was already re-synced
+// server-side and is due for a refresh here too).
+const TMDB_CACHE_POLICY_MS = TMDB_CACHE_POLICY_DAYS * 24 * 60 * 60 * 1000;
+
+// A detail payload cached within the TMDB policy window is "warm enough" for
+// offline — normal browsing (network-first) and the post-sync revalidation
+// keep pages the user actually opens perfectly fresh anyway; this only sets
+// how often the BACKGROUND passes re-download titles the user never opens.
+// Matching the 6-month policy cap (issue #1) keeps background re-warm
+// traffic minimal, so repeat passes skip nearly everything. Accepted
+// trade-off: a never-opened title's OFFLINE fallback (metadata + its slice
+// of viewer state) can now age up to the cap instead of a week.
+const DETAIL_FRESH_MS = TMDB_CACHE_POLICY_MS;
 
 // When `url`'s cached copy landed, by its response Date header: undefined =
 // no entry at all, null = an entry whose date can't be read (opaque no-cors
@@ -505,8 +517,9 @@ async function libraryPass(): Promise<void> {
         return;
       }
       const url = `/api/${item.kind === "movie" ? "movies" : "shows"}/${item.id}`;
-      // Skip payloads cached in the last week (by normal browsing, the CW pass,
-      // or a previous library pass); a 401 ends the session — stop warming.
+      // Skip payloads cached within the TMDB policy window (by normal
+      // browsing, the CW pass, or a previous library pass); a 401 ends the
+      // session — stop warming.
       if (!(await freshInCache(SW_API_CACHE, url, DETAIL_FRESH_MS))) {
         if (!(await warm(url))) {
           stopped = "session ended";
