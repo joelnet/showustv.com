@@ -170,7 +170,17 @@ export function precacheContinueWatching(items: PrecacheItem[]): void {
   let fetched = 0; // titles whose detail payload a real network response cached
   let stopped: string | null = null;
   let failed = false;
-  logSync("Continue Watching precache started");
+  // The "started" banner is deferred (issue #372 follow-up): a pass that finds
+  // every CW title already cached — the common case, re-fired on each /home
+  // revalidation — fetches nothing and stays completely silent. announce()
+  // flushes the banner the moment the pass does real work (its first fetch) or
+  // ends in an error/stop worth surfacing; a clean 0-fetched finish logs nothing.
+  let announced = false;
+  const announce = () => {
+    if (announced) return;
+    announced = true;
+    logSync("Continue Watching precache started");
+  };
   void (async () => {
     try {
       let batch: PrecacheItem[] | null = items;
@@ -195,7 +205,10 @@ export function precacheContinueWatching(items: PrecacheItem[]): void {
             }
             // warmSeed stamps warmedAt only on a cached network success, so
             // isFresh now distinguishes a real download from a transient miss.
-            if (isFresh(`/api${base}`)) fetched++;
+            if (isFresh(`/api${base}`)) {
+              fetched++;
+              announce(); // real download — surface the banner live
+            }
           }
           // The detail page's hero art. Built with the same img.ts helpers
           // (and sizes) the page uses, so its <img> URLs hit these cache
@@ -217,14 +230,21 @@ export function precacheContinueWatching(items: PrecacheItem[]): void {
     } finally {
       running = false;
       endActivity();
-      logSync(
-        failed
-          ? `Continue Watching precache errored — ${processed} checked, ${fetched} fetched`
-          : stopped
-            ? `Continue Watching precache stopped (${stopped}) — ${processed} checked, ${fetched} fetched`
-            : `Continue Watching precache complete — ${processed} checked, ${fetched} fetched`,
-        failed ? "error" : "info"
-      );
+      // Only surface a terminal line when the pass did real work — a download
+      // (fetched > 0), an error, or a stop. announce() flushes the deferred
+      // "started" banner first so the outcome has context; a clean finish that
+      // fetched nothing never announces and stays silent, so the routine no-op
+      // reruns (every /home revalidation) no longer storm the log.
+      if (failed) {
+        announce();
+        logSync(`Continue Watching precache errored — ${processed} checked, ${fetched} fetched`, "error");
+      } else if (stopped) {
+        announce();
+        logSync(`Continue Watching precache stopped (${stopped}) — ${processed} checked, ${fetched} fetched`);
+      } else if (fetched > 0) {
+        announce();
+        logSync(`Continue Watching precache complete — ${processed} checked, ${fetched} fetched`);
+      }
     }
   })();
 }
@@ -416,7 +436,20 @@ async function libraryPass(): Promise<void> {
   let fetched = 0; // titles whose detail payload a real network response cached
   let stopped: string | null = null;
   let failed = false;
-  logSync(force ? "Library precache started (refreshing indexes)" : "Library precache started");
+  // The "started"/"checking" banner is deferred (issue #372 follow-up): a pass
+  // that finds the whole library already cached fresh — the common case, fired
+  // on every boot and every account effect — fetches nothing and stays silent.
+  // announce() flushes the banner the moment the pass does real work (its first
+  // detail download) or ends in an error/stop; checkingLine is filled in once
+  // the title count is known, so it rides along with the banner when flushed.
+  let announced = false;
+  let checkingLine: string | null = null;
+  const announce = () => {
+    if (announced) return;
+    announced = true;
+    logSync(force ? "Library precache started (refreshing indexes)" : "Library precache started");
+    if (checkingLine) logSync(checkingLine);
+  };
   try {
     const lib = await indexPayload<LibraryIndex>("/library", gen, force);
     if (!lib || cacheGeneration() !== gen) {
@@ -458,7 +491,7 @@ async function libraryPass(): Promise<void> {
       ...(lib.animeMovies ?? []).map(title("movie")),
       ...(wl?.movies ?? []).map(title("movie")),
     ].slice(0, LIBRARY_MAX);
-    logSync(`Library precache: checking ${items.length} title${items.length === 1 ? "" : "s"}`);
+    checkingLine = `Library precache: checking ${items.length} title${items.length === 1 ? "" : "s"}`;
 
     // Consecutive detail warms that produced no cached copy: the server being
     // unreachable while navigator.onLine still reads true (captive portal,
@@ -485,6 +518,7 @@ async function libraryPass(): Promise<void> {
         if (isFresh(url)) {
           misses = 0;
           fetched++;
+          announce(); // real download — surface the banner live
         } else if (++misses >= 3) {
           stopped = "server unreachable";
           return; // unreachable or erroring — the next trigger retries
@@ -500,13 +534,20 @@ async function libraryPass(): Promise<void> {
     failed = true; // an unexpected throw must read as an error, not "complete"
     throw e; // preserve the original propagation (rejected promise, void-swallowed)
   } finally {
-    logSync(
-      failed
-        ? `Library precache errored — ${processed} checked, ${fetched} fetched`
-        : stopped
-          ? `Library precache stopped (${stopped}) — ${processed} checked, ${fetched} fetched`
-          : `Library precache complete — ${processed} checked, ${fetched} fetched`,
-      failed ? "error" : "info"
-    );
+    // Only surface a terminal line when the pass did real work — a download
+    // (fetched > 0), an error, or a stop. announce() flushes the deferred
+    // banner first so the outcome has context; a clean finish that fetched
+    // nothing never announces and stays silent, so routine no-op reruns no
+    // longer storm the log.
+    if (failed) {
+      announce();
+      logSync(`Library precache errored — ${processed} checked, ${fetched} fetched`, "error");
+    } else if (stopped) {
+      announce();
+      logSync(`Library precache stopped (${stopped}) — ${processed} checked, ${fetched} fetched`);
+    } else if (fetched > 0) {
+      announce();
+      logSync(`Library precache complete — ${processed} checked, ${fetched} fetched`);
+    }
   }
 }
