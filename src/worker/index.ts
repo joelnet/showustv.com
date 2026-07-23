@@ -5,6 +5,7 @@ import { requireAuth } from "./lib/session";
 import { csrfGuard } from "./lib/csrf";
 import { checkAchievements } from "./lib/achievements";
 import { TmdbError, ensureShow, ensureMovie } from "./lib/tmdb";
+import { TMDB_CACHE_POLICY_DAYS } from "../shared/constants";
 import { isSocialPreviewPath, serveSocialPreview } from "./lib/social-preview";
 import { FEED_PATH_RE, serveUserFeed } from "./lib/user-feed";
 import { withSecurityHeaders } from "./lib/security";
@@ -195,12 +196,13 @@ async function scheduled(_event: ScheduledEvent, env: Env, _ctx: ExecutionContex
   }
 
   // TMDB ToS compliance sweep (api-terms-of-use §1.C): data obtained from the
-  // TMDB API may not be cached longer than 6 months, commercial or not. The
-  // nightly query above only touches followed, still-airing shows — ended
-  // shows, unfollowed catalog rows, and movies would otherwise sit in D1
-  // stale forever. Refresh anything untouched for ~5 months to stay
-  // comfortably inside the cap. Bounded per run; the backlog drains nightly.
-  const capBefore = new Date(Date.now() - 150 * 24 * 3600 * 1000).toISOString();
+  // TMDB API may not be cached longer than 6 months, commercial or not
+  // (TMDB_CACHE_POLICY_DAYS — shared with the client precache window, issue
+  // #1). The nightly query above only touches followed, still-airing shows —
+  // ended shows, unfollowed catalog rows, and movies would otherwise sit in
+  // D1 stale forever. Refresh anything untouched for ~5 months (a month of
+  // margin inside the cap). Bounded per run; the backlog drains nightly.
+  const capBefore = new Date(Date.now() - (TMDB_CACHE_POLICY_DAYS - 30) * 24 * 3600 * 1000).toISOString();
   const [staleShows, staleMovies] = await env.DB.batch([
     env.DB.prepare("SELECT tmdb_id FROM shows WHERE synced_at < ?1 LIMIT 10").bind(capBefore),
     env.DB.prepare("SELECT tmdb_id FROM movies WHERE synced_at < ?1 LIMIT 10").bind(capBefore),
