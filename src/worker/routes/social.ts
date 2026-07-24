@@ -68,8 +68,11 @@ social.get("/follows", async (c) => {
 
   // Mutuals: the intersection of following and followers. `since`
   // is the later of the two follow dates — when the pair became mutual.
+  // notifyLevel rides along on this and the following list (both are edges
+  // the CALLER owns — f.follower_id = caller) so the client can render each
+  // follow's current alert level (#18); the followers list has no such edge.
   const mutuals = await c.env.DB.prepare(
-    `SELECT u.username, MAX(f.created_at, r.created_at) AS since
+    `SELECT u.username, MAX(f.created_at, r.created_at) AS since, f.notify_level AS notifyLevel
      FROM follows f
      JOIN follows r ON r.follower_id = f.followee_id AND r.followee_id = ?1 AND r.state = 'active'
      JOIN users u ON u.id = f.followee_id AND u.deleted_at IS NULL
@@ -83,7 +86,7 @@ social.get("/follows", async (c) => {
   // The NOT EXISTS drops any followee with a reciprocal edge — those
   // belong to the Mutuals list above.
   const following = await c.env.DB.prepare(
-    `SELECT u.username, f.created_at AS since
+    `SELECT u.username, f.created_at AS since, f.notify_level AS notifyLevel
      FROM follows f
      JOIN users u ON u.id = f.followee_id AND u.deleted_at IS NULL
      WHERE f.follower_id = ?1 AND f.state = 'active'
@@ -369,18 +372,23 @@ social.get("/search", async (c) => {
   const user = await findUser(c, (c.req.query("q") ?? "").trim());
   if (!user) return c.json({ user: null });
   if (user.id === uid) return c.json({ user: { username: user.username, relation: "self", followsYou: false } });
+  // notifyLevel is the caller's own alert setting for this person (#18) —
+  // NULL when not following; it's what the profile page's bell renders.
   const edges = await c.env.DB.prepare(
     `SELECT
        EXISTS (SELECT 1 FROM follows WHERE follower_id = ?1 AND followee_id = ?2 AND state = 'active') AS iFollow,
-       EXISTS (SELECT 1 FROM follows WHERE follower_id = ?2 AND followee_id = ?1 AND state = 'active') AS followsYou`
+       EXISTS (SELECT 1 FROM follows WHERE follower_id = ?2 AND followee_id = ?1 AND state = 'active') AS followsYou,
+       (SELECT notify_level FROM follows
+        WHERE follower_id = ?1 AND followee_id = ?2 AND state = 'active') AS notifyLevel`
   )
     .bind(uid, user.id)
-    .first<{ iFollow: number; followsYou: number }>();
+    .first<{ iFollow: number; followsYou: number; notifyLevel: string | null }>();
   return c.json({
     user: {
       username: user.username,
       relation: edges?.iFollow ? "following" : "none",
       followsYou: !!edges?.followsYou,
+      notifyLevel: edges?.iFollow ? edges.notifyLevel : null,
     },
   });
 });
@@ -396,6 +404,9 @@ social.post("/follow", async (c) => {
 
   // is_private is never set today, so this is always an instant active follow.
   // When private accounts land, branch here to insert a 'pending' request.
+  // A NEW follow starts at the column's notify_level default ('some' — the
+  // YouTube-style middle setting, #18); the ON CONFLICT no-op leaves an
+  // existing follow's chosen level alone, so re-clicking Follow can't stomp it.
   const { meta } = await c.env.DB.prepare(
     "INSERT INTO follows (follower_id, followee_id, state) VALUES (?1, ?2, 'active') ON CONFLICT DO NOTHING"
   )
@@ -410,7 +421,38 @@ social.post("/follow", async (c) => {
       notifyUserOfFollow(c.env, uid, target.id).catch((e) => console.error("notify failed", e))
     );
   }
-  return c.json({ relation: "following" });
+  // Echo the edge's actual level (fresh follow → 'some'; idempotent re-follow
+  // → whatever the user had picked) so the client's bell renders truth.
+  const edge = await c.env.DB.prepare(
+    "SELECT notify_level FROM follows WHERE follower_id = ?1 AND followee_id = ?2"
+  )
+    .bind(uid, target.id)
+    .first<{ notify_level: string }>();
+  return c.json({ relation: "following", notifyLevel: edge?.notify_level ?? "some" });
+});
+
+// Set how loudly the SIGNED-IN user hears about one followee (#18):
+// 'all' (every event, no dedupe), 'some' (the default: 24h dedupe + caps),
+// or 'none' (never). Owner-gated by construction — the UPDATE keys on
+// follower_id = caller, so nobody can touch anyone else's follow edges, and
+// there's no row to hit unless the caller actually follows the target.
+social.put("/follow/:username/notify", async (c) => {
+  const uid = c.get("uid");
+  const body = await c.req.json().catch(() => ({}));
+  const level = String(body.level ?? "");
+  if (level !== "all" && level !== "some" && level !== "none") {
+    return c.json({ error: "level must be all, some, or none" }, 400);
+  }
+  const target = await findUser(c, c.req.param("username"));
+  if (!target) return c.json({ error: "No user with that username" }, 404);
+  const { meta } = await c.env.DB.prepare(
+    "UPDATE follows SET notify_level = ?3 WHERE follower_id = ?1 AND followee_id = ?2"
+  )
+    .bind(uid, target.id, level)
+    .run();
+  // No matched row means no follow edge — the setting only exists on one.
+  if (!meta.changes) return c.json({ error: "You don't follow that user" }, 404);
+  return c.json({ notifyLevel: level });
 });
 
 // Unfollow. Idempotent.

@@ -1874,9 +1874,10 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   .taste-list { max-height: none; }
 }
 
-/* Click-to-open action menu — first used by the "Mutuals"
-   handshake button on a mutual's profile, where it replaced the earlier
-   native select. Trigger is a regular .btn; the pop panel drops below it. */
+/* Click-to-open action menu — used by the profile bell control
+   (notification level + Unfollow, #18), which replaced the earlier "Mutuals"
+   handshake button and its native select. The trigger can be a regular .btn
+   or a bare .icon-btn; the pop panel drops below it. */
 .menu-wrap { position: relative; }
 .menu-pop {
   position: absolute;
@@ -1947,13 +1948,24 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .notif-push { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 2px 12px; margin: 0 0 14px; }
 .notif-push .settings-toggle { margin: 10px 0; }
 
-.public-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: -8px 0 20px; }
-.public-actions .friend-note { margin: 0; }
-/* On the public profile the row now follows the .profile-head cluster (the
-   byline that used to separate them is gone) whose 2px bottom
-   margin would let the -8px above pull the buttons into the title — restore
-   the same 10px breath the row gets after a bare .page-title. */
-.profile-head + .public-actions { margin-top: 10px; }
+/* Public-profile follow control (#18): the [Follow] button / bell menu lives
+   inside .profile-head, immediately right of the username, so the old
+   .public-actions row is gone. The "Follows you" note keeps its inline look
+   in the head row. */
+.profile-head .friend-note { margin: 0; }
+/* The bell trigger is a bare .icon-btn glyph like the Share button beside
+   it; the muted variant marks the None level on top of the BellOff glyph. */
+.bell-btn.is-muted { opacity: 0.55; }
+/* Bell menu: three level rows (a check-mark gutter, then the label with a
+   hint line under it) above the Unfollow action. Wider than the base 140px
+   pop so the hints hold one line. */
+.menu-pop--bell { min-width: 215px; }
+.menu-item--radio { display: flex; align-items: flex-start; gap: 8px; }
+.menu-item--radio.is-checked { font-weight: 600; }
+.menu-radio-mark { width: 14px; flex-shrink: 0; display: inline-flex; margin-top: 2px; }
+.menu-radio-text { min-width: 0; }
+.menu-hint { display: block; font-size: 11.5px; font-weight: 400; color: var(--muted); margin-top: 1px; }
+.menu-sep { height: 1px; background: var(--line); margin: 4px 6px; }
 
 /* Owner-only reminder on their private profile's public page. */
 .public-private-note { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 13.5px; margin: -8px 0 20px; }

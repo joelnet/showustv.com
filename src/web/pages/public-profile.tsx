@@ -13,16 +13,17 @@
 // bespoke header here.
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { api, post, del } from "../api";
+import { api, post, put, del } from "../api";
 import { useApi, useDocumentTitle, dropCached } from "../hooks";
 import { useAuth } from "../app";
 import { useConfirm } from "../components/dialog";
+import { useToast } from "../components/toast";
 import { poster } from "../img";
 import { publicListPath } from "../paths";
 import { SmpteBars, ErrorNote } from "../components/ui";
 import { ShareButton } from "../components/share";
 import { ProfileSkeleton } from "../components/skeleton";
-import { IconList, IconCheck, IconPlus, IconLock, IconChevron, IconHandshake } from "../components/icons";
+import { IconList, IconCheck, IconPlus, IconLock, IconChevron, IconBell, IconBellOff } from "../components/icons";
 import {
   StatsGrid,
   ProfileHistory,
@@ -79,25 +80,43 @@ function PublicAchievements({ username, ids }: { username: string; ids: string[]
 }
 
 type Relation = "none" | "following" | "self";
+type NotifyLevel = "all" | "some" | "none";
 
-// Mutual control on a mutual's profile: a handshake "Mutuals"
-// button that only shows its menu when clicked — one Unfollow item, behind
-// the same confirm dialog as the plain "Following" button. Replaces the
-// always-a-dropdown native select. The menu closes on
-// outside click, Escape (refocusing the trigger), or focus leaving it.
-function MutualMenu({
+// The YouTube-style per-follow alert levels (#18), in menu order. The hint
+// spells out what each one means so "Some" isn't a mystery word.
+const NOTIFY_LEVELS: { value: NotifyLevel; label: string; hint: string }[] = [
+  { value: "all", label: "All", hint: "Every alert, even repeats" },
+  { value: "some", label: "Some", hint: "Highlights — at most daily per title" },
+  { value: "none", label: "None", hint: "Never notify me" },
+];
+
+// Bell control on a followed user's profile (#18) — this is the single
+// follow control once you follow someone, replacing the old
+// Following/Mutuals buttons. The bell (muted glyph when the level is None)
+// sits immediately right of the username and opens a menu with the three
+// alert levels — the current one checked — plus Unfollow, behind the same
+// confirm dialog as before. The menu closes on outside click, Escape
+// (refocusing the trigger), selection, or focus leaving it; ArrowUp/Down
+// cycle the items and the current level takes focus on open.
+function BellMenu({
   username,
+  mutual,
   busy,
+  level,
+  onLevel,
   onUnfollow,
 }: {
   username: string;
+  mutual: boolean;
   busy: boolean;
+  level: NotifyLevel;
+  onLevel: (next: NotifyLevel) => void;
   onUnfollow: () => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const itemRef = useRef<HTMLButtonElement>(null);
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   useEffect(() => {
     if (!open) return;
@@ -118,10 +137,25 @@ function MutualMenu({
     };
   }, [open]);
 
-  // Land keyboard users on the one action when the menu opens.
+  // Land keyboard users on the current level when the menu opens.
   useEffect(() => {
-    if (open) itemRef.current?.focus();
+    if (open) itemRefs.current[NOTIFY_LEVELS.findIndex((l) => l.value === level)]?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  // Arrow keys walk the menu, wrapping at the ends — the expected
+  // role="menu" keyboard model.
+  const onMenuKey = (e: React.KeyboardEvent) => {
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    e.preventDefault();
+    const items = itemRefs.current.filter((el): el is HTMLButtonElement => !!el);
+    if (!items.length) return;
+    const at = items.indexOf(document.activeElement as HTMLButtonElement);
+    items[(at + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
+  };
+
+  const label = NOTIFY_LEVELS.find((l) => l.value === level)?.label ?? "Some";
+  const state = `Notifications: ${label}${mutual ? " · You follow each other" : ""}`;
 
   return (
     <div
@@ -135,19 +169,53 @@ function MutualMenu({
       <button
         ref={triggerRef}
         type="button"
-        className="btn btn-ghost"
+        className={`icon-btn bell-btn${level === "none" ? " is-muted" : ""}`}
         disabled={busy}
         aria-haspopup="menu"
         aria-expanded={open}
-        title={`You and ${username} follow each other`}
+        aria-label={`Following ${username} — ${state}`}
+        title={state}
         onClick={() => setOpen((o) => !o)}
       >
-        <IconHandshake size={15} /> Mutuals
+        {level === "none" ? <IconBellOff size={19} /> : <IconBell size={19} />}
       </button>
       {open && (
-        <div className="menu-pop" role="menu" aria-label={`Mutual with ${username}`}>
+        <div
+          className="menu-pop menu-pop--bell"
+          role="menu"
+          aria-label={`Notifications from ${username}`}
+          onKeyDown={onMenuKey}
+        >
+          {NOTIFY_LEVELS.map((opt, i) => (
+            <button
+              key={opt.value}
+              ref={(el) => {
+                itemRefs.current[i] = el;
+              }}
+              type="button"
+              role="menuitemradio"
+              aria-checked={level === opt.value}
+              className={`menu-item menu-item--radio${level === opt.value ? " is-checked" : ""}`}
+              onClick={() => {
+                setOpen(false);
+                triggerRef.current?.focus();
+                if (opt.value !== level) onLevel(opt.value);
+              }}
+            >
+              <span className="menu-radio-mark" aria-hidden="true">
+                {level === opt.value && <IconCheck size={14} />}
+              </span>
+              <span className="menu-radio-text">
+                {opt.label}
+                <span className="menu-hint">{opt.hint}</span>
+              </span>
+            </button>
+          ))}
+          <div className="menu-sep" role="separator" />
           <button
-            ref={itemRef}
+            ref={(el) => {
+              itemRefs.current[NOTIFY_LEVELS.length] = el;
+            }}
             type="button"
             role="menuitem"
             className="menu-item menu-item--danger"
@@ -167,31 +235,36 @@ function MutualMenu({
   );
 }
 
-// Follow/unfollow affordance, shown only to signed-in visitors on someone
-// else's profile. Social actions never queue offline — failures show inline.
-// Renders as a fragment inside the page's .public-actions row so it sits
-// beside the share button. `onChange` fires after a successful follow or
+// Follow affordance, shown only to signed-in visitors on someone else's
+// profile, rendered inside the .profile-head row right of the username (#18).
+// Not following → a [Follow] button; following → the BellMenu above (alert
+// level + Unfollow in one control). Social actions never queue offline —
+// failures show inline (level changes toast instead: the bell repaints
+// optimistically). `onChange` fires after a successful follow or
 // unfollow — on a private profile the relationship decides what the server
 // serves, so the page refetches: following back reveals a
 // mutual's full profile, and unfollowing drops the viewer back to the teaser
 // instead of leaving revoked-access content on screen.
 function FollowActions({ username, onChange }: { username: string; onChange?: () => void }) {
   const confirm = useConfirm();
+  const toast = useToast();
   const [relation, setRelation] = useState<Relation | null>(null);
   const [followsYou, setFollowsYou] = useState(false);
+  const [level, setLevel] = useState<NotifyLevel>("some");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let live = true;
     setRelation(null);
-    api<{ user: { username: string; relation: Relation; followsYou: boolean } | null }>(
-      `/social/search?q=${encodeURIComponent(username)}`
-    )
+    api<{
+      user: { username: string; relation: Relation; followsYou: boolean; notifyLevel: NotifyLevel | null } | null;
+    }>(`/social/search?q=${encodeURIComponent(username)}`)
       .then((d) => {
         if (!live) return;
         setRelation(d.user?.relation ?? null);
         setFollowsYou(d.user?.followsYou ?? false);
+        setLevel(d.user?.notifyLevel ?? "some");
       })
       .catch(() => {}); // no button is fine (e.g. offline)
     return () => {
@@ -201,12 +274,15 @@ function FollowActions({ username, onChange }: { username: string; onChange?: ()
 
   if (!relation || relation === "self") return null;
 
-  const act = (fn: () => Promise<unknown>, next: Relation) => async () => {
+  const follow = async () => {
     setBusy(true);
     setError(null);
     try {
-      await fn();
-      setRelation(next);
+      const d = await post("/social/follow", { username });
+      setRelation("following");
+      // A fresh follow starts at Some; an idempotent re-follow echoes the
+      // level the user had already picked.
+      setLevel((d?.notifyLevel as NotifyLevel) ?? "some");
       onChange?.();
     } catch (e: any) {
       setError(e.message);
@@ -222,32 +298,58 @@ function FollowActions({ username, onChange }: { username: string; onChange?: ()
       confirmLabel: "Unfollow",
       danger: true,
     });
-    if (yes) await act(() => del(`/social/follow/${encodeURIComponent(username)}`), "none")();
+    if (!yes) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await del(`/social/follow/${encodeURIComponent(username)}`);
+      setRelation("none");
+      setLevel("some");
+      onChange?.();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
   };
 
-  // You follow each other — one "Mutuals" control replaces the "Following"
-  // button + "Follows you" note pair.
-  const mutual = relation === "following" && followsYou;
+  // Optimistic level change: the bell flips immediately, a toast confirms,
+  // and a failed PUT flips it back with an error toast.
+  const changeLevel = async (next: NotifyLevel) => {
+    const prev = level;
+    setLevel(next);
+    try {
+      await put(`/social/follow/${encodeURIComponent(username)}/notify`, { level: next });
+      toast(
+        next === "all"
+          ? `You'll get every alert from ${username}`
+          : next === "some"
+            ? `You'll get occasional alerts from ${username}`
+            : `Alerts from ${username} are muted`
+      );
+    } catch (e: any) {
+      setLevel(prev);
+      toast(e.message || "Couldn't update notifications", "error");
+    }
+  };
 
   return (
     <>
-      {relation === "none" && (
-        <button className="btn" disabled={busy} onClick={act(() => post("/social/follow", { username }), "following")}>
+      {relation === "none" ? (
+        <button className="btn" disabled={busy} onClick={follow}>
           <IconPlus size={15} /> {followsYou ? "Follow back" : "Follow"}
         </button>
+      ) : (
+        <BellMenu
+          username={username}
+          mutual={followsYou}
+          busy={busy}
+          level={level}
+          onLevel={changeLevel}
+          onUnfollow={unfollow}
+        />
       )}
-      {relation === "following" && !mutual && (
-        <button
-          className="btn btn-ghost"
-          disabled={busy}
-          title={`You follow ${username}. Click to unfollow`}
-          onClick={unfollow}
-        >
-          <IconCheck size={14} /> Following
-        </button>
-      )}
-      {mutual && <MutualMenu username={username} busy={busy} onUnfollow={unfollow} />}
-      {followsYou && !mutual && <span className="friend-note">Follows you</span>}
+      {followsYou && relation === "none" && <span className="friend-note">Follows you</span>}
       {error && <ErrorNote message={error} />}
     </>
   );
@@ -290,12 +392,10 @@ export function PublicProfilePage() {
         // back someone who already follows you makes the pair mutual, so
         // the refetch swaps the teaser for the full profile.
         <>
-          <h1 className="page-title">{data.username}</h1>
-          {user && (
-            <div className="public-actions">
-              <FollowActions username={data.username} onChange={reload} />
-            </div>
-          )}
+          <div className="profile-head">
+            <h1 className="page-title">{data.username}</h1>
+            {user && <FollowActions username={data.username} onChange={reload} />}
+          </div>
           {user?.isAdmin && <AdminTools username={data.username} tz={user.tz} />}
           <div className="empty">
             <IconLock size={26} />
@@ -305,14 +405,16 @@ export function PublicProfilePage() {
         </>
       ) : (
         <>
-          {/* Share sits as a bare glyph right of the name,
-              matching the owner's view of the same page. It's withheld on a
-              private profile served in full to a mutual follow
-              — other visitors would only get the teaser — with no privacy
-              note either: this viewer already has access, so the message is
-              noise. Just the usual follow affordance below. */}
+          {/* The follow control sits immediately right of the name (#18):
+              a [Follow] button, or the bell menu once following. Share stays
+              a bare glyph in the same row, matching the owner's view of the
+              page. Share is withheld on a private profile served in full to
+              a mutual follow — other visitors would only get the teaser —
+              with no privacy note either: this viewer already has access,
+              so the message is noise. */}
           <div className="profile-head">
             <h1 className="page-title">{data.username}</h1>
+            {user && <FollowActions username={data.username} onChange={reload} />}
             {!data.private && (
               <ShareButton
                 variant="icon"
@@ -322,11 +424,6 @@ export function PublicProfilePage() {
               />
             )}
           </div>
-          {user && (
-            <div className="public-actions">
-              <FollowActions username={data.username} onChange={reload} />
-            </div>
-          )}
           {user?.isAdmin && <AdminTools username={data.username} tz={user.tz} />}
           <StatsGrid stats={data.stats} />
           {/* Watch history rows, above Achievements — only ever

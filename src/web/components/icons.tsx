@@ -34,6 +34,7 @@ import {
   MessageCircle,
   X,
   Bell,
+  BellOff,
   Share2,
   Lock,
   Pencil,
@@ -88,6 +89,8 @@ export const IconExternal = make(ExternalLink);
 export const IconComment = make(MessageCircle);
 export const IconClose = make(X);
 export const IconBell = make(Bell);
+// Muted bell — the per-follow "None" alert level on profile follow controls.
+export const IconBellOff = make(BellOff);
 export const IconShare = make(Share2);
 export const IconLock = make(Lock);
 export const IconPencil = make(Pencil);
