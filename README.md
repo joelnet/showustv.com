@@ -23,14 +23,14 @@ src/
     components/   Shared UI (dialogs, icons, primitives)
     api.ts        Fetch wrapper for /api/*
   worker/         Cloudflare Worker
-    index.ts      Hono app (basePath /api) + nightly cron handler
+    index.ts      Hono app (basePath /api) + cron handlers (nightly sync, Discord daily summary)
     env.ts        Bindings/vars types
     routes/       auth, catalog, library, ratings, lists, public, profile, social, comments, import, admin
     lib/          session (signed cookies), password (PBKDF2), tmdb client, date helpers
   shared/         Constants shared by web and worker
 migrations/       D1 SQL migrations
 docs/             Notes on architecture and specific features
-wrangler.jsonc    Worker config: assets, D1 binding, cron trigger, TMDB vars
+wrangler.jsonc    Worker config: assets, D1 binding, cron triggers, TMDB vars
 vite.config.ts    Vite config (root src/web, output dist/client)
 ```
 
@@ -189,5 +189,6 @@ hatch. (Note the `--` so npm passes flags through to the tool.)
 - **Auth.** Username + password (PBKDF2 hashes in D1). Sessions are stateless HMAC-SHA256-signed cookies (30-day TTL) carrying the user id and IANA timezone, so authenticated requests cost zero D1 reads for session lookup. `/api/auth/register`, `/api/auth/login`, `/api/auth/logout`, `/api/public/*`, and `/api/healthz` are open; everything else (including `/api/auth/me` and `/api/auth/settings`) requires a session.
 - **TMDB caching.** The TMDB client caches upstream responses in the edge Cache API (no-op on `*.workers.dev` — only effective on a custom domain). Durable metadata for shows/movies a user touches is mirrored into D1 (`ensureShow`/`ensureMovie`) and considered fresh for 7 days on-demand.
 - **Nightly cron (06:00 UTC).** Re-syncs followed, still-airing shows so new episodes and air-date changes land before US mornings, then runs a bounded "ToS sweep" refreshing any cached show/movie rows older than ~5 months (TMDB terms cap caching at 6 months).
+- **Daily Discord summary (08:10 UTC).** A second cron trigger, just after Pacific midnight, posts the completed local day's activity (signups, watches, ratings, comments, follows, lists, PWA installs, active users — each vs. the day before, plus the running user total) to the Discord webhook configured in the admin panel. Fires only when that webhook URL is set; failures are logged, never retried (`src/worker/lib/daily-summary.ts`).
 - **Time conventions.** All timestamps in D1 are ISO 8601 UTC TEXT; air dates are date-only `YYYY-MM-DD`; user timezones are IANA names.
 - **Health check:** `GET /api/healthz` verifies D1 connectivity.

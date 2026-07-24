@@ -19,9 +19,12 @@
     "run_worker_first": ["/api/*", "/show/*", "/movie/*", "/episode/*", "/u/*"]
   },
 
-  // Nightly air-date refresh for followed returning shows. Crons are UTC;
-  // 06:00Z lands overnight in US timezones after TMDB same-day schedule updates.
-  "triggers": { "crons": ["0 6 * * *"] },
+  // Crons are UTC. 06:00Z: nightly air-date refresh for followed returning
+  // shows, landing overnight in US timezones after TMDB same-day schedule
+  // updates. 08:10Z: Discord daily summary — just after Pacific midnight
+  // (00:10 PST / 01:10 PDT) so it reports the local day that just ended; must
+  // stay in sync with DAILY_SUMMARY_CRON in src/worker/lib/daily-summary.ts.
+  "triggers": { "crons": ["0 6 * * *", "10 8 * * *"] },
 
   // Serve on the apex. custom_domain makes Wrangler create the proxied DNS
   // record + route and manage TLS.
