@@ -57,7 +57,7 @@ library.get("/home", async (c) => {
      SELECT c.id AS episode_id, c.show_id, c.season_number, c.number, c.title AS episode_title,
             c.air_date, c.runtime_min, c.overview, c.still_url, c.unwatched_aired,
             s.title AS show_title, s.poster_url, s.backdrop_url,
-            lw.last_watched, la.air_date AS last_aired,
+            us.added_at, lw.last_watched, la.air_date AS last_aired,
             CASE WHEN lw.last_watched IS NULL OR lw.last_watched < us.added_at
                  THEN us.added_at ELSE lw.last_watched END AS last_activity
      FROM cand c
@@ -99,7 +99,9 @@ library.get("/home", async (c) => {
   const notStarted: any[] = [];
   const havenWatched: any[] = [];
   for (const r of results as any[]) {
-    if (r.last_watched == null) notStarted.push(showTile(r));
+    // Not Started tiles carry when the show was followed: Watch Later movies
+    // merge into that section below, and the whole rail sorts by added-at.
+    if (r.last_watched == null) notStarted.push({ ...showTile(r), addedAt: r.added_at });
     else if (recentlyActive(r.last_watched, r.last_aired, recentSince)) continueWatching.push(showTile(r));
     else havenWatched.push(showTile(r));
   }
@@ -155,7 +157,7 @@ library.get("/home", async (c) => {
   // fan-out likewise hidden-filters shows only), so movies need no hidden
   // exclusion — just the same followee-visibility gate and follow window.
   const followSince = new Date(Date.now() - FOLLOWING_WINDOW_MS).toISOString();
-  const [histEp, histMov, friendsR, friendsMovR] = await c.env.DB.batch([
+  const [histEp, histMov, friendsR, friendsMovR, wlMovR] = await c.env.DB.batch([
     c.env.DB.prepare(
       `SELECT e.show_id AS id, s.title AS show_title, s.poster_url, s.backdrop_url, e.still_url,
               e.season_number, e.number, e.title AS episode_title,
@@ -240,6 +242,17 @@ library.get("/home", async (c) => {
        ORDER BY f.ts DESC
        LIMIT 30`
     ).bind(uid, followSince),
+    // The user's Watch Later movies, for the Not Started rail below. No
+    // LIMIT: the section has never been capped (the /watch/notstarted page
+    // shows it whole), and the Library's Watch Later subtab already loads the
+    // full list. added_at DESC puts NULLs (rows predating 0038) last, where
+    // movie_id DESC keeps the old Watch Later recency proxy as their order.
+    c.env.DB.prepare(
+      `SELECT m.tmdb_id AS id, m.title, m.poster_url, um.added_at
+       FROM user_movies um JOIN movies m ON m.tmdb_id = um.movie_id
+       WHERE um.user_id = ?1 AND um.state = 'watchlist'
+       ORDER BY um.added_at DESC, um.movie_id DESC`
+    ).bind(uid),
   ]);
   const history: any[] = [
     ...(histEp.results as any[]).map((r) => ({
@@ -300,6 +313,29 @@ library.get("/home", async (c) => {
     .sort((a, b) => (a.watchedAt < b.watchedAt ? 1 : -1))
     .slice(0, 30);
 
+  // Watch Later movies join the Not Started rail (#16): both buckets are
+  // titles the user queued but hasn't begun, so they share one section,
+  // sorted by when each was added — save a movie and it lands first. Movie
+  // tiles are kind:'movie' with no episode fields, so the client's poster-art
+  // treatment renders them like the show tiles — poster, title, no episode
+  // meta, no mark-watched — linking to /movie/:id. Movies saved before
+  // user_movies.added_at existed sort as oldest (addedAt null → ""), and the
+  // stable sort keeps the SQL movie_id-DESC proxy as their relative order;
+  // shows' user_shows.added_at is NOT NULL so they always carry a timestamp.
+  for (const r of wlMovR.results as any[]) {
+    notStarted.push({
+      kind: "movie" as const,
+      id: r.id,
+      title: r.title,
+      poster: r.poster_url,
+      backdrop: null,
+      still: null,
+      addedAt: r.added_at,
+    });
+  }
+  const addedKey = (t: any) => t.addedAt ?? "";
+  notStarted.sort((a, b) => (addedKey(a) < addedKey(b) ? 1 : addedKey(a) > addedKey(b) ? -1 : 0));
+
   return c.json({ continueWatching, upcoming, havenWatched, notStarted, history, friendsWatched });
 });
 
@@ -327,9 +363,14 @@ library.get("/watchlist", async (c) => {
        WHERE us.user_id = ?1 AND us.state = 'watch_later' ORDER BY us.added_at DESC`
     ).bind(uid),
     c.env.DB.prepare(
+      // Same saved-order sort as the Library's Watch Later subtab: added_at
+      // (0038) newest first, NULLs (pre-0038 rows) last by movie_id DESC —
+      // the proxy this query's old "ORDER BY rowid DESC" (movies.rowid,
+      // i.e. the same tmdb_id) approximated.
       `SELECT um.movie_id AS id, m.title, m.poster_url AS poster, m.release_date
        FROM user_movies um JOIN movies m ON m.tmdb_id = um.movie_id
-       WHERE um.user_id = ?1 AND um.state = 'watchlist' ORDER BY rowid DESC`
+       WHERE um.user_id = ?1 AND um.state = 'watchlist'
+       ORDER BY um.added_at DESC, um.movie_id DESC`
     ).bind(uid),
   ]);
   return c.json({ shows: showsR.results, movies: moviesR.results });
@@ -795,12 +836,12 @@ library.post("/movies/:id/watch", async (c) => {
   // no-op so offline-queue retries can't inflate play_count; genuine
   // rewatches carry a fresh timestamp and still count.
   await c.env.DB.prepare(
-    `INSERT INTO user_movies (user_id, movie_id, state, watched_at, play_count) VALUES (?1, ?2, 'watched', ?3, 1)
+    `INSERT INTO user_movies (user_id, movie_id, state, watched_at, play_count, added_at) VALUES (?1, ?2, 'watched', ?3, 1, ?4)
      ON CONFLICT (user_id, movie_id) DO UPDATE
        SET state = 'watched', watched_at = excluded.watched_at, play_count = user_movies.play_count + 1
        WHERE user_movies.state != 'watched' OR COALESCE(user_movies.watched_at, '') != excluded.watched_at`
   )
-    .bind(c.get("uid"), id, watchedAt)
+    .bind(c.get("uid"), id, watchedAt, nowIso())
     .run();
   // Notify followers, off the response path — see the episode
   // watch route above for the reasoning.
@@ -824,10 +865,10 @@ library.put("/movies/:id/watchlist", async (c) => {
   if (!id) return c.json({ error: "bad id" }, 400);
   await ensureMovie(c.env, id);
   await c.env.DB.prepare(
-    `INSERT INTO user_movies (user_id, movie_id, state, play_count) VALUES (?1, ?2, 'watchlist', 0)
+    `INSERT INTO user_movies (user_id, movie_id, state, play_count, added_at) VALUES (?1, ?2, 'watchlist', 0, ?3)
      ON CONFLICT (user_id, movie_id) DO NOTHING`
   )
-    .bind(c.get("uid"), id)
+    .bind(c.get("uid"), id, nowIso())
     .run();
   return c.json({ ok: true });
 });

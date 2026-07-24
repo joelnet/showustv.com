@@ -108,12 +108,12 @@ export async function libraryPayload(
       .bind(uid),
   ];
   if (opts?.watchlist) {
-    // The Watch Later buckets: poster-card rows only, in the
-    // same shape and order the retired top-level Watchlist tab got from
-    // GET /watchlist. Shows order by when they were saved; user_movies has no
-    // added_at (and is WITHOUT ROWID), so movie_id DESC reproduces that
-    // query's `ORDER BY rowid DESC` — which resolved to movies.rowid, i.e.
-    // the same tmdb_id.
+    // The Watch Later buckets: poster-card rows only, both ordered by when
+    // they were saved. Movies use user_movies.added_at (0038); rows predating
+    // it are NULL — last under DESC — falling back to movie_id DESC, the
+    // proxy this query used before the column existed (it reproduced the
+    // retired GET /watchlist's `ORDER BY rowid DESC`, which resolved to
+    // movies.rowid, i.e. the same tmdb_id).
     stmts.push(
       db
         .prepare(
@@ -126,7 +126,8 @@ export async function libraryPayload(
         .prepare(
           `SELECT um.movie_id AS id, m.title, m.poster_url AS poster
          FROM user_movies um JOIN movies m ON m.tmdb_id = um.movie_id
-         WHERE um.user_id = ?1 AND um.state = 'watchlist' ORDER BY um.movie_id DESC`
+         WHERE um.user_id = ?1 AND um.state = 'watchlist'
+         ORDER BY um.added_at DESC, um.movie_id DESC`
         )
         .bind(uid)
     );
