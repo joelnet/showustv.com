@@ -10,6 +10,7 @@ import { isRateLimited, recordAttempt, clearAttempts } from "../lib/rate-limit";
 import { readJson } from "../lib/body";
 import { dispatchEmailVerification } from "../lib/verify-email";
 import { notifyDiscordSignup } from "../lib/discord";
+import { getAutoFollowUsername } from "../lib/auto-follow";
 import { notifyEmailChanged } from "../lib/email-revert";
 
 export const auth = new Hono<AppEnv>();
@@ -150,22 +151,26 @@ async function signInExistingUser(c: Context<AppEnv>, email: string, password: s
   });
 }
 
-// Onboarding auto-follow (issue #11): every fresh account starts out
-// following this user, so the follows feature has something to demonstrate
-// (the new user's following list / "From People You Follow" rail isn't
-// empty). The username lookup is case-insensitive for free (users.username
-// is COLLATE NOCASE) and skips gracefully when the account doesn't exist.
-// The insert is the same row POST /social/follow writes — ON CONFLICT keeps
-// it idempotent, and the self-follow guard mirrors both the endpoint's check
-// and the table's CHECK (follower_id <> followee_id), so the account named
-// here re-registering can't trip it. Deliberately SILENT: no
-// notifyUserOfFollow, or the followee would get a notification (and web
+// Onboarding auto-follow (issues #11/#14): every fresh account starts out
+// following the admin-configured account, so the follows feature has
+// something to demonstrate (the new user's following list / "From People
+// You Follow" rail isn't empty). #11 hard-coded "joelnet"; the target now
+// comes from app_settings.auto_follow_username (0037, admin panel →
+// /api/admin/auto-follow, lib/auto-follow.ts), and an empty/unset value
+// turns the feature off. The username lookup is case-insensitive for free
+// (users.username is COLLATE NOCASE) and skips gracefully when the account
+// doesn't exist. The insert is the same row POST /social/follow writes — ON
+// CONFLICT keeps it idempotent, and the self-follow guard mirrors both the
+// endpoint's check and the table's CHECK (follower_id <> followee_id), so
+// the configured account re-registering can't trip it. Deliberately SILENT:
+// no notifyUserOfFollow, or the followee would get a notification (and web
 // push) for every single signup. Callers run this off the response path
 // (waitUntil + catch), so it can never block or fail the signup.
-const AUTO_FOLLOW_USERNAME = "joelnet";
 async function autoFollowOnSignup(env: Env, newUserId: number): Promise<void> {
+  const username = await getAutoFollowUsername(env.DB);
+  if (username === "") return; // feature off
   const target = await env.DB.prepare("SELECT id FROM users WHERE username = ?1 AND deleted_at IS NULL")
-    .bind(AUTO_FOLLOW_USERNAME)
+    .bind(username)
     .first<{ id: number }>();
   if (!target || target.id === newUserId) return; // no such account, or it's them
   await env.DB.prepare(
@@ -241,9 +246,9 @@ auth.post("/register", async (c) => {
       // and off the response path — notifyDiscordSignup swallows every
       // failure internally, so it can never block or fail the signup.
       c.executionCtx.waitUntil(notifyDiscordSignup(c.env));
-      // Auto-follow (issue #11) — silent and best-effort, see
-      // autoFollowOnSignup above. Off the response path so a failure
-      // never blocks or fails the signup.
+      // Auto-follow (issues #11/#14) — the admin-configured account, silent
+      // and best-effort, see autoFollowOnSignup above. Off the response path
+      // so a failure never blocks or fails the signup.
       c.executionCtx.waitUntil(
         autoFollowOnSignup(c.env, row!.id).catch((e) => console.error("register: auto-follow failed", e))
       );

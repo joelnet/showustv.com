@@ -5,9 +5,15 @@ import { Hono } from "hono";
 import type { Context, Next } from "hono";
 import type { AppEnv } from "../env";
 import { getDiscordSettings, isDiscordWebhookUrl, NOTIFY_SIGNUPS_KEY, WEBHOOK_URL_KEY } from "../lib/discord";
+import { AUTO_FOLLOW_USERNAME_KEY, getAutoFollowUsername, normalizeAutoFollowUsername } from "../lib/auto-follow";
+import { USERNAME_RE, USERNAME_RULES } from "../lib/username";
 import { notifyTestNotification } from "../lib/notifications";
 
 export const admin = new Hono<AppEnv>();
+
+// Shared upsert into the app_settings key/value store (0013).
+const UPSERT_SETTING =
+  "INSERT INTO app_settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value";
 
 admin.use("*", async (c: Context<AppEnv>, next: Next) => {
   const row = await c.env.DB.prepare("SELECT is_admin FROM users WHERE id = ?1")
@@ -82,12 +88,36 @@ admin.put("/discord", async (c) => {
   // again before every fire.
   if (webhookUrl !== "" && !isDiscordWebhookUrl(webhookUrl))
     return c.json({ error: "That isn't a Discord webhook URL (expected https://discord.com/api/webhooks/…)" }, 400);
-  const upsert = "INSERT INTO app_settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value";
   await c.env.DB.batch([
-    c.env.DB.prepare(upsert).bind(WEBHOOK_URL_KEY, webhookUrl),
-    c.env.DB.prepare(upsert).bind(NOTIFY_SIGNUPS_KEY, b.notifySignups ? "1" : "0"),
+    c.env.DB.prepare(UPSERT_SETTING).bind(WEBHOOK_URL_KEY, webhookUrl),
+    c.env.DB.prepare(UPSERT_SETTING).bind(NOTIFY_SIGNUPS_KEY, b.notifySignups ? "1" : "0"),
   ]);
   return c.json({ ok: true });
+});
+
+// Signup auto-follow config (issues #11/#14): the account every new
+// signup starts out silently following. Issue #11 hard-coded "joelnet"; the
+// username now lives in app_settings (0037) and this pair backs the admin
+// page's textbox. Empty = feature off. POST /register resolves the name live
+// at signup (routes/auth.ts autoFollowOnSignup), so the save only soft-warns
+// (exists: false in the response) when no such account is live right now —
+// it never rejects for that, and an unmatched name simply means no follow.
+// Admin-gated by the sub-app middleware above; the PUT lands in activity_log
+// via the global middleware like every other admin mutation.
+admin.get("/auto-follow", async (c) => c.json({ username: await getAutoFollowUsername(c.env.DB) }));
+
+admin.put("/auto-follow", async (c) => {
+  const b = await c.req.json().catch(() => ({}));
+  if (typeof b.username !== "string") return c.json({ error: "username (string) is required" }, 400);
+  const username = normalizeAutoFollowUsername(b.username);
+  // Empty clears the setting (feature off); anything else must at least be
+  // shaped like a username so junk never lands in app_settings.
+  if (username !== "" && !USERNAME_RE.test(username)) return c.json({ error: USERNAME_RULES }, 400);
+  await c.env.DB.prepare(UPSERT_SETTING).bind(AUTO_FOLLOW_USERNAME_KEY, username).run();
+  const exists =
+    username === "" ||
+    !!(await c.env.DB.prepare("SELECT 1 FROM users WHERE username = ?1 AND deleted_at IS NULL").bind(username).first());
+  return c.json({ ok: true, username, exists });
 });
 
 // A user's recent audit trail (activity_log) for troubleshooting.

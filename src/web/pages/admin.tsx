@@ -50,6 +50,8 @@ export function AdminPage() {
 
       <DiscordWebhook />
 
+      <AutoFollow />
+
       <SyncLogView />
 
       <PushDiagnostics />
@@ -136,6 +138,81 @@ function DiscordWebhook() {
           </label>
           <button className="btn" onClick={save} disabled={state !== "ready" || saving}>
             {saving ? "Saving…" : "Save Discord settings"}
+          </button>
+        </>
+      )}
+    </>
+  );
+}
+
+// Signup auto-follow config (issues #11/#14): which account every new
+// signup starts out silently following (server side: /api/admin/auto-follow
+// → app_settings). Empty = feature off. The save never rejects a name for
+// not existing — signups resolve it live — but the response flags an
+// unknown name (exists: false) so the toast can warn instead of implying
+// the follow is active.
+function AutoFollow() {
+  const toast = useToast();
+  const [username, setUsername] = useState("");
+  // Editing is blocked until the current value loads — saving blind
+  // would silently overwrite the stored config with an empty box.
+  const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api<{ username: string }>("/admin/auto-follow")
+      .then((d) => {
+        setUsername(d.username);
+        setState("ready");
+      })
+      .catch(() => setState("error"));
+  }, []);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const d: { username: string; exists: boolean } = await put("/admin/auto-follow", { username });
+      setUsername(d.username); // server-normalized: trimmed, leading @ stripped
+      if (d.username === "") toast("Auto-follow turned off");
+      else if (!d.exists) toast(`Saved, but no account is named ${d.username} — new signups won't follow anyone`, "error");
+      else toast(`New signups will follow ${d.username}`);
+    } catch (e) {
+      toast(e instanceof ApiError && e.status === 400 ? e.message : "Couldn't save the auto-follow username", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <>
+      <h2 className="settings-subtitle">Auto-follow on signup</h2>
+      <p className="settings-hint">
+        New accounts automatically follow this user (silently — they get no notification), so a fresh account's
+        following list isn't empty. Leave empty to turn auto-follow off.
+      </p>
+      {state === "error" ? (
+        <p className="error-note">Couldn't load the auto-follow setting — reload to try again.</p>
+      ) : (
+        <>
+          {/* Bare labels have no layout on this page; mirror .login-card label. */}
+          <label
+            style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "13.5px", color: "var(--muted)", maxWidth: "480px", margin: "10px 0 14px" }}
+          >
+            Auto-follow username (new signups)
+            <input
+              type="text"
+              placeholder="username"
+              maxLength={21}
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              value={username}
+              disabled={state !== "ready" || saving}
+              onChange={(e) => setUsername(e.target.value)}
+            />
+          </label>
+          <button className="btn" onClick={save} disabled={state !== "ready" || saving}>
+            {saving ? "Saving…" : "Save auto-follow"}
           </button>
         </>
       )}
