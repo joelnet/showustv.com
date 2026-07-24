@@ -7,6 +7,17 @@
 // piggybacks on the same insert: only the rows actually created trigger a
 // best-effort push, so a deduped repeat never re-buzzes a phone.
 //
+// On top of the recipient's global notification_prefs toggles, every fan-out
+// that keys on the FOLLOWS edge (watch, follow-comment, favorite, list) is
+// gated per recipient by that follow's notify_level (#18, YouTube-style,
+// picked by the follower on the followee's profile):
+//   none — that recipient is skipped entirely,
+//   all  — the 24h dedupe is bypassed for them (a ten-episode binge really is
+//          ten notifications; the fan-out caps still bound one invocation),
+//   some — the default, exactly the historical dedupe+caps behavior.
+// notifyUserOfFollow (aimed at the followee, not a follower) and
+// notifyTrackersOfComment (keyed on tracking, not follows) ignore the level.
+//
 // Callers run these via c.executionCtx.waitUntil(...) — same pattern as the
 // activity_log middleware — so fan-out cost never sits on the response path.
 
@@ -163,10 +174,15 @@ export async function notifyFollowersOfWatch(
              WHERE r.follower_id = f.followee_id AND r.followee_id = f.follower_id AND r.state = 'active'))
        AND COALESCE((SELECT np.follow_watch FROM notification_prefs np
                      WHERE np.user_id = f.follower_id AND np.show_id = 0), 1) = 1
-       AND NOT EXISTS (SELECT 1 FROM notifications n
-                       WHERE n.user_id = f.follower_id AND n.type = 'follow_watch'
-                         AND n.actor_id = ?1 AND n.target_type = ?2 AND n.target_id = ?3
-                         AND n.created_at >= ?4)
+       -- Per-follow level (#18): 'none' recipients never hear about this
+       -- actor; 'all' recipients skip the 24h dedupe (every watch lands);
+       -- 'some' keeps the historical dedupe below.
+       AND f.notify_level != 'none'
+       AND (f.notify_level = 'all'
+            OR NOT EXISTS (SELECT 1 FROM notifications n
+                           WHERE n.user_id = f.follower_id AND n.type = 'follow_watch'
+                             AND n.actor_id = ?1 AND n.target_type = ?2 AND n.target_id = ?3
+                             AND n.created_at >= ?4))
      RETURNING user_id`
   )
     .bind(actorId, targetType, targetId, since, episodeId)
@@ -267,10 +283,16 @@ export async function notifyFollowersOfComment(
        AND COALESCE((SELECT np.follow_comment FROM notification_prefs np
                      WHERE np.user_id = f.follower_id AND np.show_id = 0), 1) = 1
        AND ${tracksTitle}
-       AND NOT EXISTS (SELECT 1 FROM notifications n
-                       WHERE n.user_id = f.follower_id AND n.type = 'follow_comment'
-                         AND n.actor_id = ?1 AND n.target_type = ?2 AND n.target_id = ?3
-                         AND n.created_at >= ?4)
+       -- Per-follow level (#18): this fan-out keys on the follows edge, so a
+       -- 'none' follower is skipped here (if they track the title, the
+       -- tracking-based tracked_comment fan-out — which ignores the level —
+       -- still covers them) and an 'all' follower skips the 24h dedupe.
+       AND f.notify_level != 'none'
+       AND (f.notify_level = 'all'
+            OR NOT EXISTS (SELECT 1 FROM notifications n
+                           WHERE n.user_id = f.follower_id AND n.type = 'follow_comment'
+                             AND n.actor_id = ?1 AND n.target_type = ?2 AND n.target_id = ?3
+                             AND n.created_at >= ?4))
      RETURNING user_id`
   )
     .bind(actorId, targetType, targetId, since, episodeId)
@@ -354,10 +376,15 @@ export async function notifyFollowersOfFavorite(
              WHERE r.follower_id = f.followee_id AND r.followee_id = f.follower_id AND r.state = 'active'))
        AND COALESCE((SELECT np.follow_favorite FROM notification_prefs np
                      WHERE np.user_id = f.follower_id AND np.show_id = 0), 1) = 1
-       AND NOT EXISTS (SELECT 1 FROM notifications n
-                       WHERE n.user_id = f.follower_id AND n.type = 'follow_favorite'
-                         AND n.actor_id = ?1 AND n.target_type = ?2 AND n.target_id = ?3
-                         AND n.created_at >= ?4)
+       -- Per-follow level (#18): 'none' skipped, 'all' bypasses the 24h
+       -- dedupe (the LIMIT cap below still bounds one invocation), 'some'
+       -- keeps the historical dedupe.
+       AND f.notify_level != 'none'
+       AND (f.notify_level = 'all'
+            OR NOT EXISTS (SELECT 1 FROM notifications n
+                           WHERE n.user_id = f.follower_id AND n.type = 'follow_favorite'
+                             AND n.actor_id = ?1 AND n.target_type = ?2 AND n.target_id = ?3
+                             AND n.created_at >= ?4))
      ORDER BY f.follower_id
      LIMIT ?5
      RETURNING user_id`
@@ -429,10 +456,15 @@ export async function notifyFollowersOfListCreated(
      WHERE f.followee_id = ?1 AND f.state = 'active'
        AND COALESCE((SELECT np.list_created FROM notification_prefs np
                      WHERE np.user_id = f.follower_id AND np.show_id = 0), 1) = 1
-       AND NOT EXISTS (SELECT 1 FROM notifications n
-                       WHERE n.user_id = f.follower_id AND n.type = 'list_created'
-                         AND n.actor_id = ?1 AND n.target_id = ?2
-                         AND n.created_at >= ?3)
+       -- Per-follow level (#18): 'none' skipped, 'all' bypasses the 24h
+       -- dedupe (the LIMIT cap below still bounds one invocation), 'some'
+       -- keeps the historical dedupe.
+       AND f.notify_level != 'none'
+       AND (f.notify_level = 'all'
+            OR NOT EXISTS (SELECT 1 FROM notifications n
+                           WHERE n.user_id = f.follower_id AND n.type = 'list_created'
+                             AND n.actor_id = ?1 AND n.target_id = ?2
+                             AND n.created_at >= ?3))
      ORDER BY f.follower_id
      LIMIT ?4
      RETURNING user_id`
