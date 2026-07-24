@@ -354,18 +354,18 @@ importer.post("/movies", async (c) => {
       // and play_count survive re-imports untouched.
       const res = watchlist
         ? await c.env.DB.prepare(
-            `INSERT INTO user_movies (user_id, movie_id, state, watched_at, play_count) VALUES (?1, ?2, 'watchlist', NULL, 0)
+            `INSERT INTO user_movies (user_id, movie_id, state, watched_at, play_count, added_at) VALUES (?1, ?2, 'watchlist', NULL, 0, ?3)
              ON CONFLICT (user_id, movie_id) DO NOTHING`
           )
-            .bind(uid, tmdbId)
+            .bind(uid, tmdbId, nowIso())
             .run()
         : await c.env.DB.prepare(
-            `INSERT INTO user_movies (user_id, movie_id, state, watched_at, play_count) VALUES (?1, ?2, 'watched', ?3, 1)
+            `INSERT INTO user_movies (user_id, movie_id, state, watched_at, play_count, added_at) VALUES (?1, ?2, 'watched', ?3, 1, ?4)
              ON CONFLICT (user_id, movie_id) DO UPDATE
                SET state = 'watched', watched_at = excluded.watched_at, play_count = 1
                WHERE user_movies.state = 'watchlist'`
           )
-            .bind(uid, tmdbId, isoOrNull(r?.watchedAt) ?? nowIso())
+            .bind(uid, tmdbId, isoOrNull(r?.watchedAt) ?? nowIso(), nowIso())
             .run();
       if ((res.meta.changes ?? 0) > 0) inserted++;
       else existing++;
