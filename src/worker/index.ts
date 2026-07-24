@@ -9,6 +9,7 @@ import { TMDB_CACHE_POLICY_DAYS } from "../shared/constants";
 import { isSocialPreviewPath, serveSocialPreview } from "./lib/social-preview";
 import { FEED_PATH_RE, serveUserFeed } from "./lib/user-feed";
 import { withSecurityHeaders } from "./lib/security";
+import { DAILY_SUMMARY_CRON, postDailySummary } from "./lib/daily-summary";
 import { auth } from "./routes/auth";
 import { pub } from "./routes/public";
 import { catalog, titles } from "./routes/catalog";
@@ -115,9 +116,26 @@ app.onError((err, c) => {
   return c.json({ error: "internal error" }, 500);
 });
 
-// Nightly (06:00 UTC): re-sync followed shows that are still airing so new
-// episodes and air-date changes land before US mornings. Bounded per run.
-async function scheduled(_event: ScheduledEvent, env: Env, _ctx: ExecutionContext): Promise<void> {
+// Two nightly crons (wrangler.jsonc `triggers.crons`), routed by pattern:
+//   06:00 UTC — maintenance: re-sync followed still-airing shows so new
+//               episodes and air-date changes land before US mornings, plus
+//               retention prunes and bounded backfills. Bounded per run.
+//   08:10 UTC — Discord daily summary (DAILY_SUMMARY_CRON): its own trigger
+//               because it must fire just after Pacific midnight to report the
+//               local day that just ended; 06:00 UTC is still the previous
+//               Pacific evening. Unmatched patterns (e.g. wrangler dev's
+//               __scheduled endpoint without ?cron=) run the maintenance path,
+//               which was the sole behavior before the summary moved in.
+async function scheduled(event: ScheduledEvent, env: Env, _ctx: ExecutionContext): Promise<void> {
+  if (event.cron === DAILY_SUMMARY_CRON) {
+    // Best-effort by contract — postDailySummary never throws, so this
+    // invocation always succeeds and the platform never retries it. Even a
+    // duplicate fire couldn't double-post: posting is gated on an atomic
+    // per-day claim in app_settings.
+    await postDailySummary(env, new Date(event.scheduledTime || Date.now()));
+    return;
+  }
+
   // Audit-log retention first — 90 days is plenty for troubleshooting, and
   // running before the sync work means a TMDB outage can't skip it.
   try {

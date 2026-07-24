@@ -177,54 +177,6 @@ const commands = {
     emit(r, (d) => console.log(d.users));
   },
 
-  dailystats() {
-    // One-day activity aggregates for the nightly Discord summary (issue #168).
-    // The caller (scripts/daily-summary.mjs) computes the day boundaries from
-    // the machine's LOCAL calendar day and passes them as UTC ISO timestamps —
-    // all *_at columns in D1 are UTC ISO text, so plain string comparison works.
-    //   --start       start of the day being summarized (inclusive)
-    //   --end         end of that day (exclusive)
-    //   --prev-start  start of the previous day (for the "vs yesterday" deltas)
-    const iso = (name) => {
-      const v = opts[name];
-      if (!v || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/.test(v))
-        fail(`dailystats requires --${name} as a UTC ISO timestamp, e.g. 2026-07-09T07:00:00.000Z`);
-      return qstr(v);
-    };
-    const start = iso("start");
-    const end = iso("end");
-    const prevStart = iso("prev-start");
-    const today = (col) => `${col} >= ${start} AND ${col} < ${end}`;
-    const prev = (col) => `${col} >= ${prevStart} AND ${col} < ${start}`;
-    const [s] = rows(
-      `SELECT
-         (SELECT COUNT(*) FROM users WHERE deleted_at IS NULL AND ${today("created_at")}) AS signups,
-         (SELECT COUNT(*) FROM users WHERE deleted_at IS NULL AND ${prev("created_at")}) AS signups_prev,
-         (SELECT COUNT(*) FROM user_shows WHERE ${today("added_at")}) AS shows_followed,
-         (SELECT COUNT(*) FROM user_shows WHERE ${prev("added_at")}) AS shows_followed_prev,
-         (SELECT COUNT(*) FROM user_episodes WHERE (${today("watched_at")}) OR (${today("last_rewatched_at")})) AS episodes_watched,
-         (SELECT COUNT(*) FROM user_episodes WHERE (${prev("watched_at")}) OR (${prev("last_rewatched_at")})) AS episodes_watched_prev,
-         (SELECT COUNT(*) FROM user_movies WHERE state = 'watched' AND ${today("watched_at")}) AS movies_watched,
-         (SELECT COUNT(*) FROM user_movies WHERE state = 'watched' AND ${prev("watched_at")}) AS movies_watched_prev,
-         (SELECT COUNT(*) FROM ratings WHERE ${today("created_at")}) AS ratings,
-         (SELECT COUNT(*) FROM ratings WHERE ${prev("created_at")}) AS ratings_prev,
-         (SELECT COUNT(*) FROM comments WHERE deleted_at IS NULL AND ${today("created_at")}) AS comments,
-         (SELECT COUNT(*) FROM comments WHERE deleted_at IS NULL AND ${prev("created_at")}) AS comments_prev,
-         (SELECT COUNT(*) FROM follows WHERE state = 'active' AND ${today("created_at")}) AS user_follows,
-         (SELECT COUNT(*) FROM follows WHERE state = 'active' AND ${prev("created_at")}) AS user_follows_prev,
-         (SELECT COUNT(*) FROM custom_lists WHERE ${today("created_at")}) AS lists_created,
-         (SELECT COUNT(*) FROM custom_lists WHERE ${prev("created_at")}) AS lists_created_prev,
-         (SELECT COUNT(*) FROM users WHERE deleted_at IS NULL AND ${today("installed_at")}) AS pwa_installs,
-         (SELECT COUNT(*) FROM users WHERE deleted_at IS NULL AND ${prev("installed_at")}) AS pwa_installs_prev,
-         (SELECT COUNT(DISTINCT user_id) FROM activity_log WHERE user_id IS NOT NULL AND ${today("ts")}) AS active_users,
-         (SELECT COUNT(DISTINCT user_id) FROM activity_log WHERE user_id IS NOT NULL AND ${prev("ts")}) AS active_users_prev,
-         (SELECT COUNT(*) FROM users WHERE deleted_at IS NULL) AS total_users`
-    );
-    emit(s, (d) => {
-      for (const [k, v] of Object.entries(d)) console.log(`${k.padEnd(22)} ${v}`);
-    });
-  },
-
   sql() {
     const query = positional.join(" ");
     if (!query) fail('usage: sql "SELECT ..."  (read-only)');
@@ -251,9 +203,6 @@ Commands:
   ban <username> [--unban]           shadow-ban or un-ban a user
   stats                      quick counts across the whole instance
   usercount                  just the active-user count (fast)
-  dailystats --start ISO --end ISO --prev-start ISO
-                             one-day activity aggregates (used by the nightly
-                             Discord summary cron; boundaries are UTC ISO)
   sql "SELECT …"             run a single read-only query
   help                       this text
 
