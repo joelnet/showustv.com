@@ -784,7 +784,7 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
    button can't nest inside an anchor, and this way its click can't reach
    the Link), overlaid on the body, which reserves right padding so the
    ellipsized title and episode line never run under it. These tiles never
-   carry the friends "Watched by" line, so the body is the bottom of the
+   carry the friends attribution line, so the body is the bottom of the
    tile and the check centers on its two text lines with a bottom offset. */
 .wn-tile-body.has-check { padding-right: 38px; }
 .wn-tile-check { position: absolute; right: 2px; bottom: 7px; }
@@ -804,10 +804,22 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* "Watched by <user>" attribution on From People You Follow tiles.
-   Sits outside .wn-tile-link so the username can be its own anchor;
-   the link inherits the global cyan. */
-.wn-tile-user { padding: 2px 2px 0; }
+/* Watcher attribution on From People You Follow tiles — the bare username
+   link, no "Watched by" label (#20 dropped it to make room for the reaction
+   control). Sits outside .wn-tile-link so the username can be its own
+   anchor; the link inherits the global cyan. The right padding reserves the
+   reaction trigger's overlay spot so the username never runs under it. */
+.wn-tile-user { padding: 2px 52px 0 2px; }
+
+/* Reaction control on friends tiles (#20). The trigger pins to the tile's
+   bottom-right — the check button's overlay pattern — but its .menu-wrap
+   stays STATIC so the picker's containing block is the tile itself: the
+   picker then positions (and max-widths) against the full tile, staying
+   inside its bounds, where the row scroller's overflow can't clip it. */
+.menu-wrap.wn-tile-react { position: static; }
+.react-btn { position: absolute; right: 2px; bottom: 0; width: auto; min-width: 34px; gap: 4px; padding: 0 5px; }
+.react-btn .react-emoji { font-size: 15px; line-height: 1; }
+.react-btn .react-count { font-size: 12px; font-variant-numeric: tabular-nums; }
 
 /* Home: horizontally-scrollable section rows. The header line is
    a bar: the section link on the left, the hide/show eye toggle
@@ -1966,6 +1978,42 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .menu-radio-text { min-width: 0; }
 .menu-hint { display: block; font-size: 11.5px; font-weight: 400; color: var(--muted); margin-top: 1px; }
 .menu-sep { height: 1px; background: var(--line); margin: 4px 6px; }
+
+/* Reaction picker (#20): the same .menu-pop chrome as the bell menu, but a
+   horizontal emoji row that opens ABOVE its trigger — the trigger sits at
+   the bottom of a tile, often inside a scroll row, so dropping down would
+   clip. Anchored to the tile's right edge (the wrap is static — see
+   .wn-tile-react) and capped to the tile's width, wrapping onto a second
+   row on the narrowest grid tiles instead of spilling out. */
+.menu-pop--react {
+  top: auto;
+  bottom: 40px;
+  left: auto;
+  right: 2px;
+  max-width: calc(100% - 4px);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 2px;
+  min-width: 0;
+  padding: 3px;
+}
+.react-option {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 19px;
+  line-height: 1;
+  background: none;
+  border: 0;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.react-option:hover,
+.react-option:focus-visible { background: var(--surface-2); }
+.react-option.is-checked { background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--amber); }
 
 /* Owner-only reminder on their private profile's public page. */
 .public-private-note { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 13.5px; margin: -8px 0 20px; }
