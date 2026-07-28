@@ -1055,7 +1055,10 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 
 .show-overview { max-width: 720px; color: var(--text); margin: 0 0 16px; }
 
-.rating-row { display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-end; margin: 4px 0 16px; }
+/* The row is a size container so the stars can scale to whatever width the
+   rating actually gets (full width on phones, beside a poster/still on wider
+   movie/episode layouts) — see --star-size below (#22). */
+.rating-row { display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-end; margin: 4px 0 16px; container-type: inline-size; }
 
 /* Star rating — 10 whole stars mapped 1:1 onto the 1–10 score.
    Each star cell layers a solid amber star over an outlined empty star; the
@@ -1067,12 +1070,23 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
   text-transform: uppercase;
   color: var(--muted);
 }
-.star-rating-controls { display: flex; align-items: center; gap: 10px; }
+.star-rating-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  /* Single-line fit (#22): star glyphs shrink on narrow screens instead of
+     wrapping. Budget per star = (row width − 9 star gaps (18px) − this row's
+     gap (10px) − the clear ×, whose space is always reserved so the row can't
+     overflow the moment a rating appears − 2px rounding slack) / 10 stars,
+     capped at the classic 28px (32px on touch, below) and floored at 16px. */
+  --star-clear-size: 26px;
+  --star-size: clamp(16px, calc((100cqw - 30px - var(--star-clear-size)) / 10), 28px);
+}
 .star-track {
   display: inline-flex;
-  /* Ten stars is a wide row — wrap rather than overflow on very narrow phones
-     (the index-based fill stays correct left-to-right when it wraps). */
-  flex-wrap: wrap;
+  /* Ten stars + the clear × stay on one line (#22) — --star-size scales the
+     glyphs down on narrow phones rather than letting the row wrap. */
+  flex-wrap: nowrap;
   gap: 2px;
   color: var(--muted); /* empty-star outline colour */
   cursor: pointer;
@@ -1083,6 +1097,9 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .star-track.is-disabled { pointer-events: none; cursor: default; }
 .star-cell { position: relative; display: inline-flex; line-height: 0; }
 .star-cell > svg { display: block; }
+/* Both the outline star and its amber overlay track --star-size so the fill
+   mask keeps lining up exactly over the glyph at every width. */
+.star-track svg { width: var(--star-size); height: var(--star-size); }
 .star-fill {
   position: absolute;
   top: 0;
@@ -1096,8 +1113,10 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .star-clear {
   display: inline-grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
+  /* Sized by the same variable the star budget reserves, so the two can
+     never drift apart. */
+  width: var(--star-clear-size);
+  height: var(--star-clear-size);
   border-radius: 6px;
   border: 1px solid var(--line);
   background: var(--surface);
@@ -1106,12 +1125,15 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 }
 .star-clear:hover { color: var(--text); border-color: var(--muted); }
 .star-clear:disabled { opacity: 0.5; cursor: default; }
-/* On touch (any width, phones through tablets) enlarge each star and the clear
-   so every whole-star tap zone is a comfortable target. 32px keeps all ten
-   stars on one row down to ~360px-wide phones. */
+/* On touch (any width, phones through tablets) enlarge the stars and the clear
+   so every whole-star tap zone is a comfortable target: the star cap rises to
+   32px and the × to 40px, with --star-size still shrinking the glyphs first on
+   narrow phones so the whole row keeps to a single line (#22). */
 @media (pointer: coarse) {
-  .star-track svg { width: 32px; height: 32px; }
-  .star-clear { width: 40px; height: 40px; }
+  .star-rating-controls {
+    --star-clear-size: 40px;
+    --star-size: clamp(16px, calc((100cqw - 30px - var(--star-clear-size)) / 10), 32px);
+  }
 }
 
 /* Streaming: a small "Streaming" heading stacked over
@@ -1252,6 +1274,12 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .episode-show-link:hover { text-decoration-color: var(--text); }
 
 .episode-head, .movie-head { display: flex; gap: 24px; align-items: flex-start; }
+/* The text/actions column (the only div child; the poster/still is an img)
+   fills whatever the artwork leaves over. Explicit now that .rating-row is a
+   size container — its contents no longer report an intrinsic width — so the
+   column, and with it the star row's sizing basis, can't collapse on titles
+   with little text (#22). */
+.episode-head > div, .movie-head > div { flex: 1 1 auto; min-width: 0; }
 .episode-still { width: 300px; max-width: 42vw; border-radius: 10px; border: 1px solid var(--line); }
 .episode-slate-row { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
 .episode-page h1, .movie-page h1 {
