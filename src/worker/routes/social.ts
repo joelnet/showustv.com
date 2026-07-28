@@ -18,7 +18,8 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import type { AppEnv } from "../env";
 import { animeCond } from "../lib/library";
-import { notifyUserOfFollow } from "../lib/notifications";
+import { notifyUserOfFollow, notifyUserOfReaction } from "../lib/notifications";
+import { REACTION_TYPES, type ReactionType } from "../../shared/reactions";
 
 export const social = new Hono<AppEnv>();
 
@@ -486,6 +487,98 @@ social.get("/also-watching/:id", async (c) => {
     .bind(c.get("uid"), id)
     .all();
   return c.json({ following: results });
+});
+
+// ---------- Reactions on followed activity ----------
+
+// One reaction (the Facebook-familiar set, shared/reactions.ts) per viewer
+// per activity (#20), where an activity is keyed the way the "From People You
+// Follow" rail keys its tiles: the watcher plus the show/movie watched. Set
+// or change with a reaction value, clear with null — the comment-vote
+// pattern. The rail's payload (/home) carries each tile's count and the
+// viewer's own reaction; this returns the authoritative state so the
+// client's optimistic update self-corrects.
+social.put("/reaction", async (c) => {
+  const uid = c.get("uid");
+  const body = await c.req.json().catch(() => ({}));
+  const target = await findUser(c, String(body.username ?? "").trim());
+  if (!target) return c.json({ error: "No user with that username" }, 404);
+  if (target.id === uid) return c.json({ error: "You can't react to your own activity" }, 400);
+  const targetType = String(body.targetType ?? "");
+  if (targetType !== "show" && targetType !== "movie") return c.json({ error: "bad target" }, 400);
+  const targetId = Number(body.targetId);
+  if (!Number.isInteger(targetId) || targetId <= 0) return c.json({ error: "bad target" }, 400);
+  const reaction = body.reaction == null ? null : String(body.reaction);
+  if (reaction != null && !(REACTION_TYPES as readonly string[]).includes(reaction))
+    return c.json({ error: "unknown reaction" }, 400);
+
+  // React only to activity the viewer could see on the rail: they follow the
+  // watcher under the feed's visibility rule (profile public or mutual), and
+  // the watcher actually watched the title — a hidden show counting as no
+  // activity at all, exactly like the rail. One probe, two EXISTS columns;
+  // both failures read the same "not found" so the endpoint can't be used to
+  // test what someone watched.
+  const gate = await c.env.DB.prepare(
+    `SELECT
+       EXISTS (SELECT 1 FROM follows f
+               JOIN users fu ON fu.id = f.followee_id
+               WHERE f.follower_id = ?1 AND f.followee_id = ?2 AND f.state = 'active'
+                 AND (fu.profile_public = 1 OR EXISTS (
+                   SELECT 1 FROM follows r
+                   WHERE r.follower_id = ?2 AND r.followee_id = ?1 AND r.state = 'active'))) AS canSee,
+       ${
+         targetType === "show"
+           ? `(EXISTS (SELECT 1 FROM user_episodes ue JOIN episodes e ON e.id = ue.episode_id
+                       WHERE ue.user_id = ?2 AND e.show_id = ?3)
+               AND NOT EXISTS (SELECT 1 FROM user_shows h
+                               WHERE h.user_id = ?2 AND h.show_id = ?3 AND h.hidden = 1))`
+           : `EXISTS (SELECT 1 FROM user_movies um
+                      WHERE um.user_id = ?2 AND um.movie_id = ?3 AND um.state = 'watched')`
+       } AS hasActivity`
+  )
+    .bind(uid, target.id, targetId)
+    .first<{ canSee: number; hasActivity: number }>();
+  if (!gate?.canSee || !gate.hasActivity) return c.json({ error: "not found" }, 404);
+
+  if (reaction == null) {
+    await c.env.DB.prepare(
+      "DELETE FROM activity_reactions WHERE owner_id = ?1 AND target_type = ?2 AND target_id = ?3 AND reactor_id = ?4"
+    )
+      .bind(target.id, targetType, targetId, uid)
+      .run();
+  } else {
+    // The WHERE on the upsert makes re-picking the current reaction a genuine
+    // no-op (unqualified `reaction` is the existing row, upsert convention) —
+    // so meta.changes below detects real transitions only, the same way the
+    // follow route's ON CONFLICT DO NOTHING does.
+    const { meta } = await c.env.DB.prepare(
+      `INSERT INTO activity_reactions (owner_id, target_type, target_id, reactor_id, reaction) VALUES (?1, ?2, ?3, ?4, ?5)
+       ON CONFLICT (owner_id, target_type, target_id, reactor_id) DO UPDATE SET reaction = excluded.reaction
+       WHERE reaction != excluded.reaction`
+    )
+      .bind(target.id, targetType, targetId, uid, reaction)
+      .run();
+    // Notify the activity's owner, off the response path — the follow route's
+    // hook shape. Fires on add AND change (the notifier's 24h dedupe coalesces
+    // an indecisive picker session into one notification), never on the
+    // idempotent re-pick meta.changes filtered out above.
+    if (meta.changes) {
+      c.executionCtx.waitUntil(
+        notifyUserOfReaction(c.env, uid, target.id, targetType, targetId, reaction as ReactionType).catch((e) =>
+          console.error("notify failed", e)
+        )
+      );
+    }
+  }
+
+  // Authoritative count (the vote endpoint's pattern) so the client's
+  // optimistic math self-corrects when others reacted meanwhile.
+  const count = await c.env.DB.prepare(
+    "SELECT COUNT(*) AS n FROM activity_reactions WHERE owner_id = ?1 AND target_type = ?2 AND target_id = ?3"
+  )
+    .bind(target.id, targetType, targetId)
+    .first<{ n: number }>();
+  return c.json({ reaction, count: count?.n ?? 0 });
 });
 
 // Feed entries older than the window fall off; keeps every branch of the

@@ -189,7 +189,7 @@ library.get("/home", async (c) => {
              WHERE r.follower_id = f.followee_id AND r.followee_id = ?1 AND r.state = 'active'))
        ),
        fw AS (
-         SELECT e.show_id, u.username,
+         SELECT e.show_id, u.username, ue.user_id,
                 e.id AS episode_id, e.season_number, e.number, e.title AS episode_title,
                 CASE WHEN ue.last_rewatched_at > ue.watched_at
                      THEN ue.last_rewatched_at ELSE ue.watched_at END AS ts
@@ -203,7 +203,7 @@ library.get("/home", async (c) => {
            AND NOT EXISTS (SELECT 1 FROM user_shows h
                            WHERE h.user_id = ue.user_id AND h.show_id = e.show_id AND h.hidden = 1)
        )
-       SELECT f.show_id, f.username, f.episode_id, f.season_number, f.number, f.episode_title, f.ts,
+       SELECT f.show_id, f.username, f.user_id, f.episode_id, f.season_number, f.number, f.episode_title, f.ts,
               s.title AS show_title, s.poster_url, s.backdrop_url
        FROM (SELECT *, ROW_NUMBER() OVER (
                PARTITION BY show_id
@@ -226,13 +226,13 @@ library.get("/home", async (c) => {
              WHERE r.follower_id = f.followee_id AND r.followee_id = ?1 AND r.state = 'active'))
        ),
        fwm AS (
-         SELECT um.movie_id, u.username, um.watched_at AS ts
+         SELECT um.movie_id, u.username, um.user_id, um.watched_at AS ts
          FROM user_movies um
          JOIN following fo ON fo.fid = um.user_id
          JOIN users u ON u.id = um.user_id AND u.deleted_at IS NULL
          WHERE um.state = 'watched' AND um.watched_at IS NOT NULL AND um.watched_at >= ?2
        )
-       SELECT f.movie_id, f.username, f.ts, m.title, m.poster_url
+       SELECT f.movie_id, f.username, f.user_id, f.ts, m.title, m.poster_url
        FROM (SELECT *, ROW_NUMBER() OVER (
                PARTITION BY movie_id
                ORDER BY ts DESC, username) AS rn
@@ -283,8 +283,8 @@ library.get("/home", async (c) => {
   // Episode and movie tiles share one rail, newest first, capped as the
   // section always was — the same merge/sort/slice the History
   // rail uses. Movie tiles carry no episode fields, so the client's generic
-  // Tile links them to /movie/:id and still shows "Watched by <user>".
-  const friendsWatched: any[] = [
+  // Tile links them to /movie/:id and still credits the watcher.
+  const friendsRows: any[] = [
     ...(friendsR.results as any[]).map((r) => ({
       kind: "show" as const,
       id: r.show_id,
@@ -293,6 +293,7 @@ library.get("/home", async (c) => {
       backdrop: r.backdrop_url,
       still: null,
       username: r.username,
+      ownerId: r.user_id,
       episodeId: r.episode_id,
       season: r.season_number,
       number: r.number,
@@ -307,11 +308,41 @@ library.get("/home", async (c) => {
       backdrop: null,
       still: null,
       username: r.username,
+      ownerId: r.user_id,
       watchedAt: r.ts,
     })),
   ]
     .sort((a, b) => (a.watchedAt < b.watchedAt ? 1 : -1))
     .slice(0, 30);
+
+  // Reaction state for the rail (#20): every tile carries its total reaction
+  // count and the viewer's own reaction so the thumbs-up control renders
+  // without a per-tile fetch. One grouped query over the rail's watchers (30
+  // tiles max, so the IN list stays well under D1's bound-parameter cap);
+  // grouped rows for activities not on the rail simply miss the lookup below.
+  // ownerId is internal plumbing — the payload keeps exposing usernames only,
+  // so it's stripped in the map (the reaction endpoint takes the username).
+  const reactions = new Map<string, { n: number; mine: string | null }>();
+  if (friendsRows.length) {
+    const owners = [...new Set<number>(friendsRows.map((t) => t.ownerId))];
+    const placeholders = owners.map((_, i) => `?${i + 2}`).join(",");
+    const { results: reactR } = await c.env.DB.prepare(
+      `SELECT owner_id, target_type, target_id, COUNT(*) AS n,
+              MAX(CASE WHEN reactor_id = ?1 THEN reaction END) AS mine
+       FROM activity_reactions
+       WHERE owner_id IN (${placeholders})
+       GROUP BY owner_id, target_type, target_id`
+    )
+      .bind(uid, ...owners)
+      .all();
+    for (const r of reactR as any[]) {
+      reactions.set(`${r.owner_id}:${r.target_type}:${r.target_id}`, { n: r.n, mine: r.mine ?? null });
+    }
+  }
+  const friendsWatched = friendsRows.map(({ ownerId, ...t }) => {
+    const r = reactions.get(`${ownerId}:${t.kind}:${t.id}`);
+    return { ...t, reactionCount: r?.n ?? 0, myReaction: r?.mine ?? null };
+  });
 
   // Watch Later movies join the Not Started rail (#16): both buckets are
   // titles the user queued but hasn't begun, so they share one section,

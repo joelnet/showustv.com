@@ -165,6 +165,7 @@ interface NotificationPrefs {
   followFavorite: boolean;
   newFollower: boolean;
   listCreated: boolean;
+  reaction: boolean;
   pushPublicKey: string | null;
 }
 
@@ -187,6 +188,7 @@ function NotificationSettings({ prefs, reload }: { prefs: NotificationPrefs; rel
     followFavorite?: boolean;
     newFollower?: boolean;
     listCreated?: boolean;
+    reaction?: boolean;
   }) => {
     setBusy(true);
     setErr(null);
@@ -216,6 +218,21 @@ function NotificationSettings({ prefs, reload }: { prefs: NotificationPrefs; rel
           Someone followed you
           <span className="settings-hint">
             Get a notification when another user follows you, with a chance to follow back.
+          </span>
+        </span>
+      </label>
+
+      <label className="settings-toggle">
+        <input
+          type="checkbox"
+          checked={prefs.reaction}
+          disabled={busy}
+          onChange={() => togglePref({ reaction: !prefs.reaction })}
+        />
+        <span>
+          Someone reacted to your activity
+          <span className="settings-hint">
+            Get a notification when a follower reacts to something you watched.
           </span>
         </span>
       </label>

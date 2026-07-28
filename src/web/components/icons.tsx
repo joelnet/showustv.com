@@ -40,6 +40,7 @@ import {
   Pencil,
   Handshake,
   HatGlasses,
+  ThumbsUp,
   type LucideIcon,
 } from "lucide-react";
 
@@ -98,6 +99,9 @@ export const IconHandshake = make(Handshake);
 // Per-show hide toggle — the "incognito" hat-and-glasses
 // glyph, matching the privacy affordance's disguise metaphor.
 export const IconHatGlasses = make(HatGlasses);
+// Reaction trigger on "From People You Follow" tiles (#20) — the resting
+// state before the viewer picks a reaction (then the emoji takes over).
+export const IconThumbsUp = make(ThumbsUp);
 
 // Brand glyphs — Lucide is a UI-icon set, not a logo set, so these stay
 // hand-inlined SVG. `currentColor` lets links style them like text.

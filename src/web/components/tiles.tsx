@@ -10,6 +10,7 @@ import { post } from "../api";
 import { poster, backdrop, still } from "../img";
 import { epCode, fmtMonthDay } from "../format";
 import { CheckButton } from "./ui";
+import { ReactionButton } from "./reactions";
 import { useCelebrate } from "./celebration";
 import { mediaPath } from "../paths";
 
@@ -36,14 +37,20 @@ export interface TileItem {
   // there it's what the mark-watched button marks.
   episodeId?: number | null;
   airDate?: string | null; // Upcoming tiles: the episode's air date, 'YYYY-MM-DD'
+  // Friends tiles (#20): total reactions on this activity, and the viewer's
+  // own ('like' | 'love' | … from shared/reactions.ts, null when none).
+  reactionCount?: number;
+  myReaction?: string | null;
 }
 
 // The thumbnail and titles link to the show/movie; watch actions happen there.
 // Landscape thumbnail, bold title, and one muted "S02·E05 - Episode
 // title" line — the episode code uses the shared epCode slate format; the
 // " - " separator stays the tile convention. Friend-watched
-// tiles add a "Watched by <user>" line whose username links to that person's
-// profile — a separate sibling link, since anchors can't nest —
+// tiles add an attribution line whose username links to that person's
+// profile — a separate sibling link, since anchors can't nest — with no
+// "Watched by" label (#20 dropped it to make room for the reaction control
+// beside it; the link alone reads as attribution) —
 // and their media link goes to the exact episode the followee watched, so
 // tracking their progress is one tap; the queue
 // sections' tiles carry an episodeId too now but keep linking
@@ -51,6 +58,9 @@ export interface TileItem {
 // fields degrade to the plain show link. Upcoming tiles carry an airDate and
 // wear it as a "Jan 17"-style pill on the thumb, in the corner
 // the count pill uses elsewhere — the two never appear on the same tile.
+// Friends tiles also carry the thumbs-up reaction control (#20), pinned to
+// the tile's bottom-right exactly like the check below — a Link sibling,
+// absolutely positioned, with the attribution line reserving right padding.
 //
 // `markable` tiles (the queue sections) get the app's check
 // button on the right edge of the tile body, marking exactly the next-up
@@ -159,12 +169,12 @@ export function Tile({ item, markable, onWatched, posterArt }: { item: TileItem;
       )}
       {item.username && (
         <span className="wn-tile-ep wn-tile-user">
-          Watched by{" "}
           <Link to={`/u/${item.username}`} draggable={false}>
             {item.username}
           </Link>
         </span>
       )}
+      {item.username && <ReactionButton item={item} />}
     </div>
   );
 }

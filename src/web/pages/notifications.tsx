@@ -12,6 +12,7 @@ import { poster } from "../img";
 import { fmtAgo, fmtDateTime, epCode } from "../format";
 import { Empty, ErrorNote } from "../components/ui";
 import { IconPlus } from "../components/icons";
+import { REACTION_EMOJI, type ReactionType } from "../../shared/reactions";
 import { PushToggle } from "../components/push-toggle";
 import { mediaPath, publicListPath } from "../paths";
 import { RowListSkeleton } from "../components/skeleton";
@@ -33,6 +34,9 @@ interface NotificationItem {
   // Follow rows only: whether I follow the actor right now,
   // computed by the server at read time. Null for every other type.
   youFollowActor: boolean | null;
+  // Reaction rows only (#20): the reactor's CURRENT reaction, resolved live
+  // at read time — null once they cleared it (and for every other type).
+  reaction: string | null;
   read: boolean;
   createdAt: string;
 }
@@ -84,6 +88,18 @@ function NotificationBody({ n }: { n: NotificationItem }) {
 
   if (n.type === "follow_favorite") {
     return <>favorited {targetLink}</>;
+  }
+
+  // Reaction rows (#20): "reacted 👍 to your activity on Dexter". The emoji
+  // is the reactor's current reaction (live at read time) — gone once they
+  // cleared it, so the row degrades to plain "reacted".
+  if (n.type === "reaction") {
+    const emoji = n.reaction ? REACTION_EMOJI[n.reaction as ReactionType] : null;
+    return (
+      <>
+        reacted{emoji ? ` ${emoji}` : ""} to your activity on {targetLink}
+      </>
+    );
   }
 
   if (n.type === "follow_comment" || n.type === "tracked_comment") {
@@ -221,7 +237,7 @@ export function NotificationsPage() {
       {!items.length ? (
         <Empty
           title="No notifications yet"
-          hint="When someone follows you, comments on a show or movie you track, or someone you follow watches, favorites, comments, or creates a list, you'll hear about it here."
+          hint="When someone follows you, reacts to your activity, comments on a show or movie you track, or someone you follow watches, favorites, comments, or creates a list, you'll hear about it here."
         />
       ) : (
         <>
