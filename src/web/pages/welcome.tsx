@@ -6,7 +6,7 @@
 // detects. Both fields are valid as prefilled, so "Finish Signup" is a
 // single frictionless click that drops them into Search to add their first
 // shows. Same card styling as the login / create-account box.
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { post } from "../api";
 import { useAuth } from "../app";
@@ -23,11 +23,16 @@ export function WelcomePage() {
   const [tz, setTz] = useState(detected || user?.tz || "UTC");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Set the moment onboarding succeeds, before setUser lands. Router
+  // navigations are React transitions, so the setUser re-render commits
+  // first — without this flag the guard below would see onboarded=true and
+  // its Navigate-to-/ would beat submit's navigate-to-/search.
+  const finishing = useRef(false);
 
   if (!user) return <Navigate to="/login" replace />;
   // Already set up (returning user typing the URL, or a mid-signup reload
   // that raced /auth/me): straight into the app, never back through here.
-  if (user.onboarded !== false) return <Navigate to="/" replace />;
+  if (user.onboarded !== false && !finishing.current) return <Navigate to="/" replace />;
 
   // Same timezone control as Settings. The detected zone must always be an
   // option, even on the rare runtime without supportedValuesOf.
@@ -40,10 +45,12 @@ export function WelcomePage() {
     setBusy(true);
     try {
       const d = await post("/auth/onboarding", { username: username.trim(), tz });
+      finishing.current = true;
       setUser({ ...user!, username: d.username, tz: d.tz, onboarded: true });
       // A fresh account has nothing to watch yet, so land on Search — the
-      // first job is finding some shows and movies to add.
-      navigate("/search", { replace: true });
+      // first job is finding some shows and movies to add. The state tags
+      // this arrival so Search opens the first-show popup as the greeting.
+      navigate("/search", { replace: true, state: { firstShow: true } });
     } catch (err: any) {
       // Inline server errors: the username-taken race (409) or a shape the
       // input attributes didn't catch. The prefilled defaults never hit this.

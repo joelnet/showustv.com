@@ -2,6 +2,7 @@ import { startTransition, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { post, put } from "../api";
 import { useApi } from "../hooks";
+import { resetFirstShowNudges } from "../first-show";
 import { clearQueue } from "../offline";
 import { useAuth } from "../app";
 import { ErrorNote } from "../components/ui";
@@ -429,6 +430,9 @@ export function SettingsPage() {
           // happen regardless — otherwise an offline sign-out leaves the cached
           // identity behind for the next person to restore on a refresh.
           await post("/auth/logout").catch(() => {});
+          // Signing out ends the visit for the first-show nudge: the next
+          // sign-in (same account included) gets the popup offer again.
+          resetFirstShowNudges();
           // Clear the user AND route home in one transition. react-router's
           // <BrowserRouter> wraps location updates in React.startTransition, so
           // navigate("/") is a low-priority update while a bare setUser(null) is

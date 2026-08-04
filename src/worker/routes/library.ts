@@ -157,7 +157,7 @@ library.get("/home", async (c) => {
   // fan-out likewise hidden-filters shows only), so movies need no hidden
   // exclusion — just the same followee-visibility gate and follow window.
   const followSince = new Date(Date.now() - FOLLOWING_WINDOW_MS).toISOString();
-  const [histEp, histMov, friendsR, friendsMovR, wlMovR] = await c.env.DB.batch([
+  const [histEp, histMov, friendsR, friendsMovR, wlMovR, libR] = await c.env.DB.batch([
     c.env.DB.prepare(
       `SELECT e.show_id AS id, s.title AS show_title, s.poster_url, s.backdrop_url, e.still_url,
               e.season_number, e.number, e.title AS episode_title,
@@ -252,6 +252,15 @@ library.get("/home", async (c) => {
        FROM user_movies um JOIN movies m ON m.tmdb_id = um.movie_id
        WHERE um.user_id = ?1 AND um.state = 'watchlist'
        ORDER BY um.added_at DESC, um.movie_id DESC`
+    ).bind(uid),
+    // Whether anything is in the library at all — any show state, any movie
+    // state. An empty home isn't a reliable proxy (History and From People
+    // You Follow can fill it while the library holds nothing), so the flag
+    // is explicit: it sends the client's first-show nudge, which walks the
+    // user to Search and asks what they're watching.
+    c.env.DB.prepare(
+      `SELECT (EXISTS (SELECT 1 FROM user_shows WHERE user_id = ?1)
+            OR EXISTS (SELECT 1 FROM user_movies WHERE user_id = ?1)) AS has_library`
     ).bind(uid),
   ]);
   const history: any[] = [
@@ -367,7 +376,15 @@ library.get("/home", async (c) => {
   const addedKey = (t: any) => t.addedAt ?? "";
   notStarted.sort((a, b) => (addedKey(a) < addedKey(b) ? 1 : addedKey(a) > addedKey(b) ? -1 : 0));
 
-  return c.json({ continueWatching, upcoming, havenWatched, notStarted, history, friendsWatched });
+  return c.json({
+    continueWatching,
+    upcoming,
+    havenWatched,
+    notStarted,
+    history,
+    friendsWatched,
+    libraryEmpty: !(libR.results[0] as any)?.has_library,
+  });
 });
 
 // ---------- Library & watchlist ----------

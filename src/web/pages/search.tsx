@@ -1,7 +1,10 @@
-import { useSearchParams } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useAuth } from "../app";
+import { markFirstShowNudgeSeen } from "../first-show";
 import { useApi } from "../hooks";
 import { useOffline } from "../offline";
-import { PosterCard, Empty, ErrorNote } from "../components/ui";
+import { PosterCard, Empty, ErrorNote, SmpteBars } from "../components/ui";
 import { PosterGridSkeleton, TrendingSkeleton } from "../components/skeleton";
 import { IconSearch } from "../components/icons";
 import { mediaPath } from "../paths";
@@ -17,9 +20,30 @@ interface Result {
 export function SearchPage() {
   const [params, setParams] = useSearchParams();
   const { online } = useOffline();
+  const { user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   const q = params.get("q") ?? "";
   const search = useApi<{ results: Result[] }>(q ? `/search?q=${encodeURIComponent(q)}` : null);
   const trending = useApi<{ shows: Result[]; movies: Result[] }>(!q ? "/trending" : null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // The first-show popup. Both roads here set location.state.firstShow —
+  // welcome.tsx right after signup, watchnext.tsx when a returning user's
+  // library is still empty. The state is consumed on arrival with a same-URL
+  // replace so refresh and Back can't resurrect the popup, and the per-visit
+  // marker tells home not to bounce back here. Deep links with a query skip
+  // the whole thing — that user is already mid-search.
+  const arriving = (location.state ?? null) as { firstShow?: boolean; returning?: boolean } | null;
+  const [nudge, setNudge] = useState<{ returning: boolean } | null>(null);
+  const consumed = useRef(false);
+  useEffect(() => {
+    if (!arriving?.firstShow || consumed.current || q) return;
+    consumed.current = true;
+    markFirstShowNudgeSeen(user?.id);
+    setNudge({ returning: !!arriving.returning });
+    navigate(location.pathname + location.search, { replace: true, state: null });
+  }, []);
 
   // Search genuinely needs the network — a friendly note beats a broken error.
   const offlineNote = (
@@ -39,15 +63,29 @@ export function SearchPage() {
       >
         <IconSearch size={18} />
         <input
+          ref={inputRef}
           name="q"
           type="search"
           defaultValue={q}
           placeholder="Search shows & movies"
           aria-label="Search shows and movies"
-          autoFocus
+          // When the popup is about to open, keep the field from grabbing
+          // focus (and the mobile keyboard) for the tick before showModal
+          // hands it to the dialog. The popup's CTA focuses it on close.
+          autoFocus={!arriving?.firstShow}
         />
         <button className="btn" type="submit">Search</button>
       </form>
+
+      {nudge && (
+        <FirstShowNudge
+          returning={nudge.returning}
+          onDone={(findShow) => {
+            setNudge(null);
+            if (findShow) inputRef.current?.focus();
+          }}
+        />
+      )}
 
       {q ? (
         search.loading ? (
@@ -90,5 +128,46 @@ export function SearchPage() {
         online ? <ErrorNote message={trending.error} /> : offlineNote
       ) : null}
     </div>
+  );
+}
+
+// The first-show popup — the app's welcome mat. Native <dialog> on the same
+// mechanics as ConfirmProvider (showModal, Esc, backdrop click) with a custom
+// body: SMPTE strip, broadcast-voiced copy, one job. onDone(true) means the
+// user hit "Find my show" — the caller hands focus to the search input.
+function FirstShowNudge({ returning, onDone }: { returning: boolean; onDone: (findShow: boolean) => void }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const resultRef = useRef(false);
+
+  useEffect(() => {
+    if (!ref.current?.open) ref.current?.showModal();
+  }, []);
+
+  const requestClose = (findShow: boolean) => {
+    resultRef.current = findShow;
+    ref.current?.close();
+  };
+
+  return (
+    <dialog
+      ref={ref}
+      className="dialog first-show-nudge"
+      aria-labelledby="first-show-title"
+      onClose={() => onDone(resultRef.current)}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) requestClose(false); // backdrop
+      }}
+    >
+      <div className="dialog-body">
+        <SmpteBars />
+        <h2 id="first-show-title">{returning ? "Next, Add a TV Show!" : "And… we're live!"}</h2>
+        <p>Search for a TV show you're watching right now to get your lineup rolling.</p>
+        <div className="dialog-actions">
+          <button type="button" className="btn" autoFocus onClick={() => requestClose(true)}>
+            OK
+          </button>
+        </div>
+      </div>
+    </dialog>
   );
 }

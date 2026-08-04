@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { Link, Navigate, useParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../app";
+import { firstShowNudgeSeen } from "../first-show";
 import { useApi } from "../hooks";
 import { Empty, ErrorNote } from "../components/ui";
 import { IconEye, IconEyeSlash } from "../components/icons";
@@ -17,6 +18,10 @@ interface HomeData {
   notStarted: TileItem[];
   history: TileItem[];
   friendsWatched: TileItem[];
+  // True when the library holds nothing at all — no shows in any state, no
+  // movies. Sent explicitly because empty sections aren't a proxy: History
+  // and From People You Follow can fill a showless user's home.
+  libraryEmpty?: boolean;
 }
 
 type SectionKey = "continue" | "upcoming" | "haven" | "notstarted" | "history" | "friends";
@@ -26,7 +31,7 @@ type SectionKey = "continue" | "upcoming" | "haven" | "notstarted" | "history" |
 // those now. "From People You Follow" anchors the bottom: shows
 // your followees watched recently, each credited to the watcher and naming
 // the exact episode they reached.
-const SECTIONS: { key: SectionKey; label: string; field: keyof HomeData }[] = [
+const SECTIONS: { key: SectionKey; label: string; field: Exclude<keyof HomeData, "libraryEmpty"> }[] = [
   { key: "continue", label: "Continue Watching", field: "continueWatching" },
   { key: "upcoming", label: "Upcoming", field: "upcoming" },
   { key: "haven", label: "Haven't Watched in a While", field: "havenWatched" },
@@ -94,8 +99,19 @@ function saveHiddenSections(userId: number | undefined, hidden: Set<SectionKey>)
 // hidden section keeps its header and toggle so it can be restored.
 export function WatchNext() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { data, loading, error, reload } = useApi<HomeData>("/home");
   const [hidden, setHidden] = useState<Set<SectionKey>>(() => loadHiddenSections(user?.id));
+
+  // An account with nothing in its library gets walked to Search, where the
+  // first-show popup asks what they're watching — the same greeting a fresh
+  // signup gets from welcome.tsx. Once per visit (the seen marker keeps
+  // dismiss-the-popup → tap-Home from bouncing straight back), and replace,
+  // so Back never steps through an auto-redirecting home.
+  const sendToSearch = !!data?.libraryEmpty && !firstShowNudgeSeen(user?.id);
+  useEffect(() => {
+    if (sendToSearch) navigate("/search", { replace: true, state: { firstShow: true, returning: true } });
+  }, [sendToSearch]);
 
   // While online, warm the offline cache for the Continue Watching shows so
   // tapping one of these tiles still works in airplane mode.
@@ -106,6 +122,9 @@ export function WatchNext() {
   if (loading) return <HomeSkeleton />;
   if (error) return <ErrorNote message={error} />;
   if (!data) return null;
+  // Don't flash the home content (or its empty state) for the render tick
+  // before the redirect effect fires.
+  if (sendToSearch) return null;
 
   function toggleHidden(key: SectionKey) {
     const next = new Set(hidden);

@@ -557,6 +557,24 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 
 .btn-solid-danger { background: var(--red); border-color: var(--red); color: #2a0b07; }
 
+/* ---------- First-show nudge ----------
+   The Search popup that greets a fresh signup (or a returning user whose
+   library is still empty) and asks for the show they're watching. Same
+   .dialog chrome; the SMPTE strip and centered layout carry the broadcast
+   voice. Own entrance keyframe: update-toast-in's -50% translate belongs to
+   the toasts' fixed positioning and would knock a centered dialog sideways. */
+.first-show-nudge .dialog-body { text-align: center; padding-top: 18px; }
+.first-show-nudge .smpte { margin-bottom: 14px; }
+.first-show-nudge h2 { font-size: 22px; }
+.first-show-nudge p { margin-bottom: 20px; }
+.first-show-nudge .dialog-actions { justify-content: center; }
+.first-show-nudge[open] { animation: first-show-nudge-in 0.3s ease-out both; }
+
+@keyframes first-show-nudge-in {
+  0%   { opacity: 0; transform: translateY(10px) scale(0.98); }
+  100% { opacity: 1; transform: none; }
+}
+
 /* ---------- Spinner / empty ---------- */
 
 .spinner-wrap { display: flex; justify-content: center; padding: 60px 0; }
