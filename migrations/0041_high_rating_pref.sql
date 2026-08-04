@@ -1,0 +1,16 @@
+-- Rating a show or movie 9 or 10 notifies your followers — a high rating
+-- is the strongest "you should watch this" signal the site has, stronger
+-- than a favorite. The notification reuses the 0020 shape — type
+-- 'follow_rating', target_type/target_id point at the rated show or movie,
+-- episode_id stays NULL — so no new notification columns. The score itself
+-- is NOT stored on the row: the read side joins the actor's ratings row
+-- live (same philosophy as the reaction join, #20), so a later re-rate
+-- shows through and a cleared score degrades the row to plain "rated".
+--
+-- Per-user toggle for the new type, on the global prefs row (show_id = 0
+-- sentinel, same as follow_watch/follow_comment/tracked_comment). Default
+-- on, matching every other notification pref.
+--
+-- No new index: the fan-out is follower-first over idx_follows_followee
+-- (followee_id, state), exactly like the follow_favorite fan-out.
+ALTER TABLE notification_prefs ADD COLUMN follow_rating INTEGER NOT NULL DEFAULT 1 CHECK (follow_rating IN (0,1));

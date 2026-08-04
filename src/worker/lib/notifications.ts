@@ -8,7 +8,8 @@
 // best-effort push, so a deduped repeat never re-buzzes a phone.
 //
 // On top of the recipient's global notification_prefs toggles, every fan-out
-// that keys on the FOLLOWS edge (watch, follow-comment, favorite, list) is
+// that keys on the FOLLOWS edge (watch, follow-comment, favorite, rating,
+// list) is
 // gated per recipient by that follow's notify_level (#18, YouTube-style,
 // picked by the follower on the followee's profile):
 //   none — that recipient is skipped entirely,
@@ -412,6 +413,100 @@ export async function notifyFollowersOfFavorite(
     body: title,
     url: `/${targetType}/${targetId}`,
     tag: `ffav-${actorId}-${targetType.charAt(0)}-${targetId}`,
+  }, "low");
+}
+
+// A 9 or 10 is "loved it" territory — the threshold where a rating stops
+// being bookkeeping and becomes a recommendation worth telling followers
+// about. Lower scores stay in the activity feed only.
+export const HIGH_RATING_MIN = 9;
+
+// Same fan-out cap as favorites (lowest follower ids win, deterministically).
+// The push cap above still applies on top.
+const MAX_RATING_FANOUT = 500;
+
+// High-rating fan-out. When a user rates a show or movie 9 or 10,
+// their followers hear about it — "X rated Y 9/10" — linking to the title
+// page. The ratings route only calls this on the transition INTO the 9+
+// zone (re-saving a 9, or bumping a 9 to a 10, is not a new recommendation),
+// and the 24h dedupe below absorbs clear/re-rate flapping on top of that.
+// The row stores no score: the read side joins the actor's ratings row live
+// (like the reaction join), so a re-rate shows through and a cleared score
+// degrades the row to plain "rated". Episode ratings never reach here —
+// followers track titles, not episodes.
+export async function notifyFollowersOfHighRating(
+  env: Env,
+  actorId: number,
+  targetType: "show" | "movie",
+  targetId: number,
+  score: number
+): Promise<void> {
+  const since = new Date(Date.now() - DEDUPE_WINDOW_MS).toISOString();
+
+  // One statement, mirroring the favorite fan-out: active followers only
+  // (self can't appear — follows CHECKs follower != followee), deleted
+  // recipients skipped, follow_rating pref gated (default on when no prefs
+  // row), and deduped per (recipient, actor, target) over 24 hours. The `au`
+  // join drops the whole fan-out when the rater is deleted or shadow-banned —
+  // their profile reads as gone to everyone else, so a notification would
+  // advertise (and link) an account nobody can see.
+  const { results: created } = await env.DB.prepare(
+    `INSERT INTO notifications (user_id, type, actor_id, target_type, target_id)
+     SELECT f.follower_id, 'follow_rating', ?1, ?2, ?3
+     FROM follows f
+     JOIN users au ON au.id = f.followee_id AND au.deleted_at IS NULL AND au.shadow_banned = 0
+     JOIN users ru ON ru.id = f.follower_id AND ru.deleted_at IS NULL
+     WHERE f.followee_id = ?1 AND f.state = 'active'
+       -- A show the ACTOR hid never fans out — the notification
+       -- would broadcast exactly what hiding conceals.
+       AND (?2 != 'show' OR NOT EXISTS (SELECT 1 FROM user_shows ah
+                                        WHERE ah.user_id = ?1 AND ah.show_id = ?3 AND ah.hidden = 1))
+       -- Ratings are watch-adjacent activity (the feed serves them under the
+       -- same rule as watches), so the notification obeys the same visibility
+       -- gate as the watch and favorite fan-outs: the actor's profile is
+       -- public or mutual with the recipient.
+       AND (au.profile_public = 1 OR EXISTS (
+             SELECT 1 FROM follows r
+             WHERE r.follower_id = f.followee_id AND r.followee_id = f.follower_id AND r.state = 'active'))
+       AND COALESCE((SELECT np.follow_rating FROM notification_prefs np
+                     WHERE np.user_id = f.follower_id AND np.show_id = 0), 1) = 1
+       -- Per-follow level (#18): 'none' skipped, 'all' bypasses the 24h
+       -- dedupe (the LIMIT cap below still bounds one invocation), 'some'
+       -- keeps the historical dedupe.
+       AND f.notify_level != 'none'
+       AND (f.notify_level = 'all'
+            OR NOT EXISTS (SELECT 1 FROM notifications n
+                           WHERE n.user_id = f.follower_id AND n.type = 'follow_rating'
+                             AND n.actor_id = ?1 AND n.target_type = ?2 AND n.target_id = ?3
+                             AND n.created_at >= ?4))
+     ORDER BY f.follower_id
+     LIMIT ?5
+     RETURNING user_id`
+  )
+    .bind(actorId, targetType, targetId, since, MAX_RATING_FANOUT)
+    .all<{ user_id: number }>();
+  if (!created.length || !vapidConfigured(env)) return;
+
+  // Push copy, resolved here so the ratings route's hook stays one line.
+  // Same shape as the favorite push: short title (`<user> rated`), the
+  // show/movie + score in the body, deep link to the title page. The score
+  // is baked into the push (it can't resolve live like the in-app row) —
+  // it's the score at the moment the recommendation happened.
+  const [actorR, titleR] = await env.DB.batch([
+    env.DB.prepare("SELECT username FROM users WHERE id = ?1 AND deleted_at IS NULL").bind(actorId),
+    targetType === "show"
+      ? env.DB.prepare("SELECT title FROM shows WHERE tmdb_id = ?1").bind(targetId)
+      : env.DB.prepare("SELECT title FROM movies WHERE tmdb_id = ?1").bind(targetId),
+  ]);
+  const actor = (actorR.results[0] as { username: string } | undefined)?.username;
+  const title = (titleR.results[0] as { title: string } | undefined)?.title;
+  if (!actor || !title) return;
+
+  await pushToRecipients(env, created.map((r) => r.user_id), {
+    title: `${actor} rated`,
+    body: `${title} · ${score}/10`,
+    url: `/${targetType}/${targetId}`,
+    tag: `frate-${actorId}-${targetType.charAt(0)}-${targetId}`,
   }, "low");
 }
 

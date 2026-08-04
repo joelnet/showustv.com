@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../env";
 import { EMOJI_REACTIONS } from "../../shared/constants";
+import { HIGH_RATING_MIN, notifyFollowersOfHighRating } from "../lib/notifications";
 
 export const ratings = new Hono<AppEnv>();
 
@@ -20,6 +21,22 @@ ratings.put("/", async (c) => {
   if (emoji != null && !(EMOJI_REACTIONS as readonly string[]).includes(emoji))
     return c.json({ error: "unknown reaction" }, 400);
   if (score == null && emoji == null) return c.json({ error: "nothing to save" }, 400);
+  const uid = c.get("uid");
+
+  // A 9 or 10 on a show/movie notifies followers — but only on the
+  // transition INTO the 9+ zone (the stored score was absent or lower), so
+  // re-saving a 9 or bumping a 9 to a 10 never re-notifies. Read the old
+  // score BEFORE the upsert overwrites it; episode ratings never fan out
+  // (followers track titles, not episodes).
+  let becameHighRating = false;
+  if (score != null && score >= HIGH_RATING_MIN && (targetType === "show" || targetType === "movie")) {
+    const prev = await c.env.DB.prepare(
+      "SELECT score FROM ratings WHERE user_id = ?1 AND target_type = ?2 AND target_id = ?3"
+    )
+      .bind(uid, targetType, targetId)
+      .first<{ score: number | null }>();
+    becameHighRating = prev?.score == null || prev.score < HIGH_RATING_MIN;
+  }
 
   // Partial upsert: only the provided field changes, the other survives.
   await c.env.DB.prepare(
@@ -28,8 +45,19 @@ ratings.put("/", async (c) => {
        score = COALESCE(excluded.score, ratings.score),
        emoji_reaction = COALESCE(excluded.emoji_reaction, ratings.emoji_reaction)`
   )
-    .bind(c.get("uid"), targetType, targetId, score, emoji)
+    .bind(uid, targetType, targetId, score, emoji)
     .run();
+
+  // Notify followers off the response path — the same hook shape as the
+  // favorite routes. The fan-out itself dedupes per actor/title per day, so
+  // a clear/re-rate flap stays one notification.
+  if (becameHighRating) {
+    c.executionCtx.waitUntil(
+      notifyFollowersOfHighRating(c.env, uid, targetType as "show" | "movie", targetId, score!).catch((e) =>
+        console.error("notify failed", e)
+      )
+    );
+  }
   return c.json({ ok: true });
 });
 

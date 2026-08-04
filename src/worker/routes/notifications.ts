@@ -48,7 +48,8 @@ notifications.get("/", async (c) => {
               EXISTS (SELECT 1 FROM follows fb
                       WHERE fb.follower_id = n.user_id AND fb.followee_id = n.actor_id AND fb.state = 'active')
             END AS you_follow_actor,
-            ar.reaction
+            ar.reaction,
+            rt.score AS rating_score
      FROM notifications n
      LEFT JOIN users u ON u.id = n.actor_id AND u.deleted_at IS NULL
      LEFT JOIN shows s ON n.target_type = 'show' AND s.tmdb_id = n.target_id
@@ -60,6 +61,11 @@ notifications.get("/", async (c) => {
      -- clear it and they degrade to plain "reacted" (#20). Full-PK probe.
      LEFT JOIN activity_reactions ar ON n.type = 'reaction' AND ar.owner_id = n.user_id
        AND ar.target_type = n.target_type AND ar.target_id = n.target_id AND ar.reactor_id = n.actor_id
+     -- High-rating rows resolve the actor's CURRENT score the same way —
+     -- re-rate and old rows follow; clear it and they degrade to plain
+     -- "rated". Full-PK probe on ratings.
+     LEFT JOIN ratings rt ON n.type = 'follow_rating' AND rt.user_id = n.actor_id
+       AND rt.target_type = n.target_type AND rt.target_id = n.target_id
      WHERE n.user_id = ?1 AND (?2 IS NULL OR n.id < ?2)
      ORDER BY n.id DESC
      LIMIT ?3`
@@ -81,6 +87,7 @@ notifications.get("/", async (c) => {
       ep_title: string | null;
       you_follow_actor: number | null;
       reaction: string | null;
+      rating_score: number | null;
     }>();
 
   const items = results.map((r) => ({
@@ -105,6 +112,9 @@ notifications.get("/", async (c) => {
     // Reaction rows only: the reactor's current reaction, null once cleared
     // (and for every other type).
     reaction: r.reaction,
+    // High-rating rows only: the actor's current score, null once cleared
+    // (and for every other type).
+    ratingScore: r.rating_score,
     read: !!r.read_at,
     createdAt: r.created_at,
   }));
@@ -148,7 +158,7 @@ notifications.post("/read-all", async (c) => {
 // accordingly.
 notifications.get("/prefs", async (c) => {
   const row = await c.env.DB.prepare(
-    "SELECT follow_watch, follow_comment, tracked_comment, follow_favorite, new_follower, list_created, reaction FROM notification_prefs WHERE user_id = ?1 AND show_id = 0"
+    "SELECT follow_watch, follow_comment, tracked_comment, follow_favorite, follow_rating, new_follower, list_created, reaction FROM notification_prefs WHERE user_id = ?1 AND show_id = 0"
   )
     .bind(c.get("uid"))
     .first<{
@@ -156,6 +166,7 @@ notifications.get("/prefs", async (c) => {
       follow_comment: number;
       tracked_comment: number;
       follow_favorite: number;
+      follow_rating: number;
       new_follower: number;
       list_created: number;
       reaction: number;
@@ -166,6 +177,7 @@ notifications.get("/prefs", async (c) => {
     followComment: row ? !!row.follow_comment : true,
     trackedComment: row ? !!row.tracked_comment : true,
     followFavorite: row ? !!row.follow_favorite : true,
+    followRating: row ? !!row.follow_rating : true,
     newFollower: row ? !!row.new_follower : true,
     listCreated: row ? !!row.list_created : true,
     reaction: row ? !!row.reaction : true,
@@ -182,6 +194,7 @@ notifications.put("/prefs", async (c) => {
   const followComment = typeof body.followComment === "boolean" ? (body.followComment ? 1 : 0) : null;
   const trackedComment = typeof body.trackedComment === "boolean" ? (body.trackedComment ? 1 : 0) : null;
   const followFavorite = typeof body.followFavorite === "boolean" ? (body.followFavorite ? 1 : 0) : null;
+  const followRating = typeof body.followRating === "boolean" ? (body.followRating ? 1 : 0) : null;
   const newFollower = typeof body.newFollower === "boolean" ? (body.newFollower ? 1 : 0) : null;
   const listCreated = typeof body.listCreated === "boolean" ? (body.listCreated ? 1 : 0) : null;
   const reaction = typeof body.reaction === "boolean" ? (body.reaction ? 1 : 0) : null;
@@ -190,24 +203,26 @@ notifications.put("/prefs", async (c) => {
     followComment == null &&
     trackedComment == null &&
     followFavorite == null &&
+    followRating == null &&
     newFollower == null &&
     listCreated == null &&
     reaction == null
   )
     return c.json({ error: "bad request" }, 400);
   await c.env.DB.prepare(
-    `INSERT INTO notification_prefs (user_id, show_id, follow_watch, follow_comment, tracked_comment, follow_favorite, new_follower, list_created, reaction)
-     VALUES (?1, 0, COALESCE(?2, 1), COALESCE(?3, 1), COALESCE(?4, 1), COALESCE(?5, 1), COALESCE(?6, 1), COALESCE(?7, 1), COALESCE(?8, 1))
+    `INSERT INTO notification_prefs (user_id, show_id, follow_watch, follow_comment, tracked_comment, follow_favorite, follow_rating, new_follower, list_created, reaction)
+     VALUES (?1, 0, COALESCE(?2, 1), COALESCE(?3, 1), COALESCE(?4, 1), COALESCE(?5, 1), COALESCE(?6, 1), COALESCE(?7, 1), COALESCE(?8, 1), COALESCE(?9, 1))
      ON CONFLICT (user_id, show_id) DO UPDATE SET
        follow_watch = COALESCE(?2, follow_watch),
        follow_comment = COALESCE(?3, follow_comment),
        tracked_comment = COALESCE(?4, tracked_comment),
        follow_favorite = COALESCE(?5, follow_favorite),
-       new_follower = COALESCE(?6, new_follower),
-       list_created = COALESCE(?7, list_created),
-       reaction = COALESCE(?8, reaction)`
+       follow_rating = COALESCE(?6, follow_rating),
+       new_follower = COALESCE(?7, new_follower),
+       list_created = COALESCE(?8, list_created),
+       reaction = COALESCE(?9, reaction)`
   )
-    .bind(c.get("uid"), followWatch, followComment, trackedComment, followFavorite, newFollower, listCreated, reaction)
+    .bind(c.get("uid"), followWatch, followComment, trackedComment, followFavorite, followRating, newFollower, listCreated, reaction)
     .run();
   return c.json({ ok: true });
 });

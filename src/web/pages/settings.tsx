@@ -164,6 +164,7 @@ interface NotificationPrefs {
   followComment: boolean;
   trackedComment: boolean;
   followFavorite: boolean;
+  followRating: boolean;
   newFollower: boolean;
   listCreated: boolean;
   reaction: boolean;
@@ -187,6 +188,7 @@ function NotificationSettings({ prefs, reload }: { prefs: NotificationPrefs; rel
     followComment?: boolean;
     trackedComment?: boolean;
     followFavorite?: boolean;
+    followRating?: boolean;
     newFollower?: boolean;
     listCreated?: boolean;
     reaction?: boolean;
@@ -261,6 +263,21 @@ function NotificationSettings({ prefs, reload }: { prefs: NotificationPrefs; rel
         <span>
           Someone you follow favorited a show
           <span className="settings-hint">Get a notification when people you follow favorite shows and movies.</span>
+        </span>
+      </label>
+
+      <label className="settings-toggle">
+        <input
+          type="checkbox"
+          checked={prefs.followRating}
+          disabled={busy}
+          onChange={() => togglePref({ followRating: !prefs.followRating })}
+        />
+        <span>
+          Someone you follow loved a show
+          <span className="settings-hint">
+            Get a notification when people you follow rate a show or movie 9 or 10.
+          </span>
         </span>
       </label>
 

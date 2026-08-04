@@ -37,6 +37,9 @@ interface NotificationItem {
   // Reaction rows only (#20): the reactor's CURRENT reaction, resolved live
   // at read time — null once they cleared it (and for every other type).
   reaction: string | null;
+  // High-rating rows only: the actor's CURRENT score, resolved live at read
+  // time — null once they cleared it (and for every other type).
+  ratingScore: number | null;
   read: boolean;
   createdAt: string;
 }
@@ -44,7 +47,7 @@ interface NotificationItem {
 // The verb-and-target phrase after the actor's name, branched per type:
 // 'follow_watch', 'follow_comment',
 // 'tracked_comment' (same phrase; only the reason you got it
-// differs) and 'follow_favorite'. The target links to its
+// differs), 'follow_favorite' and 'follow_rating'. The target links to its
 // show/movie page (with its title as the anchor), and an episode row names
 // the episode inline: "watched S02·E05 · Waiting of Dexter". An episode
 // comment links the episode itself — that page is where the thread lives.
@@ -88,6 +91,18 @@ function NotificationBody({ n }: { n: NotificationItem }) {
 
   if (n.type === "follow_favorite") {
     return <>favorited {targetLink}</>;
+  }
+
+  // High-rating rows: "rated Dexter 9/10". The score is the actor's current
+  // one (live at read time) — re-rate and the row follows; clear it and the
+  // row degrades to plain "rated".
+  if (n.type === "follow_rating") {
+    return (
+      <>
+        rated {targetLink}
+        {n.ratingScore != null ? ` ${n.ratingScore}/10` : ""}
+      </>
+    );
   }
 
   // Reaction rows (#20): "reacted 👍 to your activity on Dexter". The emoji
