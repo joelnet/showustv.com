@@ -326,30 +326,40 @@ library.get("/home", async (c) => {
 
   // Reaction state for the rail (#20): every tile carries its total reaction
   // count and the viewer's own reaction so the thumbs-up control renders
-  // without a per-tile fetch. One grouped query over the rail's watchers (30
-  // tiles max, so the IN list stays well under D1's bound-parameter cap);
-  // grouped rows for activities not on the rail simply miss the lookup below.
-  // ownerId is internal plumbing — the payload keeps exposing usernames only,
-  // so it's stripped in the map (the reaction endpoint takes the username).
+  // without a per-tile fetch. One grouped query, narrowed to the rail's
+  // watchers AND the exact episodes on it; grouped rows that slip through the
+  // cross-product (one owner's episode against another's) simply miss the
+  // lookup below. Both lists are capped by the 30-tile rail, so the two IN
+  // lists together stay well under D1's bound-parameter cap — and the episode
+  // filter is what keeps this from scanning a watcher's whole reaction
+  // history now that show reactions are per episode rather than one row per
+  // show (#24). That per-episode grouping is also what makes a tile which has
+  // advanced to the next episode come back unreacted and reactable again;
+  // movie rows carry the schema's 0 episode sentinel, which is what the movie
+  // tiles look up. ownerId is internal plumbing — the payload keeps exposing
+  // usernames only, so it's stripped in the map (the reaction endpoint takes
+  // the username).
   const reactions = new Map<string, { n: number; mine: string | null }>();
   if (friendsRows.length) {
     const owners = [...new Set<number>(friendsRows.map((t) => t.ownerId))];
-    const placeholders = owners.map((_, i) => `?${i + 2}`).join(",");
+    const episodes = [...new Set<number>(friendsRows.map((t) => t.episodeId ?? 0))];
+    const ownerPh = owners.map((_, i) => `?${i + 2}`).join(",");
+    const epPh = episodes.map((_, i) => `?${i + 2 + owners.length}`).join(",");
     const { results: reactR } = await c.env.DB.prepare(
-      `SELECT owner_id, target_type, target_id, COUNT(*) AS n,
+      `SELECT owner_id, target_type, target_id, episode_id, COUNT(*) AS n,
               MAX(CASE WHEN reactor_id = ?1 THEN reaction END) AS mine
        FROM activity_reactions
-       WHERE owner_id IN (${placeholders})
-       GROUP BY owner_id, target_type, target_id`
+       WHERE owner_id IN (${ownerPh}) AND episode_id IN (${epPh})
+       GROUP BY owner_id, target_type, target_id, episode_id`
     )
-      .bind(uid, ...owners)
+      .bind(uid, ...owners, ...episodes)
       .all();
     for (const r of reactR as any[]) {
-      reactions.set(`${r.owner_id}:${r.target_type}:${r.target_id}`, { n: r.n, mine: r.mine ?? null });
+      reactions.set(`${r.owner_id}:${r.target_type}:${r.target_id}:${r.episode_id}`, { n: r.n, mine: r.mine ?? null });
     }
   }
   const friendsWatched = friendsRows.map(({ ownerId, ...t }) => {
-    const r = reactions.get(`${ownerId}:${t.kind}:${t.id}`);
+    const r = reactions.get(`${ownerId}:${t.kind}:${t.id}:${t.episodeId ?? 0}`);
     return { ...t, reactionCount: r?.n ?? 0, myReaction: r?.mine ?? null };
   });
 

@@ -2,7 +2,9 @@
 // trigger pinned to the tile's bottom-right (the mark-watched check's overlay
 // pattern) that opens a small Facebook-familiar picker — one horizontal row
 // of 👍 ❤️ 😂 😮 😢 — just above it. Picking sets the viewer's one reaction
-// on that activity, picking the current one again clears it, and the tile's
+// on that activity — the exact episode the tile names, not the show as a
+// whole (#24), so the next episode the followee watches is reactable all over
+// again — picking the current one again clears it, and the tile's
 // total count rides beside the trigger. The popover reuses the profile bell
 // menu's mechanics (public-profile.tsx): outside pointerdown / Escape /
 // focus-out close it, arrow keys walk the options, and the current reaction
@@ -72,7 +74,9 @@ export function ReactionButton({ item }: { item: TileItem }) {
   };
 
   const pick = async (value: ReactionType) => {
-    if (busy || !item.username) return;
+    // A show tile with no episode id has nothing to hang the reaction on (#24)
+    // and the endpoint would reject it — don't spend the round trip.
+    if (busy || !item.username || (item.kind === "show" && !item.episodeId)) return;
     const next = value === mine ? null : value; // re-picking the current one clears it
     const prev = { mine, count };
     setOpen(false);
@@ -85,6 +89,10 @@ export function ReactionButton({ item }: { item: TileItem }) {
         username: item.username,
         targetType: item.kind,
         targetId: item.id,
+        // The exact episode the tile names (#24) — the reaction belongs to
+        // that watch, so the tile advancing to the next episode offers a
+        // fresh one. Movie tiles carry no episode and send none.
+        episodeId: item.episodeId ?? null,
         reaction: next,
       });
       setOverride({ mine: (d?.reaction as ReactionType | null) ?? null, count: Number(d?.count ?? 0) });

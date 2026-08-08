@@ -37,7 +37,8 @@ export interface TileItem {
   // there it's what the mark-watched button marks.
   episodeId?: number | null;
   airDate?: string | null; // Upcoming tiles: the episode's air date, 'YYYY-MM-DD'
-  // Friends tiles (#20): total reactions on this activity, and the viewer's
+  // Friends tiles (#20): total reactions on this activity — the episode above
+  // for a show, the movie itself otherwise (#24) — and the viewer's
   // own ('like' | 'love' | … from shared/reactions.ts, null when none).
   reactionCount?: number;
   myReaction?: string | null;

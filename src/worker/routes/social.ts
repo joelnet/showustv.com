@@ -491,13 +491,22 @@ social.get("/also-watching/:id", async (c) => {
 
 // ---------- Reactions on followed activity ----------
 
+// Activity older than the window falls off: it keeps every branch of the
+// feed's UNION bounded regardless of how much history a followee has, and it
+// is the same horizon the "From People You Follow" rail uses (routes/library
+// .ts) — so it also bounds what a reaction may be aimed at.
+const FEED_WINDOW_MS = 30 * 24 * 3600 * 1000;
+const feedSince = () => new Date(Date.now() - FEED_WINDOW_MS).toISOString();
+
 // One reaction (the Facebook-familiar set, shared/reactions.ts) per viewer
 // per activity (#20), where an activity is keyed the way the "From People You
-// Follow" rail keys its tiles: the watcher plus the show/movie watched. Set
-// or change with a reaction value, clear with null — the comment-vote
-// pattern. The rail's payload (/home) carries each tile's count and the
-// viewer's own reaction; this returns the authoritative state so the
-// client's optimistic update self-corrects.
+// Follow" rail keys its tiles: the watcher plus the exact episode watched
+// (#24 — the show alone meant one reaction ever, however many episodes the
+// followee went on to watch), or the movie watched. Set or change with a
+// reaction value, clear with null — the comment-vote pattern. The rail's
+// payload (/home) carries each tile's count and the viewer's own reaction;
+// this returns the authoritative state so the client's optimistic update
+// self-corrects.
 social.put("/reaction", async (c) => {
   const uid = c.get("uid");
   const body = await c.req.json().catch(() => ({}));
@@ -508,17 +517,57 @@ social.put("/reaction", async (c) => {
   if (targetType !== "show" && targetType !== "movie") return c.json({ error: "bad target" }, 400);
   const targetId = Number(body.targetId);
   if (!Number.isInteger(targetId) || targetId <= 0) return c.json({ error: "bad target" }, 400);
+  // Show reactions are per episode (#24): the tile names the exact episode the
+  // followee watched, so that's what the thumbs-up hangs on and the next
+  // episode is reactable all over again. Movies have no episode and carry the
+  // schema's 0 sentinel.
+  //
+  // A bundle cached by the service worker from before #24 sends no episodeId
+  // at all, and those users can sit on it until they take the update toast —
+  // so an ABSENT episode falls back to the tile the rail would be showing
+  // them (the owner's latest in-window watch of the show), which is exactly
+  // what "react to this tile" meant on the old client. An episode that is
+  // present but garbage is still a 400; the fallback is a compatibility path,
+  // not a way to skip the field. Safe to delete once old bundles have aged
+  // out.
+  let episodeId = 0;
+  if (targetType === "show") {
+    if (body.episodeId == null) {
+      const latest = await c.env.DB.prepare(
+        `SELECT e.id FROM user_episodes ue JOIN episodes e ON e.id = ue.episode_id
+         WHERE ue.user_id = ?1 AND e.show_id = ?2 AND e.season_number > 0
+           AND (ue.watched_at >= ?3 OR ue.last_rewatched_at >= ?3)
+         ORDER BY (CASE WHEN ue.last_rewatched_at > ue.watched_at
+                        THEN ue.last_rewatched_at ELSE ue.watched_at END) DESC,
+                  e.season_number DESC, e.number DESC
+         LIMIT 1`
+      )
+        .bind(target.id, targetId, feedSince())
+        .first<{ id: number }>();
+      // No in-window watch to hang it on: leave the 0 sentinel and let the
+      // visibility gate below answer the usual "not found".
+      episodeId = latest?.id ?? 0;
+    } else {
+      episodeId = Number(body.episodeId);
+      if (!Number.isInteger(episodeId) || episodeId <= 0) return c.json({ error: "bad episode" }, 400);
+    }
+  }
   const reaction = body.reaction == null ? null : String(body.reaction);
   if (reaction != null && !(REACTION_TYPES as readonly string[]).includes(reaction))
     return c.json({ error: "unknown reaction" }, 400);
 
-  // React only to activity the viewer could see on the rail: they follow the
-  // watcher under the feed's visibility rule (profile public or mutual), and
-  // the watcher actually watched the title — a hidden show counting as no
-  // activity at all, exactly like the rail. One probe, two EXISTS columns;
-  // both failures read the same "not found" so the endpoint can't be used to
-  // test what someone watched.
-  const gate = await c.env.DB.prepare(
+  // React only to activity the viewer could actually see on the rail: they
+  // follow the watcher under the feed's visibility rule (profile public or
+  // mutual), and the rail could have shown them this exact activity — for a
+  // show that means the watcher watched THAT episode (#24), it isn't a special
+  // (the rail filters season 0 out), the watch is inside the feed window, and
+  // the show isn't hidden, which counts as no activity at all. Matching the
+  // rail's own predicate matters more now that reactions — and so the
+  // reaction notification's dedupe — are per episode: without it a follower
+  // could walk a show's episode ids and mint a notification per historical
+  // watch. One probe, two EXISTS columns; both failures read the same "not
+  // found" so the endpoint can't be used to test what someone watched.
+  const gate = c.env.DB.prepare(
     `SELECT
        EXISTS (SELECT 1 FROM follows f
                JOIN users fu ON fu.id = f.followee_id
@@ -529,22 +578,30 @@ social.put("/reaction", async (c) => {
        ${
          targetType === "show"
            ? `(EXISTS (SELECT 1 FROM user_episodes ue JOIN episodes e ON e.id = ue.episode_id
-                       WHERE ue.user_id = ?2 AND e.show_id = ?3)
+                       WHERE ue.user_id = ?2 AND ue.episode_id = ?4 AND e.show_id = ?3
+                         AND e.season_number > 0
+                         AND (ue.watched_at >= ?5 OR ue.last_rewatched_at >= ?5))
                AND NOT EXISTS (SELECT 1 FROM user_shows h
                                WHERE h.user_id = ?2 AND h.show_id = ?3 AND h.hidden = 1))`
            : `EXISTS (SELECT 1 FROM user_movies um
                       WHERE um.user_id = ?2 AND um.movie_id = ?3 AND um.state = 'watched')`
        } AS hasActivity`
-  )
-    .bind(uid, target.id, targetId)
-    .first<{ canSee: number; hasActivity: number }>();
-  if (!gate?.canSee || !gate.hasActivity) return c.json({ error: "not found" }, 404);
+  );
+  // The movie branch never mentions ?4/?5, and D1 counts bound values against
+  // the placeholders the statement actually uses — so the episode and the
+  // window only go on the wire for shows.
+  const gated = await (targetType === "show"
+    ? gate.bind(uid, target.id, targetId, episodeId, feedSince())
+    : gate.bind(uid, target.id, targetId)
+  ).first<{ canSee: number; hasActivity: number }>();
+  if (!gated?.canSee || !gated.hasActivity) return c.json({ error: "not found" }, 404);
 
   if (reaction == null) {
     await c.env.DB.prepare(
-      "DELETE FROM activity_reactions WHERE owner_id = ?1 AND target_type = ?2 AND target_id = ?3 AND reactor_id = ?4"
+      `DELETE FROM activity_reactions
+       WHERE owner_id = ?1 AND target_type = ?2 AND target_id = ?3 AND episode_id = ?4 AND reactor_id = ?5`
     )
-      .bind(target.id, targetType, targetId, uid)
+      .bind(target.id, targetType, targetId, episodeId, uid)
       .run();
   } else {
     // The WHERE on the upsert makes re-picking the current reaction a genuine
@@ -552,11 +609,12 @@ social.put("/reaction", async (c) => {
     // so meta.changes below detects real transitions only, the same way the
     // follow route's ON CONFLICT DO NOTHING does.
     const { meta } = await c.env.DB.prepare(
-      `INSERT INTO activity_reactions (owner_id, target_type, target_id, reactor_id, reaction) VALUES (?1, ?2, ?3, ?4, ?5)
-       ON CONFLICT (owner_id, target_type, target_id, reactor_id) DO UPDATE SET reaction = excluded.reaction
+      `INSERT INTO activity_reactions (owner_id, target_type, target_id, episode_id, reactor_id, reaction)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+       ON CONFLICT (owner_id, target_type, target_id, episode_id, reactor_id) DO UPDATE SET reaction = excluded.reaction
        WHERE reaction != excluded.reaction`
     )
-      .bind(target.id, targetType, targetId, uid, reaction)
+      .bind(target.id, targetType, targetId, episodeId, uid, reaction)
       .run();
     // Notify the activity's owner, off the response path — the follow route's
     // hook shape. Fires on add AND change (the notifier's 24h dedupe coalesces
@@ -564,9 +622,15 @@ social.put("/reaction", async (c) => {
     // idempotent re-pick meta.changes filtered out above.
     if (meta.changes) {
       c.executionCtx.waitUntil(
-        notifyUserOfReaction(c.env, uid, target.id, targetType, targetId, reaction as ReactionType).catch((e) =>
-          console.error("notify failed", e)
-        )
+        notifyUserOfReaction(
+          c.env,
+          uid,
+          target.id,
+          targetType,
+          targetId,
+          targetType === "show" ? episodeId : null,
+          reaction as ReactionType
+        ).catch((e) => console.error("notify failed", e))
       );
     }
   }
@@ -574,16 +638,14 @@ social.put("/reaction", async (c) => {
   // Authoritative count (the vote endpoint's pattern) so the client's
   // optimistic math self-corrects when others reacted meanwhile.
   const count = await c.env.DB.prepare(
-    "SELECT COUNT(*) AS n FROM activity_reactions WHERE owner_id = ?1 AND target_type = ?2 AND target_id = ?3"
+    `SELECT COUNT(*) AS n FROM activity_reactions
+     WHERE owner_id = ?1 AND target_type = ?2 AND target_id = ?3 AND episode_id = ?4`
   )
-    .bind(target.id, targetType, targetId)
+    .bind(target.id, targetType, targetId, episodeId)
     .first<{ n: number }>();
   return c.json({ reaction, count: count?.n ?? 0 });
 });
 
-// Feed entries older than the window fall off; keeps every branch of the
-// UNION bounded regardless of how much history a followee has.
-const FEED_WINDOW_MS = 30 * 24 * 3600 * 1000;
 const FEED_LIMIT_DEFAULT = 20;
 const FEED_LIMIT_MAX = 50;
 
@@ -603,7 +665,7 @@ const FEED_LIMIT_MAX = 50;
 // key, not a displayed date.
 social.get("/activity", async (c) => {
   const uid = c.get("uid");
-  const since = new Date(Date.now() - FEED_WINDOW_MS).toISOString();
+  const since = feedSince();
 
   // "ts|k" cursor. A bad/missing ts falls back to "everything"; a missing k
   // (never emitted by us) degrades to plain ts-keyset.
