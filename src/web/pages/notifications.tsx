@@ -105,14 +105,31 @@ function NotificationBody({ n }: { n: NotificationItem }) {
     );
   }
 
-  // Reaction rows (#20): "reacted 👍 to your activity on Dexter". The emoji
-  // is the reactor's current reaction (live at read time) — gone once they
-  // cleared it, so the row degrades to plain "reacted".
+  // Reaction rows (#20): "reacted 👍 to your activity on S02·E05 · Waiting of
+  // Dexter". The emoji is the reactor's current reaction (live at read time) —
+  // gone once they cleared it, so the row degrades to plain "reacted". The
+  // reaction hangs on the episode watched (#24), so the row names it, the
+  // comment rows' shape; a movie, or a row from before #24 whose episode was
+  // never recorded, degrades to the show-only wording.
   if (n.type === "reaction") {
     const emoji = n.reaction ? REACTION_EMOJI[n.reaction as ReactionType] : null;
+    const reacted = <>reacted{emoji ? ` ${emoji}` : ""} to your activity on </>;
+    if (n.targetType === "show" && n.episodeId != null && n.season != null && n.number != null) {
+      return (
+        <>
+          {reacted}
+          <Link className="notif-ep" to={mediaPath("episode", n.episodeId, n.episodeTitle)}>
+            {epCode(n.season, n.number)}
+            {n.episodeTitle ? ` · ${n.episodeTitle}` : ""}
+          </Link>{" "}
+          of {targetLink}
+        </>
+      );
+    }
     return (
       <>
-        reacted{emoji ? ` ${emoji}` : ""} to your activity on {targetLink}
+        {reacted}
+        {targetLink}
       </>
     );
   }
