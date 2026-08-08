@@ -4,6 +4,7 @@ import { useApi } from "../hooks";
 import { useAuth } from "../app";
 import { fmtDateTime } from "../format";
 import { PosterCard, Progress, Empty, ErrorNote } from "../components/ui";
+import { IconRewatch } from "../components/icons";
 import { PosterGridSkeleton } from "../components/skeleton";
 import { mediaPath } from "../paths";
 
@@ -64,7 +65,18 @@ function libraryComparator<T extends { title: string }>(
   };
 }
 
-const showComparator = (sort: LibrarySort) => libraryComparator<LibShow>(sort, (s) => s.last_watched_at);
+// A rewatch round that's just been started has no play to date it yet:
+// last_watched_at still reads the newest play, which on a show finished years
+// ago would bury the fresh round at the bottom of the Watching tab under
+// "Last watched" — the opposite of the point. Starting a round IS the
+// activity (the server already counts it that way for staleness and for Watch
+// Next's ordering), so a round with nothing ticked in it yet sorts as the
+// freshest thing in the list; the first tick then dates it for real.
+const JUST_STARTED = "\uffff"; // sorts after any ISO-8601 timestamp
+const roundAwareWatchedAt = (s: LibShow) =>
+  s.rewatch && s.rewatch.roundWatched === 0 ? JUST_STARTED : s.last_watched_at;
+
+const showComparator = (sort: LibrarySort) => libraryComparator<LibShow>(sort, roundAwareWatchedAt);
 const movieComparator = (sort: LibrarySort) => libraryComparator<LibMovie>(sort, (m) => m.watched_at);
 
 function useLibrarySort(key: string): [LibrarySort, (value: LibrarySort) => void] {
@@ -106,6 +118,18 @@ export interface LibShow {
   // own payload ever carries it — the public library filters hidden shows
   // server-side — so the marker below can never render for a visitor.
   hidden?: boolean;
+  // The open rewatch round (0043), owner payload only — the public library
+  // never carries the field. `watched` above stays the LIFETIME count either
+  // way, exactly as on /shows/:id; the round's own progress is
+  // `rewatch.roundWatched`, named the same on every endpoint that reports it
+  // (src/shared/rewatch.ts). The card shows both — a show you finished in
+  // 2018 reading "0/78" the instant you start round 2 is the "did my history
+  // get wiped?" moment this whole feature exists to prevent.
+  rewatch?: { round: number; startedAt?: string; roundWatched: number } | null;
+  // Completed rounds. Times-through = rounds + 1, so this is what the card's
+  // ×2 says — the one thing TV Time refugees liked about TV Time, and the
+  // only trace a finished rerun leaves in a grid of posters.
+  rounds?: number;
 }
 export interface LibMovie {
   id: number;
@@ -123,7 +147,99 @@ export interface WatchlistItem {
 // The progress meta line under a show poster, with a subtle "hidden" marker
 // so the owner can spot — and go unhide — shows they've taken
 // off their public profile. The show page's eye toggle is where that happens.
-const showSub = (s: LibShow) => `${s.watched}/${s.aired}${s.hidden ? " · hidden" : ""}`;
+//
+// Mid-rewatch the loud number is the ROUND's (`rewatch.roundWatched`) and the
+// lifetime one (`watched`, the same key and the same meaning as everywhere
+// else in the API) rides along right behind it, exactly like the show page's
+// dual readout — down to the WORD. It used to say "seen 78/78" here and
+// "lifetime 78/78" on the show page: two names, one screen apart, for the one
+// number this feature promises never changes, and "seen" reads as a third
+// state next to "watched" and "round". Both, always: a card that says only
+// "0/78" on a show you finished in 2018 is the app telling you it lost your
+// history.
+const showSub = (s: LibShow) =>
+  `${s.rewatch ? s.rewatch.roundWatched : s.watched}/${s.aired}` +
+  (s.rewatch ? ` · lifetime ${s.watched}/${s.aired}` : "") +
+  (s.hidden ? " · hidden" : "");
+
+// ↻ ROUND 2 while a round is open; ↻ ×2 once one has finished. Same atom on
+// the Library card and the Watch Next tile — same icon, same words, same mono,
+// same pill — because it answers the same question in both places ("why is a
+// show I finished sitting in my queue?"). Amber only for the open round: a
+// round in progress IS progress, the one thing amber is allowed to mean, while
+// a times-through count is production metadata and takes the warm white the
+// app's other over-art pills use. Decorative in the a11y tree — the link that
+// wraps it carries the whole sentence in its own label (see ShowCard).
+function RewatchBadge({ round, rounds }: { round?: number; rounds?: number }) {
+  if (!round && !rounds) return null;
+  return (
+    <span className={round ? "pill rewatch-pill" : "pill rewatch-pill is-done"} aria-hidden="true">
+      <IconRewatch size={12} />
+      {round ? `ROUND ${round}` : `×${rounds! + 1}`}
+    </span>
+  );
+}
+
+// One show card in a progress-bearing tab (Watching / Up to date / Abandoned,
+// and the Anime tab's shows): poster, title, watched/aired, progress bar.
+//
+// Mid-rewatch it also wears the ↻ ROUND 2 badge, stamped on the corner of the
+// art. That corner rather than a line of its own for two reasons: the grid's
+// progress bars stay on one shared baseline across the row (a chip beside the
+// bar pushes that card's bar down and the whole row loses its line), and a
+// badge on the art is what actually catches the eye when you're scanning 185
+// posters for the show you just put back in rotation. It has to catch the
+// eye: mid-round the bar and the loud number are the ROUND's, and without the
+// badge they'd read as a lifetime that had run backwards.
+// This is the TV Time payoff in the grid — a show you finished years ago,
+// sitting in Watching again, with every play it ever had still on the books.
+// Shared by both grids so the two can't drift.
+//
+// Nothing here uses a `title` tooltip: it never fires on touch, which is where
+// this product lives, and everything it could have said is now on screen (the
+// lifetime count in the sub line) or in the link's accessible name.
+function ShowCard({ show }: { show: LibShow }) {
+  const round = show.rewatch;
+  const rounds = show.rounds ?? 0;
+  // The link's own name, because the badge is aria-hidden and "2/73" alone is
+  // a lie to anyone who can't see the badge explaining it. Spelled out in
+  // words — a screen reader shouldn't have to make sense of "×2".
+  // Mid-round the loud number and the bar are the ROUND's; the lifetime count
+  // rides in the sub line beside them and in this label.
+  const watched = round ? round.roundWatched : show.watched;
+  const label = round
+    ? `${show.title}, round ${round.round} in progress, ${round.roundWatched} of ${show.aired} episodes this round, ` +
+      `${show.watched} of ${show.aired} watched before`
+    : rounds > 0
+      ? `${show.title}, watched ${rounds + 1} times through, ${show.watched} of ${show.aired} episodes`
+      : undefined;
+  return (
+    <div className="lib-card">
+      <PosterCard
+        to={mediaPath("show", show.id, show.title)}
+        posterPath={show.poster}
+        title={show.title}
+        sub={showSub(show)}
+        badge={<RewatchBadge round={round?.round} rounds={rounds} />}
+        label={label}
+      />
+      {/* Mid-round the bar is the ROUND's. Unlabelled it announces a bare
+          "3 percent", which on a show you finished years ago is the most
+          alarming thing the app could say; the label and valuetext are the
+          same pair the show page's round bar carries. */}
+      <Progress
+        watched={watched}
+        total={show.aired}
+        label={round ? `Round ${round.round} progress` : "Watch progress"}
+        valueText={
+          round
+            ? `${watched} of ${show.aired} episodes watched in round ${round.round}`
+            : `${watched} of ${show.aired} aired episodes watched`
+        }
+      />
+    </div>
+  );
+}
 
 // The shows library: a status tab bar (Watching / Up to date / Finished /
 // Abandoned / Watch Later — only tabs that have shows appear), and the active
@@ -186,7 +302,12 @@ export function ShowsLibrary({ shows, watchlist = [], empty }: { shows: LibShow[
             {activeShows.map((s) =>
               // Finished shows: every episode is watched, so the
               // watched/aired meta line and the always-full progress bar say
-              // nothing — just the poster with an episode-count pill.
+              // nothing — just the poster with an episode-count pill. A show
+              // that has been round the block, though, is NOT the same as one
+              // watched once, and the Finished tab is exactly where a
+              // completed round lands: it wears the ×N badge so the rerun
+              // leaves a trace in the grid people actually scan, not only on
+              // the show page.
               activeKey === "finished" ? (
                 <PosterCard
                   key={s.id}
@@ -194,12 +315,15 @@ export function ShowsLibrary({ shows, watchlist = [], empty }: { shows: LibShow[
                   posterPath={s.poster}
                   title={s.title}
                   pill={`${s.total} ${s.total === 1 ? "episode" : "episodes"}${s.hidden ? " · hidden" : ""}`}
+                  badge={<RewatchBadge rounds={s.rounds} />}
+                  label={
+                    s.rounds
+                      ? `${s.title}, ${s.total} ${s.total === 1 ? "episode" : "episodes"}${s.hidden ? ", hidden" : ""}, watched ${s.rounds + 1} times through`
+                      : undefined
+                  }
                 />
               ) : (
-                <div key={s.id} className="lib-card">
-                  <PosterCard to={mediaPath("show", s.id, s.title)} posterPath={s.poster} title={s.title} sub={showSub(s)} />
-                  <Progress watched={s.watched} total={s.aired} />
-                </div>
+                <ShowCard key={s.id} show={s} />
               )
             )}
           </div>
@@ -310,10 +434,7 @@ export function AnimeLibrary({ shows, movies, tz }: { shows: LibShow[]; movies: 
           <h2 className="section-title">Shows</h2>
           <div className="poster-grid">
             {[...shows].sort(showComparator(sort)).map((s) => (
-              <div key={s.id} className="lib-card">
-                <PosterCard to={mediaPath("show", s.id, s.title)} posterPath={s.poster} title={s.title} sub={showSub(s)} />
-                <Progress watched={s.watched} total={s.aired} />
-              </div>
+              <ShowCard key={s.id} show={s} />
             ))}
           </div>
         </section>

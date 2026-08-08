@@ -10,6 +10,7 @@ import { post } from "../api";
 import { poster, backdrop, still } from "../img";
 import { epCode, fmtMonthDay } from "../format";
 import { CheckButton } from "./ui";
+import { IconRewatch } from "./icons";
 import { ReactionButton } from "./reactions";
 import { useCelebrate } from "./celebration";
 import { mediaPath } from "../paths";
@@ -37,6 +38,25 @@ export interface TileItem {
   // there it's what the mark-watched button marks.
   episodeId?: number | null;
   airDate?: string | null; // Upcoming tiles: the episode's air date, 'YYYY-MM-DD'
+  // A rewatch round (0043). On the queue sections' tiles it's the show's OPEN
+  // round, and its presence means every number on the tile is round-scoped:
+  // the episode named is the next one the ROUND is missing, and `count` is how
+  // many the round has left. This is the whole TV Time payoff — a show you
+  // finished years ago back in the queue, with its history untouched — so the
+  // tile says so out loud with the ↻ ROUND 2 badge.
+  //
+  // On History tiles it's the round the play itself landed in (open or long
+  // since closed), so a rerun is legible in the log instead of being
+  // pixel-identical to a first watch — the diary marker Letterboxd puts on a
+  // rewatch and Trakt puts in history.
+  rewatch?: { round: number; startedAt?: string } | null;
+  // History tiles only: how many episodes of this show were logged in ONE
+  // action (a "Mark all watched" / "Mark season" sweep stamps them all with a
+  // single timestamp). Absent unless it's more than one. A round finished the
+  // documented way used to shove 30 identical tiles into the rail — one per
+  // episode, all at the same instant — so the surface that answers "what did
+  // I actually watch?" was wiped by the feature's own finishing move.
+  episodes?: number;
   // Friends tiles (#20): total reactions on this activity, and the viewer's
   // own ('like' | 'love' | … from shared/reactions.ts, null when none).
   reactionCount?: number;
@@ -78,6 +98,13 @@ export function Tile({ item, markable, onWatched, posterArt }: { item: TileItem;
   // against item.episodeId so the check unwinds by itself when fresh data
   // advances the tile to the next episode.
   const [markedId, setMarkedId] = useState<number | null>(null);
+  // The tap that just closed the round. `item.rewatch` and `item.count` come
+  // from /home, which is a refetch away (seconds, on a slow connection), and
+  // until it lands they both describe a round that no longer exists — a tile
+  // still flying the round badge and "1 left" over a green check. The mark
+  // that closed the round is the one thing this component knows before the
+  // server can tell it, so it acts on it: badge and count go immediately.
+  const [roundDone, setRoundDone] = useState(false);
   const [busy, setBusy] = useState(false);
   // Poster-art tiles (Not Started) show the show's portrait poster;
   // every other section leads with the episode still, then the show backdrop,
@@ -96,6 +123,9 @@ export function Tile({ item, markable, onWatched, posterArt }: { item: TileItem;
   // section's markable/episode fields; only the poster + show name remain.
   const canMark = markable === true && item.episodeId != null && !posterArt;
   const checked = item.episodeId != null && markedId === item.episodeId;
+  // Everything round-scoped on this tile, silenced the moment the round ends.
+  const rewatch = roundDone ? null : item.rewatch;
+  const count = roundDone ? null : item.count;
 
   // Fresh /home data that still names the same episode means the mark never
   // landed — the queued op was dropped on replay (4xx / cross-account). A
@@ -105,7 +135,12 @@ export function Tile({ item, markable, onWatched, posterArt }: { item: TileItem;
   // data. Skipped while the POST is in flight (a connectivity-flap
   // revalidation mustn't unwind a mark that's about to succeed).
   useEffect(() => {
-    if (!busy) setMarkedId(null);
+    if (!busy) {
+      setMarkedId(null);
+      // Fresh data speaks for itself: whatever it says about the round now
+      // outranks what this tile inferred from the response.
+      setRoundDone(false);
+    }
     // Deliberately keyed on item identity alone: a busy flip must not unwind
     // the check while the tile still shows pre-mutation data.
   }, [item]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -121,8 +156,26 @@ export function Tile({ item, markable, onWatched, posterArt }: { item: TileItem;
       // serve the stale pre-change cache. The offline queue's post-sync
       // revalidation refreshes /home once the mark lands.
       if (!r?.queued) onWatched?.();
-      // Same catch-up confetti as the episode/show pages.
+      // Same catch-up confetti as the episode/show pages — and the same for a
+      // tick that closes a rewatch round, which the server flags on any watch
+      // route. Finishing a round from here is exactly as much of an
+      // achievement as finishing it on the show page; it must not pass in
+      // silence just because the last tap happened in the queue.
+      //
+      // One event, one announcement, and the SAME one the show page gives:
+      // the round number turns the card into "Round 2 in the books.", which
+      // is the only true sentence here — "you're all caught up, you've
+      // watched every episode that's aired" is what you tell someone who
+      // wasn't. (It used to fire the caught-up card AND a toast of the round
+      // line underneath it: two aria-live regions talking over each other
+      // about one tap.)
       if (r?.caughtUp) celebrate(r.showTitle ?? item.title);
+      else if (r?.roundComplete) {
+        setRoundDone(true);
+        // `?? 2` so the round card can never fall back to the caught-up one:
+        // roundComplete means a round existed, and 2 is the lowest there is.
+        celebrate(r.showTitle ?? item.title, { round: r.round ?? item.rewatch?.round ?? 2 });
+      }
     } catch {
       setMarkedId(null); // rejected — unwind the optimistic check
     } finally {
@@ -135,16 +188,43 @@ export function Tile({ item, markable, onWatched, posterArt }: { item: TileItem;
       <Link to={to} className="wn-tile-link" draggable={false}>
         <div className={posterArt ? "wn-tile-thumb is-poster" : "wn-tile-thumb"}>
           {thumb ? <img src={thumb} alt="" loading="lazy" decoding="async" draggable={false} /> : <div className="poster-fallback">{item.title}</div>}
-          {item.count != null && item.count > 0 && <span className="pill wn-tile-count">{item.count} left</span>}
+          {count != null && count > 0 && <span className="pill wn-tile-count">{count} left</span>}
           {item.airDate && <span className="pill wn-tile-date">{fmtMonthDay(item.airDate)}</span>}
+          {/* ↻ ROUND 2 — the round this tile belongs to (on a History tile,
+              the round the play went into), in the free top-left corner, well
+              clear of the "N left" count, which mid-round is the round's own
+              remainder. The exact badge the Library card wears, down to the
+              word: on a phone the badge IS the explanation, and "↻ 2" with no
+              word reads as TV Time's "×2 = watched twice" to precisely the
+              audience we took from TV Time. Amber (a round is progress) over
+              the same slate scrim the other thumb pills use, so it holds up on
+              any artwork — and it's inside the link, so its words are part of
+              the link's accessible name. No `title`: tooltips never fire on
+              touch, and it said less than the badge does. */}
+          {rewatch && (
+            <span className="pill rewatch-pill">
+              <IconRewatch size={12} />
+              ROUND {rewatch.round}
+            </span>
+          )}
         </div>
         <div className={canMark ? "wn-tile-body has-check" : "wn-tile-body"}>
           <span className="wn-tile-show">{item.title}</span>
-          {!posterArt && item.season != null && item.number != null && (
-            <span className="wn-tile-ep">
-              {epCode(item.season, item.number)}
-              {item.episodeTitle ? ` - ${item.episodeTitle}` : ""}
-            </span>
+          {/* A bulk mark is ONE viewing event, so it gets one line that says
+              what it was. Naming a single episode out of 78 logged in the same
+              second would be picking one at random and calling it the
+              history. */}
+          {!posterArt && item.episodes != null && item.episodes > 1 ? (
+            <span className="wn-tile-ep">{item.episodes} episodes</span>
+          ) : (
+            !posterArt &&
+            item.season != null &&
+            item.number != null && (
+              <span className="wn-tile-ep">
+                {epCode(item.season, item.number)}
+                {item.episodeTitle ? ` - ${item.episodeTitle}` : ""}
+              </span>
+            )
           )}
         </div>
       </Link>
@@ -152,16 +232,19 @@ export function Tile({ item, markable, onWatched, posterArt }: { item: TileItem;
         <span className="wn-tile-check">
           {/* The show title in the label keeps repeated buttons apart for
               screen-reader button navigation. Disabled once checked: the
-              mark is one-way here — undo lives on the episode/show page. */}
+              mark is one-way here — undo lives on the episode/show page.
+              Mid-round the label says which round the tap logs into: the
+              button looks identical to a first-watch tile's, but it's putting
+              a play into round 2 of a show this user has already finished. */}
           <CheckButton
             checked={checked}
             disabled={busy || checked}
             label={
               checked
                 ? `Marked ${item.title} watched`
-                : item.season != null && item.number != null
-                  ? `Mark ${item.title} ${epCode(item.season, item.number)} watched`
-                  : `Mark ${item.title} watched`
+                : (item.season != null && item.number != null
+                    ? `Mark ${item.title} ${epCode(item.season, item.number)} watched`
+                    : `Mark ${item.title} watched`) + (rewatch ? ` for round ${rewatch.round}` : "")
             }
             onToggle={markWatched}
           />

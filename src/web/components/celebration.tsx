@@ -8,8 +8,17 @@
 // pointer-events are off so it never traps focus or swallows a click/navigation,
 // and it auto-dismisses after a couple of seconds.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { IconRewatch } from "./icons";
 
-type CelebrateFn = (showTitle: string) => void;
+// A finished rewatch round is the same burst with different words: "you're
+// all caught up" is the wrong sentence for someone who was already caught up
+// and just watched the whole thing again. Pass the round number and the card
+// says so instead.
+interface CelebrateOptions {
+  round?: number;
+}
+
+type CelebrateFn = (showTitle: string, opts?: CelebrateOptions) => void;
 
 const CelebrationCtx = createContext<CelebrateFn>(() => {});
 
@@ -23,15 +32,16 @@ const LIFETIME_MS = 3000; // whole effect: brief, then it clears itself
 interface Burst {
   id: number;
   title: string;
+  round?: number;
 }
 
 export function CelebrationProvider({ children }: { children: React.ReactNode }) {
   const [burst, setBurst] = useState<Burst | null>(null);
   const seq = useRef(0);
 
-  const celebrate = useCallback<CelebrateFn>((title) => {
+  const celebrate = useCallback<CelebrateFn>((title, opts) => {
     seq.current += 1;
-    setBurst({ id: seq.current, title });
+    setBurst({ id: seq.current, title, round: opts?.round });
   }, []);
 
   // Tear the overlay down after the animation. `burst.id` in the deps means a
@@ -45,14 +55,19 @@ export function CelebrationProvider({ children }: { children: React.ReactNode })
   return (
     <CelebrationCtx.Provider value={celebrate}>
       {children}
-      {burst && <Celebration key={burst.id} title={burst.title} />}
+      {burst && <Celebration key={burst.id} title={burst.title} round={burst.round} />}
     </CelebrationCtx.Provider>
   );
 }
 
+// Round 2 is the second time through, round 3 the third — the round number IS
+// the times-through count, so the sub-line can say it in words.
+const NTH = ["", "", "Second", "Third", "Fourth", "Fifth", "Sixth", "Seventh", "Eighth", "Ninth", "Tenth"];
+const nthTimeThrough = (round: number) => (NTH[round] ? `${NTH[round]} time through` : `${round} times through`);
+
 // One burst. Remounts per event (key={burst.id}), so the random particle field
 // is generated once and the CSS animations run a single time.
-function Celebration({ title }: { title: string }) {
+function Celebration({ title, round }: { title: string; round?: number }) {
   const pieces = useMemo(
     () =>
       Array.from({ length: PIECES }, (_, i) => ({
@@ -91,14 +106,33 @@ function Celebration({ title }: { title: string }) {
         ))}
       </div>
       <div className="celebrate-toast" role="status" aria-live="polite">
-        <span className="celebrate-emoji" aria-hidden="true">
-          🎉
+        {/* The round's mark is DRAWN (IconRewatch), not the literal "↻": no
+            face in the app's stacks ships U+21BB, so the completion card —
+            the single biggest ↻ in the product — was rendering a fallback
+            hook that curls the opposite way from the icon on every badge
+            behind it. */}
+        <span className={`celebrate-emoji${round ? " celebrate-round" : ""}`} aria-hidden="true">
+          {round ? <IconRewatch size={26} /> : "🎉"}
         </span>
-        <strong className="celebrate-headline">
-          You&rsquo;re all caught up{title ? " on " : ""}
-          {title && <em>{title}</em>}!
-        </strong>
-        <span className="celebrate-sub">Nice, you&rsquo;ve watched every episode that&rsquo;s aired.</span>
+        {round ? (
+          <>
+            <strong className="celebrate-headline">
+              Round <em>{round}</em> in the books.
+            </strong>
+            <span className="celebrate-sub">
+              {nthTimeThrough(round)}
+              {title ? ` ${title}` : ""}. Every play is on the record.
+            </span>
+          </>
+        ) : (
+          <>
+            <strong className="celebrate-headline">
+              You&rsquo;re all caught up{title ? " on " : ""}
+              {title && <em>{title}</em>}!
+            </strong>
+            <span className="celebrate-sub">Nice, you&rsquo;ve watched every episode that&rsquo;s aired.</span>
+          </>
+        )}
       </div>
     </div>
   );

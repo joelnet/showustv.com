@@ -219,8 +219,22 @@ importer.post("/shows/:id/episodes", async (c) => {
            SET state = 'watching', last_state_change = strftime('%Y-%m-%dT%H:%M:%fZ','now')
            WHERE user_shows.state = 'watch_later'`
       : "INSERT INTO user_shows (user_id, show_id) VALUES (?1, ?2) ON CONFLICT DO NOTHING";
+  const ts = nowIso(); // one shared fallback timestamp so rows and plays agree
   const stmts = [
     c.env.DB.prepare(followSql).bind(uid, id),
+    // Dated play rows (0043) so post-migration imports keep dated history.
+    // Runs BEFORE the user_episodes insert below so the NOT EXISTS guard sees
+    // only pre-import rows: an already-watched episode gains nothing on
+    // re-import — same no-clobber rule as the row insert itself.
+    c.env.DB.prepare(
+      `INSERT INTO user_episode_plays (user_id, episode_id, watched_at)
+       SELECT ?1, ep.id, COALESCE(json_extract(j.value, '$.at'), ?3)
+       FROM json_each(?4) j
+       JOIN episodes ep ON ep.season_number = json_extract(j.value, '$.s') AND ep.number = json_extract(j.value, '$.e')
+       WHERE ep.show_id = ?2
+         AND NOT EXISTS (SELECT 1 FROM user_episodes ue WHERE ue.user_id = ?1 AND ue.episode_id = ep.id)
+       ON CONFLICT DO NOTHING`
+    ).bind(uid, id, ts, payload),
     c.env.DB.prepare(
       `INSERT INTO user_episodes (user_id, episode_id, watched_at)
        SELECT ?1, ep.id, COALESCE(json_extract(j.value, '$.at'), ?3)
@@ -228,9 +242,9 @@ importer.post("/shows/:id/episodes", async (c) => {
        JOIN episodes ep ON ep.season_number = json_extract(j.value, '$.s') AND ep.number = json_extract(j.value, '$.e')
        WHERE ep.show_id = ?2
        ON CONFLICT (user_id, episode_id) DO NOTHING`
-    ).bind(uid, id, nowIso(), payload),
+    ).bind(uid, id, ts, payload),
   ];
-  const [, insertR] = await c.env.DB.batch(stmts);
+  const [, , insertR] = await c.env.DB.batch(stmts);
 
   const { results: notFound } = await c.env.DB.prepare(
     `SELECT json_extract(j.value, '$.s') AS season, json_extract(j.value, '$.e') AS number
@@ -352,6 +366,7 @@ importer.post("/movies", async (c) => {
       // A watched import promotes an existing watchlist row (play_count 0 → 1)
       // but never touches a row that is already watched — original watched_at
       // and play_count survive re-imports untouched.
+      const watchedAt = isoOrNull(r?.watchedAt) ?? nowIso();
       const res = watchlist
         ? await c.env.DB.prepare(
             `INSERT INTO user_movies (user_id, movie_id, state, watched_at, play_count, added_at) VALUES (?1, ?2, 'watchlist', NULL, 0, ?3)
@@ -365,10 +380,21 @@ importer.post("/movies", async (c) => {
                SET state = 'watched', watched_at = excluded.watched_at, play_count = 1
                WHERE user_movies.state = 'watchlist'`
           )
-            .bind(uid, tmdbId, isoOrNull(r?.watchedAt) ?? nowIso(), nowIso())
+            .bind(uid, tmdbId, watchedAt, nowIso())
             .run();
-      if ((res.meta.changes ?? 0) > 0) inserted++;
-      else existing++;
+      if ((res.meta.changes ?? 0) > 0) {
+        inserted++;
+        // The dated play row (0043) for the imported watch — only when the
+        // import actually landed (fresh insert or watchlist promotion), so a
+        // re-import can't grow an already-watched movie's history.
+        if (!watchlist) {
+          await c.env.DB.prepare(
+            "INSERT INTO user_movie_plays (user_id, movie_id, watched_at) VALUES (?1, ?2, ?3) ON CONFLICT DO NOTHING"
+          )
+            .bind(uid, tmdbId, watchedAt)
+            .run();
+        }
+      } else existing++;
     } catch {
       failed.push(tmdbId);
     }

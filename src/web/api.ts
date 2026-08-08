@@ -59,4 +59,11 @@ export const post = (path: string, body?: unknown) =>
   api(path, { method: "POST", body: JSON.stringify(body ?? {}) });
 export const put = (path: string, body?: unknown) =>
   api(path, { method: "PUT", body: JSON.stringify(body ?? {}) });
-export const del = (path: string) => api(path, { method: "DELETE" });
+// DELETE takes an optional JSON body: an un-tick carries the SCOPE of what
+// the user acted on ({ scope: 'round' | 'play' | 'all' }), so a replay out of
+// the offline queue — which stores the body and sends it back verbatim —
+// can't be reinterpreted by whatever the server's state looks like whenever
+// it lands. Without it, undoing one rewatch tick could arrive after the round
+// closed and be read as "delete this episode's whole history".
+export const del = (path: string, body?: unknown) =>
+  api(path, { method: "DELETE", ...(body === undefined ? {} : { body: JSON.stringify(body) }) });

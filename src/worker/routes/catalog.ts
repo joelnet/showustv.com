@@ -4,6 +4,26 @@ import { tmdb, ensureShow, ensureMovie, watchProviders } from "../lib/tmdb";
 import { optionalAuth } from "../lib/session";
 import { todayInTz } from "../lib/dates";
 import { airedCond } from "../lib/aired";
+import type { RewatchRef } from "../../shared/rewatch";
+
+// How many dated plays a detail payload ships, newest first. Plays are
+// append-only by design, so this array only ever grows: a comfort movie
+// logged weekly for three years is 150 rows of JSON and 150 DOM nodes in a
+// block that sits above the rating and the comments. Letterboxd paginates the
+// diary and Simkl lazy-loads its history popup; we send a season's worth and
+// say how many there are (`playsTotal`), which is all the UI needs to print
+// "+ N older plays" honestly.
+const PLAYS_LIMIT = 25;
+
+// `plays` + the true total, in one query: the window function counts every
+// dated play for this title while the LIMIT keeps the payload small. Same
+// shape for episodes and movies, so the two pages can't drift.
+function playsPayload(rows: any[]): { plays: { watchedAt: string }[]; playsTotal: number } {
+  return {
+    plays: rows.map((p) => ({ watchedAt: p.watched_at })),
+    playsTotal: (rows[0]?.total as number | undefined) ?? rows.length,
+  };
+}
 
 export const catalog = new Hono<AppEnv>();
 
@@ -94,10 +114,26 @@ titles.get("/shows/:id", optionalAuth, async (c) => {
       c.env.DB.prepare(
         `SELECT 1 FROM custom_list_items li JOIN custom_lists l ON l.id = li.list_id
          WHERE l.user_id = ?1 AND l.kind = 'favorites' AND li.target_type = 'show' AND li.target_id = ?2`
+      ).bind(uid, id),
+      // Rewatch rounds (0043): every round row — the active one (finished_at
+      // IS NULL) drives the round chip + progress, the finished ones are the
+      // completed-rounds count.
+      c.env.DB.prepare(
+        "SELECT round, started_at, finished_at FROM user_show_rewatches WHERE user_id = ?1 AND show_id = ?2 ORDER BY round"
+      ).bind(uid, id),
+      // Episodes played during the active round (a play at watched_at >=
+      // started_at — >= so a play stamped exactly at the start counts). Empty
+      // when no round is active, so the batch can stay unconditional.
+      c.env.DB.prepare(
+        `SELECT DISTINCT p.episode_id FROM user_episode_plays p
+         JOIN episodes e ON e.id = p.episode_id
+         JOIN user_show_rewatches rw ON rw.user_id = p.user_id AND rw.show_id = e.show_id AND rw.finished_at IS NULL
+         WHERE p.user_id = ?1 AND e.show_id = ?2 AND p.watched_at >= rw.started_at`
       ).bind(uid, id)
     );
   }
-  const [showR, seasonsR, episodesR, userShowR, watchedR, showRatingR, epRatingsR, favR] = await c.env.DB.batch(stmts);
+  const [showR, seasonsR, episodesR, userShowR, watchedR, showRatingR, epRatingsR, favR, roundsR, roundPlaysR] =
+    await c.env.DB.batch(stmts);
 
   const show = showR.results[0] as any;
   if (!show) return c.json({ error: "not found" }, 404);
@@ -140,10 +176,21 @@ titles.get("/shows/:id", optionalAuth, async (c) => {
   const watched = new Map((watchedR.results as any[]).map((r) => [r.episode_id, r.play_count]));
   const epRatings = new Map((epRatingsR.results as any[]).map((r) => [r.target_id, r]));
 
+  const rounds = roundsR.results as any[];
+  const activeRound = rounds.find((r) => r.finished_at == null) ?? null;
+  // Rows come back ordered by round, so the last finished one is the latest.
+  const finishedRounds = rounds.filter((r) => r.finished_at != null);
+  const lastFinished = finishedRounds[finishedRounds.length - 1] ?? null;
+  const playedThisRound = new Set((roundPlaysR.results as any[]).map((r) => r.episode_id));
+
+  // watchedThisRound ships only while a round is active — the field's
+  // presence is itself the "round mode" signal, and outside a round the
+  // episode rows keep their exact pre-rewatch shape.
   const episodes = baseEpisodes.map((e) => ({
     ...e,
     watched: watched.has(e.id),
     playCount: watched.get(e.id) ?? 0,
+    ...(activeRound ? { watchedThisRound: playedThisRound.has(e.id) } : {}),
     rating: epRatings.get(e.id)
       ? { score: epRatings.get(e.id).score, emoji: epRatings.get(e.id).emoji_reaction }
       : null,
@@ -171,6 +218,24 @@ titles.get("/shows/:id", optionalAuth, async (c) => {
       // Per-user privacy flag — drives the show page's eye
       // toggle. Only ever the viewer's own bit; never anyone else's.
       hidden: !!userShow?.hidden,
+      // The active rewatch round. Round progress is `roundWatched` — aired
+      // regular-season episodes with a this-round play — and it is named that
+      // on every surface that reports it (shared/rewatch.ts); `watched` in
+      // `progress` below stays the lifetime count it has always been. The two
+      // numbers never trade key names between endpoints.
+      rewatch: activeRound
+        ? ({
+            round: activeRound.round,
+            startedAt: activeRound.started_at,
+            roundWatched: airedEps.filter((e) => (e as any).watchedThisRound).length,
+          } satisfies RewatchRef)
+        : null,
+      // Completed rounds — 0 for most shows; drives the "watched ×N" line.
+      rounds: finishedRounds.length,
+      // ...and the most recent one's date, so a finished rerun leaves a dated
+      // trace on the page instead of only bumping a counter (the round row
+      // itself is kept forever; only a *stopped* round is deleted).
+      lastRound: lastFinished ? { round: lastFinished.round, finishedAt: lastFinished.finished_at } : null,
     },
     progress: {
       watched: airedEps.filter((e) => e.watched).length,
@@ -201,10 +266,17 @@ titles.get("/movies/:id", optionalAuth, async (c) => {
       c.env.DB.prepare(
         `SELECT 1 FROM custom_list_items li JOIN custom_lists l ON l.id = li.list_id
          WHERE l.user_id = ?1 AND l.kind = 'favorites' AND li.target_type = 'movie' AND li.target_id = ?2`
+      ).bind(uid, id),
+      // Dated plays (0043), newest first — the movie page's Watch history.
+      // Capped; COUNT(*) OVER () rides along so the page can say how many
+      // exist without a second round trip.
+      c.env.DB.prepare(
+        `SELECT watched_at, COUNT(*) OVER () AS total FROM user_movie_plays
+         WHERE user_id = ?1 AND movie_id = ?2 ORDER BY watched_at DESC LIMIT ${PLAYS_LIMIT}`
       ).bind(uid, id)
     );
   }
-  const [movieR, userR, ratingR, favR] = await c.env.DB.batch(stmts);
+  const [movieR, userR, ratingR, favR, playsR] = await c.env.DB.batch(stmts);
 
   const movie = movieR.results[0] as any;
   if (!movie) return c.json({ error: "not found" }, 404);
@@ -234,6 +306,12 @@ titles.get("/movies/:id", optionalAuth, async (c) => {
       state: user?.state ?? null,
       watchedAt: user?.watched_at ?? null,
       playCount: user?.play_count ?? 0,
+      // The newest PLAYS_LIMIT dated plays, newest first, plus `playsTotal`:
+      // how many dated plays exist in all. playCount can exceed playsTotal
+      // for legacy rows whose middle plays predate 0043 — the UI reports
+      // those honestly as undated, and anything between playsTotal and
+      // plays.length as older plays not shown.
+      ...playsPayload(playsR.results as any[]),
       rating: rating ? { score: rating.score, emoji: rating.emoji_reaction } : null,
       favorited: favR.results.length > 0,
     },
@@ -259,10 +337,41 @@ titles.get("/episodes/:id", optionalAuth, async (c) => {
       c.env.DB.prepare("SELECT watched_at, play_count FROM user_episodes WHERE user_id = ?1 AND episode_id = ?2").bind(uid, id),
       c.env.DB.prepare(
         "SELECT score, emoji_reaction FROM ratings WHERE user_id = ?1 AND target_type = 'episode' AND target_id = ?2"
+      ).bind(uid, id),
+      // Dated plays (0043), newest first — the episode page's Watch history.
+      // Capped like the movie payload, with the true total alongside.
+      c.env.DB.prepare(
+        `SELECT watched_at, COUNT(*) OVER () AS total FROM user_episode_plays
+         WHERE user_id = ?1 AND episode_id = ?2 ORDER BY watched_at DESC LIMIT ${PLAYS_LIMIT}`
+      ).bind(uid, id),
+      // The show's open rewatch round, and whether THIS episode is already in
+      // it. Without this the episode page can't tell round-scoped un-ticking
+      // (drops one play) from a full unwatch (drops the row and every play) —
+      // the two live on the same button, so the page has to know which one it
+      // is about to fire. `>=` never `>`, matching the round rule everywhere
+      // else (a play stamped at exactly started_at counts).
+      c.env.DB.prepare(
+        `SELECT rw.round, rw.started_at,
+                EXISTS (SELECT 1 FROM user_episode_plays p
+                        WHERE p.user_id = ?1 AND p.episode_id = ?2 AND p.watched_at >= rw.started_at) AS this_round
+         FROM user_show_rewatches rw JOIN episodes e ON e.show_id = rw.show_id
+         WHERE rw.user_id = ?1 AND e.id = ?2 AND rw.finished_at IS NULL`
+      ).bind(uid, id),
+      // EVERY round this show has ever had, open or closed — what the Watch
+      // history block tags historic plays from. Attribution used to come from
+      // the open round alone, so the moment a round auto-completed every play
+      // logged inside it went untagged and read exactly like a play from
+      // 2018. Trakt and Simkl both keep per-session attribution on plays that
+      // are long finished; a round is a dated session and its plays are dated
+      // too, so the window [started_at, finished_at] is all it takes.
+      c.env.DB.prepare(
+        `SELECT rw.round, rw.started_at, rw.finished_at
+         FROM user_show_rewatches rw JOIN episodes e ON e.show_id = rw.show_id
+         WHERE rw.user_id = ?1 AND e.id = ?2 ORDER BY rw.round`
       ).bind(uid, id)
     );
   }
-  const [epR, watchedR, ratingR] = await c.env.DB.batch(stmts);
+  const [epR, watchedR, ratingR, playsR, roundR, roundsR] = await c.env.DB.batch(stmts);
 
   const e = epR.results[0] as any;
   if (!e) return c.json({ error: "not found" }, 404);
@@ -287,6 +396,7 @@ titles.get("/episodes/:id", optionalAuth, async (c) => {
 
   const w = watchedR.results[0] as any;
   const r = ratingR.results[0] as any;
+  const rw = roundR.results[0] as any;
 
   return c.json({
     episode: episodeJson,
@@ -294,6 +404,27 @@ titles.get("/episodes/:id", optionalAuth, async (c) => {
       watched: !!w,
       watchedAt: w?.watched_at ?? null,
       playCount: w?.play_count ?? 0,
+      // The newest PLAYS_LIMIT dated plays + `playsTotal`, exactly as on the
+      // movie payload. playCount can exceed playsTotal for legacy rows whose
+      // middle plays predate 0043.
+      ...playsPayload(playsR.results as any[]),
+      // Null outside a round. Same `rewatch` object as everywhere else
+      // (shared/rewatch.ts): { round, startedAt } plus the one fact this page
+      // needs — whether THIS episode is in the round. That's
+      // `watchedThisRound`, a boolean about one episode, and it is never
+      // called `roundWatched`, which is always a show-wide count.
+      rewatch: rw
+        ? ({ round: rw.round, startedAt: rw.started_at, watchedThisRound: !!rw.this_round } satisfies RewatchRef)
+        : null,
+      // Every round the show has had, oldest first, each with the window its
+      // plays fall in (`finishedAt: null` on the open one). Empty for the vast
+      // majority of shows — nobody has rewatched them — so this costs the
+      // common payload two characters.
+      rewatchRounds: (roundsR.results as any[]).map((x) => ({
+        round: x.round as number,
+        startedAt: x.started_at as string,
+        finishedAt: (x.finished_at as string | null) ?? null,
+      })),
       rating: r ? { score: r.score, emoji: r.emoji_reaction } : null,
     },
   });
