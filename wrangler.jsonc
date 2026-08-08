@@ -24,7 +24,11 @@
   // updates. 08:10Z: Discord daily summary — just after Pacific midnight
   // (00:10 PST / 01:10 PDT) so it reports the local day that just ended; must
   // stay in sync with DAILY_SUMMARY_CRON in src/worker/lib/daily-summary.ts.
-  "triggers": { "crons": ["0 6 * * *", "10 8 * * *"] },
+  // */5: episode air-date alerts — frequent because delivery times are
+  // per-user wall-clock in arbitrary timezones and push backlogs drain in
+  // bounded batches; must stay in sync with EPISODE_ALERTS_CRON in
+  // src/worker/lib/episode-alerts.ts.
+  "triggers": { "crons": ["0 6 * * *", "10 8 * * *", "*/5 * * * *"] },
 
   // Serve on the apex. custom_domain makes Wrangler create the proxied DNS
   // record + route and manage TLS.

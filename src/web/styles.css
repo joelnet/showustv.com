@@ -2083,6 +2083,10 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .settings-toggle { display: flex; align-items: flex-start; gap: 10px; margin: 14px 0; font-weight: 400; cursor: pointer; }
 .settings-toggle input { accent-color: var(--amber); width: 17px; height: 17px; margin: 2px 0 0; flex-shrink: 0; }
 .settings-toggle .settings-hint { display: block; margin: 2px 0 0; }
+/* Air-date alert delivery time: indented under its parent toggle, input
+   sized to its content rather than the column. */
+.settings-notify-time { margin: -4px 0 14px 27px; }
+.settings-notify-time input { align-self: flex-start; }
 
 /* ---------- TV Time import ---------- */
 

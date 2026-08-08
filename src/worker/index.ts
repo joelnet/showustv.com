@@ -10,6 +10,7 @@ import { isSocialPreviewPath, serveSocialPreview } from "./lib/social-preview";
 import { FEED_PATH_RE, serveUserFeed } from "./lib/user-feed";
 import { withSecurityHeaders } from "./lib/security";
 import { DAILY_SUMMARY_CRON, postDailySummary } from "./lib/daily-summary";
+import { EPISODE_ALERTS_CRON, runEpisodeAlerts } from "./lib/episode-alerts";
 import { auth } from "./routes/auth";
 import { pub } from "./routes/public";
 import { catalog, titles } from "./routes/catalog";
@@ -116,7 +117,10 @@ app.onError((err, c) => {
   return c.json({ error: "internal error" }, 500);
 });
 
-// Two nightly crons (wrangler.jsonc `triggers.crons`), routed by pattern:
+// Three crons (wrangler.jsonc `triggers.crons`), routed by pattern:
+//   */5       — episode alerts (EPISODE_ALERTS_CRON): generate air-date
+//               notifications that have come due in each user's timezone and
+//               drain the push backlog in bounded batches.
 //   06:00 UTC — maintenance: re-sync followed still-airing shows so new
 //               episodes and air-date changes land before US mornings, plus
 //               retention prunes and bounded backfills. Bounded per run.
@@ -125,7 +129,8 @@ app.onError((err, c) => {
 //               local day that just ended; 06:00 UTC is still the previous
 //               Pacific evening. Unmatched patterns (e.g. wrangler dev's
 //               __scheduled endpoint without ?cron=) run the maintenance path,
-//               which was the sole behavior before the summary moved in.
+//               which was the sole behavior before the summary moved in —
+//               new cron branches MUST short-circuit above that fallthrough.
 async function scheduled(event: ScheduledEvent, env: Env, _ctx: ExecutionContext): Promise<void> {
   if (event.cron === DAILY_SUMMARY_CRON) {
     // Best-effort by contract — postDailySummary never throws, so this
@@ -133,6 +138,15 @@ async function scheduled(event: ScheduledEvent, env: Env, _ctx: ExecutionContext
     // duplicate fire couldn't double-post: posting is gated on an atomic
     // per-day claim in app_settings.
     await postDailySummary(env, new Date(event.scheduledTime || Date.now()));
+    return;
+  }
+
+  if (event.cron === EPISODE_ALERTS_CRON) {
+    // Also never throws (per-phase try/catch inside): generation is
+    // idempotent and delivery claims are atomic, so a platform retry or an
+    // overlapping run can't double-alert anyone — but there's no reason to
+    // invite retries either.
+    await runEpisodeAlerts(env);
     return;
   }
 
@@ -154,23 +168,46 @@ async function scheduled(event: ScheduledEvent, env: Env, _ctx: ExecutionContext
     console.error("cron: notifications prune failed", e);
   }
 
-  const staleBefore = new Date(Date.now() - 20 * 3600 * 1000).toISOString();
-  const { results } = await env.DB.prepare(
-    `SELECT s.tmdb_id FROM shows s
-     WHERE s.status NOT IN ('Ended', 'Canceled')
-       AND EXISTS (SELECT 1 FROM user_shows us WHERE us.show_id = s.tmdb_id)
-       AND (s.synced_at IS NULL OR s.synced_at < ?1)
-     LIMIT 30`
-  )
-    .bind(staleBefore)
-    .all<{ tmdb_id: number }>();
+  // The episode-alert ledger only needs to outlive its air date (the PK is
+  // the dedupe); same 90-day horizon keeps it small forever.
+  try {
+    const alertsBefore = new Date(Date.now() - 90 * 24 * 3600 * 1000).toISOString();
+    await env.DB.prepare("DELETE FROM episode_alerts WHERE created_at < ?1").bind(alertsBefore).run();
+  } catch (e) {
+    console.error("cron: episode_alerts prune failed", e);
+  }
 
-  for (const row of results) {
-    try {
-      await ensureShow(env, row.tmdb_id, true);
-    } catch (e) {
-      console.error(`cron: sync failed for show ${row.tmdb_id}`, e);
+  // Air-date freshness now feeds the episode-alert cron, so a single batch
+  // of 30 per night isn't enough once more shows are followed — loop rounds
+  // of 30 (each successful ensureShow bumps synced_at, shrinking the set).
+  // Stop on: empty set, round cap (subrequest headroom — each sync is a few
+  // TMDB fetches + D1 writes, and the backfills below still need room), wall
+  // budget, or a round with zero successes (a TMDB outage must not spin —
+  // failed rows stay stale and would be re-selected forever).
+  const staleBefore = new Date(Date.now() - 20 * 3600 * 1000).toISOString();
+  const syncDeadline = Date.now() + 5 * 60_000;
+  for (let round = 0; round < 5 && Date.now() < syncDeadline; round++) {
+    const { results } = await env.DB.prepare(
+      `SELECT s.tmdb_id FROM shows s
+       WHERE s.status NOT IN ('Ended', 'Canceled')
+         AND EXISTS (SELECT 1 FROM user_shows us WHERE us.show_id = s.tmdb_id)
+         AND (s.synced_at IS NULL OR s.synced_at < ?1)
+       LIMIT 30`
+    )
+      .bind(staleBefore)
+      .all<{ tmdb_id: number }>();
+    if (!results.length) break;
+
+    let synced = 0;
+    for (const row of results) {
+      try {
+        await ensureShow(env, row.tmdb_id, true);
+        synced++;
+      } catch (e) {
+        console.error(`cron: sync failed for show ${row.tmdb_id}`, e);
+      }
     }
+    if (!synced) break;
   }
 
   // Origin-language backfill: migration 0016 added original_language
