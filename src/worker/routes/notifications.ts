@@ -66,9 +66,13 @@ notifications.get("/", async (c) => {
      LEFT JOIN episodes e ON e.id = n.episode_id
      -- Reaction rows resolve the reactor's CURRENT reaction live at read
      -- time, like everything else here — change it and old rows follow;
-     -- clear it and they degrade to plain "reacted" (#20). Full-PK probe.
+     -- clear it and they degrade to plain "reacted" (#20). Full-PK probe,
+     -- including the episode the reaction hangs on (#24): movie rows and
+     -- pre-#24 rows the migration couldn't re-point carry no episode id and
+     -- fall back to the schema's 0 sentinel.
      LEFT JOIN activity_reactions ar ON n.type = 'reaction' AND ar.owner_id = n.user_id
-       AND ar.target_type = n.target_type AND ar.target_id = n.target_id AND ar.reactor_id = n.actor_id
+       AND ar.target_type = n.target_type AND ar.target_id = n.target_id
+       AND ar.episode_id = COALESCE(n.episode_id, 0) AND ar.reactor_id = n.actor_id
      -- High-rating rows resolve the actor's CURRENT score the same way —
      -- re-rate and old rows follow; clear it and they degrade to plain
      -- "rated". Full-PK probe on ratings.

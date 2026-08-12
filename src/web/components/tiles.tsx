@@ -57,7 +57,8 @@ export interface TileItem {
   // episode, all at the same instant — so the surface that answers "what did
   // I actually watch?" was wiped by the feature's own finishing move.
   episodes?: number;
-  // Friends tiles (#20): total reactions on this activity, and the viewer's
+  // Friends tiles (#20): total reactions on this activity — the episode above
+  // for a show, the movie itself otherwise (#24) — and the viewer's
   // own ('like' | 'love' | … from shared/reactions.ts, null when none).
   reactionCount?: number;
   myReaction?: string | null;

@@ -677,15 +677,18 @@ export async function notifyUserOfFollow(env: Env, actorId: number, followeeId: 
 // event aims the other way). The route only calls this when the reaction
 // upsert actually changed the row (re-picking the current reaction is a no-op
 // there), and the 24h dedupe below absorbs pick/clear/re-pick flapping AND
-// reaction changes — keyed per (recipient, actor, target), so an indecisive
-// follower cycling the picker is one notification, not five. Self-reaction
-// can't reach here (the route rejects reacting to your own activity).
+// reaction changes — keyed per (recipient, actor, target), where a show target
+// includes the episode (#24), so an indecisive follower cycling the picker is
+// one notification, not five, while a reaction to a genuinely new episode is a
+// genuinely new event. Self-reaction can't reach here (the route rejects
+// reacting to your own activity).
 export async function notifyUserOfReaction(
   env: Env,
   actorId: number,
   ownerId: number,
   targetType: "show" | "movie",
   targetId: number,
+  episodeId: number | null,
   reaction: ReactionType
 ): Promise<void> {
   const since = new Date(Date.now() - DEDUPE_WINDOW_MS).toISOString();
@@ -698,8 +701,8 @@ export async function notifyUserOfReaction(
   // activity_reactions live, so the notification always shows the reactor's
   // CURRENT reaction and degrades to plain "reacted" once they clear it.
   const created = await env.DB.prepare(
-    `INSERT INTO notifications (user_id, type, actor_id, target_type, target_id)
-     SELECT ru.id, 'reaction', ?1, ?3, ?4
+    `INSERT INTO notifications (user_id, type, actor_id, target_type, target_id, episode_id)
+     SELECT ru.id, 'reaction', ?1, ?3, ?4, ?6
      FROM users ru
      JOIN users au ON au.id = ?1 AND au.deleted_at IS NULL AND au.shadow_banned = 0
      WHERE ru.id = ?2 AND ru.deleted_at IS NULL
@@ -708,31 +711,41 @@ export async function notifyUserOfReaction(
        AND NOT EXISTS (SELECT 1 FROM notifications n
                        WHERE n.user_id = ?2 AND n.type = 'reaction'
                          AND n.actor_id = ?1 AND n.target_type = ?3 AND n.target_id = ?4
+                         -- IS, not =, so movie rows (NULL episode) dedupe too.
+                         AND n.episode_id IS ?6
                          AND n.created_at >= ?5)
      RETURNING user_id`
   )
-    .bind(actorId, ownerId, targetType, targetId, since)
+    .bind(actorId, ownerId, targetType, targetId, since, episodeId)
     .first<{ user_id: number }>();
   if (!created || !vapidConfigured(env)) return;
 
   // Push copy, resolved here so the route's hook stays one line. Same shape
   // as the other pushes: short title (`<user> reacted`), the reaction picked
   // at send time + the title in the body, deep link to the title page.
-  const [actorR, titleR] = await env.DB.batch([
+  const [actorR, titleR, epR] = await env.DB.batch([
     env.DB.prepare("SELECT username FROM users WHERE id = ?1 AND deleted_at IS NULL").bind(actorId),
     targetType === "show"
       ? env.DB.prepare("SELECT title FROM shows WHERE tmdb_id = ?1").bind(targetId)
       : env.DB.prepare("SELECT title FROM movies WHERE tmdb_id = ?1").bind(targetId),
+    // Episode details for the copy — the reaction is on that episode's watch
+    // (#24), so the push names it just like the watch notification does.
+    episodeId != null
+      ? env.DB.prepare("SELECT season_number, number, title FROM episodes WHERE id = ?1").bind(episodeId)
+      : env.DB.prepare("SELECT NULL AS season_number, NULL AS number, NULL AS title WHERE 0"),
   ]);
   const actor = (actorR.results[0] as { username: string } | undefined)?.username;
   const title = (titleR.results[0] as { title: string } | undefined)?.title;
   if (!actor || !title) return;
+  const ep = epR.results[0] as { season_number: number; number: number; title: string | null } | undefined;
 
+  // Distinct tag per episode so a reaction to a new episode lands as its own
+  // push instead of replacing the last one on the lock screen.
   await pushToRecipients(env, [ownerId], {
     title: `${actor} reacted`,
-    body: `${REACTION_EMOJI[reaction]} ${title}`,
+    body: `${REACTION_EMOJI[reaction]} ${pushBody(targetType, title, ep)}`,
     url: `/${targetType}/${targetId}`,
-    tag: `rx-${actorId}-${targetType.charAt(0)}-${targetId}`,
+    tag: `rx-${actorId}-${targetType.charAt(0)}-${targetId}-${episodeId ?? 0}`,
   });
 }
 
