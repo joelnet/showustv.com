@@ -31,7 +31,7 @@ const DEDUPE_WINDOW_MS = 24 * 3600 * 1000;
 // Episode code for push copy, matching the web epCode()/Slate format exactly
 // (zero-padded, middle dot): "S02·E05". Kept in sync by hand — the worker and
 // web bundles don't share this one-liner.
-function epCode(season: number, number: number): string {
+export function epCode(season: number, number: number): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `S${pad(season)}·E${pad(number)}`;
 }
@@ -39,8 +39,64 @@ function epCode(season: number, number: number): string {
 // Safety valves on fan-out: D1 caps bound parameters (chunk the IN lists) and
 // Workers caps subrequests per invocation (bound the pushes; a watch by
 // someone with thousands of push-subscribed followers must not hit it).
-const IN_CHUNK = 50;
+export const IN_CHUNK = 50;
 const MAX_PUSHES_PER_EVENT = 30;
+
+// The three building blocks of a push fan-out, shared with the episode-alert
+// cron (lib/episode-alerts.ts), which can't use pushToRecipients itself: its
+// per-event push cap is the wrong tool for a delivery queue that must reach
+// every recipient eventually.
+
+// Every push subscription for the given users, IN-chunked, ORDER BY id for
+// determinism (up to chunk boundaries).
+export async function subscriptionsFor(env: Env, userIds: number[]): Promise<(StoredSubscription & { user_id: number })[]> {
+  const subs: (StoredSubscription & { user_id: number })[] = [];
+  for (let i = 0; i < userIds.length; i += IN_CHUNK) {
+    const chunk = userIds.slice(i, i + IN_CHUNK);
+    const placeholders = chunk.map((_, j) => `?${j + 1}`).join(",");
+    const { results } = await env.DB.prepare(
+      `SELECT id, user_id, endpoint, p256dh, auth FROM push_subscriptions WHERE user_id IN (${placeholders}) ORDER BY id`
+    )
+      .bind(...chunk)
+      .all<StoredSubscription & { user_id: number }>();
+    subs.push(...results);
+  }
+  return subs;
+}
+
+// Unread counts for the app-icon badge, batched one GROUP BY per IN-chunk
+// (never per-recipient) — each probe is O(unread) via the partial index
+// (0020). A user the GROUP BY skips read everything between the insert and
+// now: an exact zero, not a miss. Best-effort — badging must never cost
+// anyone their push — so a failed chunk just leaves its users out of the map
+// and their payload omits `unread` (the SW then leaves the badge alone).
+export async function unreadCounts(env: Env, userIds: number[]): Promise<Map<number, number>> {
+  const unreadByUser = new Map<number, number>();
+  for (let i = 0; i < userIds.length; i += IN_CHUNK) {
+    const chunk = userIds.slice(i, i + IN_CHUNK);
+    const placeholders = chunk.map((_, j) => `?${j + 1}`).join(",");
+    try {
+      const { results } = await env.DB.prepare(
+        `SELECT user_id, COUNT(*) AS n FROM notifications
+         WHERE user_id IN (${placeholders}) AND read_at IS NULL GROUP BY user_id`
+      )
+        .bind(...chunk)
+        .all<{ user_id: number; n: number }>();
+      const counts = new Map(results.map((r) => [r.user_id, r.n]));
+      for (const id of chunk) unreadByUser.set(id, counts.get(id) ?? 0);
+    } catch (e) {
+      console.error("push: unread count lookup failed", e);
+    }
+  }
+  return unreadByUser;
+}
+
+// Expired/unsubscribed endpoints (404/410 from the push service) are dead
+// forever — prune them so future fan-outs stop paying for them.
+export async function pruneSubscriptions(env: Env, goneIds: number[]): Promise<void> {
+  if (!goneIds.length) return;
+  await env.DB.batch(goneIds.map((id) => env.DB.prepare("DELETE FROM push_subscriptions WHERE id = ?1").bind(id)));
+}
 
 // Best-effort Web Push of one payload to every subscribed device of the
 // recipients that just got a new notification row. Shared by every fan-out.
@@ -54,17 +110,7 @@ async function pushToRecipients(
   // phones batch the wake-up; events aimed at the recipient stay "normal".
   urgency: PushUrgency = "normal"
 ): Promise<void> {
-  const subs: (StoredSubscription & { user_id: number })[] = [];
-  for (let i = 0; i < recipients.length; i += IN_CHUNK) {
-    const chunk = recipients.slice(i, i + IN_CHUNK);
-    const placeholders = chunk.map((_, j) => `?${j + 1}`).join(",");
-    const { results } = await env.DB.prepare(
-      `SELECT id, user_id, endpoint, p256dh, auth FROM push_subscriptions WHERE user_id IN (${placeholders}) ORDER BY id`
-    )
-      .bind(...chunk)
-      .all<StoredSubscription & { user_id: number }>();
-    subs.push(...results);
-  }
+  const subs = await subscriptionsFor(env, recipients);
 
   // Round-robin the per-event cap across recipients — everyone's first
   // device, then everyone's second, ... — so one person with many devices
@@ -83,31 +129,8 @@ async function pushToRecipients(
     }
   }
 
-  // Unread counts for the app-icon badge, batched one GROUP BY per IN-chunk
-  // (never per-recipient) over only the users that actually have a device —
-  // each probe is O(unread) via the partial index (0020). A user the GROUP BY
-  // skips read everything between the insert and now: an exact zero, not a
-  // miss. The lookup itself is best-effort — badging must never cost anyone
-  // their push — so a failed chunk just leaves its users without a count and
-  // their payload omits `unread` (the SW then leaves the badge alone).
-  const userIds = [...byUser.keys()];
-  const unreadByUser = new Map<number, number>();
-  for (let i = 0; i < userIds.length; i += IN_CHUNK) {
-    const chunk = userIds.slice(i, i + IN_CHUNK);
-    const placeholders = chunk.map((_, j) => `?${j + 1}`).join(",");
-    try {
-      const { results } = await env.DB.prepare(
-        `SELECT user_id, COUNT(*) AS n FROM notifications
-         WHERE user_id IN (${placeholders}) AND read_at IS NULL GROUP BY user_id`
-      )
-        .bind(...chunk)
-        .all<{ user_id: number; n: number }>();
-      const counts = new Map(results.map((r) => [r.user_id, r.n]));
-      for (const id of chunk) unreadByUser.set(id, counts.get(id) ?? 0);
-    } catch (e) {
-      console.error("push: unread count lookup failed", e);
-    }
-  }
+  // Badge counts over only the users that actually have a device.
+  const unreadByUser = await unreadCounts(env, [...byUser.keys()]);
 
   const gone: number[] = [];
   for (const sub of sendOrder.slice(0, MAX_PUSHES_PER_EVENT)) {
@@ -115,18 +138,14 @@ async function pushToRecipients(
     const payload = unread !== undefined ? { ...data, unread } : data;
     if ((await sendPush(env, sub, payload, urgency)) === "gone") gone.push(sub.id);
   }
-  // Expired/unsubscribed endpoints (404/410 from the push service) are dead
-  // forever — prune them so future fan-outs stop paying for them.
-  if (gone.length) {
-    await env.DB.batch(gone.map((id) => env.DB.prepare("DELETE FROM push_subscriptions WHERE id = ?1").bind(id)));
-  }
+  await pruneSubscriptions(env, gone);
 }
 
 // Push body naming the thing: "Dexter: S02·E05 · Waiting" for an episode
 // (episode title omitted when the catalog has none, or the whole episode
 // clause when the episode row is gone), just the title for a movie or a
 // show-level event.
-function pushBody(
+export function pushBody(
   targetType: "show" | "movie",
   title: string,
   ep: { season_number: number; number: number; title: string | null } | undefined

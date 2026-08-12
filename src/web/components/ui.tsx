@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from "react";
+import { useId, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { poster } from "../img";
 import { epCode } from "../format";
@@ -144,10 +144,32 @@ export function Slate({ season, number }: { season: number; number: number }) {
   return <code className="slate">{epCode(season, number)}</code>;
 }
 
-export function Progress({ watched, total }: { watched: number; total: number }) {
+// `label`/`valueText` are for a bar whose percentage isn't self-explanatory —
+// a rewatch round's bar sits beside a lifetime one, and "3 percent" with no
+// label can't tell them apart. Both optional: an unlabelled bar is one whose
+// meaning the surrounding text already carries.
+export function Progress({
+  watched,
+  total,
+  label,
+  valueText,
+}: {
+  watched: number;
+  total: number;
+  label?: string;
+  valueText?: string;
+}) {
   const pct = total > 0 ? Math.round((watched / total) * 100) : 0;
   return (
-    <div className="progress" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+    <div
+      className="progress"
+      role="progressbar"
+      aria-valuenow={pct}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-label={label}
+      aria-valuetext={valueText}
+    >
       <div className="progress-fill" style={{ width: `${pct}%` }} />
     </div>
   );
@@ -157,23 +179,41 @@ export function Progress({ watched, total }: { watched: number; total: number })
 // Finished library cards) swaps the whole text meta block for a count pill
 // overlaid on the art's corner — the same treatment as the Watch Next thumb
 // pills — so the title moves to the link's aria-label and hover tooltip.
+//
+// `badge` is a second overlay, pinned to the art's opposite (top-left) corner:
+// the Library's ↻ round / ×N rewatch marker. It renders INSIDE the link on
+// purpose — as an outside sibling its words never reached the link's
+// accessible name, so a screen reader listing the Watching grid heard a show
+// you finished years ago sitting at "2/73" with nothing to explain it. Badges
+// are decorative there (`aria-hidden`) and the caller passes `label` with the
+// whole sentence instead, which also replaces the `pill` default below.
 export function PosterCard({
   to,
   posterPath,
   title,
   sub,
   pill,
+  badge,
+  label,
 }: {
   to: string;
   posterPath: string | null;
   title: string;
   sub?: string | null;
   pill?: string;
+  badge?: ReactNode;
+  label?: string;
 }) {
   const src = poster(posterPath);
   return (
-    <Link to={to} className="poster-card" aria-label={pill ? `${title}, ${pill}` : undefined} title={pill ? title : undefined}>
+    <Link
+      to={to}
+      className="poster-card"
+      aria-label={label ?? (pill ? `${title}, ${pill}` : undefined)}
+      title={pill ? title : undefined}
+    >
       {src ? <img src={src} alt="" loading="lazy" /> : <div className="poster-fallback">{title}</div>}
+      {badge}
       {pill ? (
         <span className="pill poster-card-pill">{pill}</span>
       ) : (

@@ -49,7 +49,15 @@ notifications.get("/", async (c) => {
                       WHERE fb.follower_id = n.user_id AND fb.followee_id = n.actor_id AND fb.state = 'active')
             END AS you_follow_actor,
             ar.reaction,
-            rt.score AS rating_score
+            rt.score AS rating_score,
+            -- Air-date alert rows live-count that day's episodes (same
+            -- read-time philosophy): a late-added episode shows through, and
+            -- a since-deleted representative episode nulls e.air_date so the
+            -- count degrades and the UI falls back to generic copy.
+            CASE WHEN n.type = 'new_episode' THEN
+              (SELECT COUNT(*) FROM episodes e2
+               WHERE e2.show_id = n.target_id AND e2.air_date = e.air_date AND e2.season_number > 0)
+            END AS ep_count
      FROM notifications n
      LEFT JOIN users u ON u.id = n.actor_id AND u.deleted_at IS NULL
      LEFT JOIN shows s ON n.target_type = 'show' AND s.tmdb_id = n.target_id
@@ -92,6 +100,7 @@ notifications.get("/", async (c) => {
       you_follow_actor: number | null;
       reaction: string | null;
       rating_score: number | null;
+      ep_count: number | null;
     }>();
 
   const items = results.map((r) => ({
@@ -119,6 +128,9 @@ notifications.get("/", async (c) => {
     // High-rating rows only: the actor's current score, null once cleared
     // (and for every other type).
     ratingScore: r.rating_score,
+    // Air-date alert rows only: how many episodes aired that day, counted
+    // live; null for other types and when the episode left the catalog.
+    epCount: r.ep_count,
     read: !!r.read_at,
     createdAt: r.created_at,
   }));
@@ -161,20 +173,27 @@ notifications.post("/read-all", async (c) => {
 // subscriptions it can never send to), and the client hides the push toggle
 // accordingly.
 notifications.get("/prefs", async (c) => {
-  const row = await c.env.DB.prepare(
-    "SELECT follow_watch, follow_comment, tracked_comment, follow_favorite, follow_rating, new_follower, list_created, reaction FROM notification_prefs WHERE user_id = ?1 AND show_id = 0"
-  )
-    .bind(c.get("uid"))
-    .first<{
-      follow_watch: number;
-      follow_comment: number;
-      tracked_comment: number;
-      follow_favorite: number;
-      follow_rating: number;
-      new_follower: number;
-      list_created: number;
-      reaction: number;
-    }>();
+  const [prefsRes, userRes] = await c.env.DB.batch([
+    c.env.DB.prepare(
+      "SELECT follow_watch, follow_comment, tracked_comment, follow_favorite, follow_rating, new_follower, list_created, reaction, push_new_episode FROM notification_prefs WHERE user_id = ?1 AND show_id = 0"
+    ).bind(c.get("uid")),
+    // notify_min lives on users (global per user, like tz — not a per-type
+    // toggle), but the settings page reads everything in this one call.
+    c.env.DB.prepare("SELECT notify_min FROM users WHERE id = ?1").bind(c.get("uid")),
+  ]);
+  const row = (prefsRes.results as {
+    follow_watch: number;
+    follow_comment: number;
+    tracked_comment: number;
+    follow_favorite: number;
+    follow_rating: number;
+    new_follower: number;
+    list_created: number;
+    reaction: number;
+    push_new_episode: number;
+  }[])[0];
+  const notifyMin = (userRes.results as { notify_min: number }[])[0]?.notify_min ?? 480;
+  const pad2 = (n: number) => String(n).padStart(2, "0");
   return c.json({
     // Defaults on when no row, matching the fan-outs' COALESCE.
     followWatch: row ? !!row.follow_watch : true,
@@ -185,6 +204,11 @@ notifications.get("/prefs", async (c) => {
     newFollower: row ? !!row.new_follower : true,
     listCreated: row ? !!row.list_created : true,
     reaction: row ? !!row.reaction : true,
+    pushNewEpisode: row ? !!row.push_new_episode : true,
+    // Wall-clock "HH:MM" in the user's own tz — the client's time input
+    // renders it in the device's clock format (12-hour with AM/PM for US
+    // locales).
+    notifyTime: `${pad2(Math.floor(notifyMin / 60))}:${pad2(notifyMin % 60)}`,
     pushPublicKey: vapidConfigured(c.env) ? c.env.VAPID_PUBLIC_KEY! : null,
   });
 });
@@ -202,6 +226,17 @@ notifications.put("/prefs", async (c) => {
   const newFollower = typeof body.newFollower === "boolean" ? (body.newFollower ? 1 : 0) : null;
   const listCreated = typeof body.listCreated === "boolean" ? (body.listCreated ? 1 : 0) : null;
   const reaction = typeof body.reaction === "boolean" ? (body.reaction ? 1 : 0) : null;
+  const pushNewEpisode = typeof body.pushNewEpisode === "boolean" ? (body.pushNewEpisode ? 1 : 0) : null;
+  // Air-date alert delivery time, wall-clock "HH:MM" (stored as minutes past
+  // local midnight on users, like tz — global per user, not a per-type
+  // toggle). Present-but-malformed is a client bug: reject rather than
+  // silently keep the old time.
+  let notifyMin: number | null = null;
+  if (body.notifyTime !== undefined) {
+    if (typeof body.notifyTime !== "string" || !/^([01]\d|2[0-3]):[0-5]\d$/.test(body.notifyTime))
+      return c.json({ error: "bad request" }, 400);
+    notifyMin = Number(body.notifyTime.slice(0, 2)) * 60 + Number(body.notifyTime.slice(3));
+  }
   if (
     followWatch == null &&
     followComment == null &&
@@ -210,24 +245,46 @@ notifications.put("/prefs", async (c) => {
     followRating == null &&
     newFollower == null &&
     listCreated == null &&
-    reaction == null
+    reaction == null &&
+    pushNewEpisode == null &&
+    notifyMin == null
   )
     return c.json({ error: "bad request" }, 400);
-  await c.env.DB.prepare(
-    `INSERT INTO notification_prefs (user_id, show_id, follow_watch, follow_comment, tracked_comment, follow_favorite, follow_rating, new_follower, list_created, reaction)
-     VALUES (?1, 0, COALESCE(?2, 1), COALESCE(?3, 1), COALESCE(?4, 1), COALESCE(?5, 1), COALESCE(?6, 1), COALESCE(?7, 1), COALESCE(?8, 1), COALESCE(?9, 1))
-     ON CONFLICT (user_id, show_id) DO UPDATE SET
-       follow_watch = COALESCE(?2, follow_watch),
-       follow_comment = COALESCE(?3, follow_comment),
-       tracked_comment = COALESCE(?4, tracked_comment),
-       follow_favorite = COALESCE(?5, follow_favorite),
-       follow_rating = COALESCE(?6, follow_rating),
-       new_follower = COALESCE(?7, new_follower),
-       list_created = COALESCE(?8, list_created),
-       reaction = COALESCE(?9, reaction)`
-  )
-    .bind(c.get("uid"), followWatch, followComment, trackedComment, followFavorite, followRating, newFollower, listCreated, reaction)
-    .run();
+  const stmts = [];
+  if (notifyMin != null) {
+    // No session-cookie reissue: unlike tz, notify_min doesn't ride the
+    // session — the cron reads it fresh from the DB.
+    stmts.push(c.env.DB.prepare("UPDATE users SET notify_min = ?2 WHERE id = ?1").bind(c.get("uid"), notifyMin));
+  }
+  const anyPref =
+    followWatch != null ||
+    followComment != null ||
+    trackedComment != null ||
+    followFavorite != null ||
+    followRating != null ||
+    newFollower != null ||
+    listCreated != null ||
+    reaction != null ||
+    pushNewEpisode != null;
+  if (anyPref) {
+    stmts.push(
+      c.env.DB.prepare(
+        `INSERT INTO notification_prefs (user_id, show_id, follow_watch, follow_comment, tracked_comment, follow_favorite, follow_rating, new_follower, list_created, reaction, push_new_episode)
+         VALUES (?1, 0, COALESCE(?2, 1), COALESCE(?3, 1), COALESCE(?4, 1), COALESCE(?5, 1), COALESCE(?6, 1), COALESCE(?7, 1), COALESCE(?8, 1), COALESCE(?9, 1), COALESCE(?10, 1))
+         ON CONFLICT (user_id, show_id) DO UPDATE SET
+           follow_watch = COALESCE(?2, follow_watch),
+           follow_comment = COALESCE(?3, follow_comment),
+           tracked_comment = COALESCE(?4, tracked_comment),
+           follow_favorite = COALESCE(?5, follow_favorite),
+           follow_rating = COALESCE(?6, follow_rating),
+           new_follower = COALESCE(?7, new_follower),
+           list_created = COALESCE(?8, list_created),
+           reaction = COALESCE(?9, reaction),
+           push_new_episode = COALESCE(?10, push_new_episode)`
+      ).bind(c.get("uid"), followWatch, followComment, trackedComment, followFavorite, followRating, newFollower, listCreated, reaction, pushNewEpisode)
+    );
+  }
+  await c.env.DB.batch(stmts);
   return c.json({ ok: true });
 });
 

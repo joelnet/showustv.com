@@ -41,6 +41,7 @@ import {
   Handshake,
   HatGlasses,
   ThumbsUp,
+  RotateCw,
   type LucideIcon,
 } from "lucide-react";
 
@@ -102,6 +103,15 @@ export const IconHatGlasses = make(HatGlasses);
 // Reaction trigger on "From People You Follow" tiles (#20) — the resting
 // state before the viewer picks a reaction (then the emoji takes over).
 export const IconThumbsUp = make(ThumbsUp);
+// The rewatch mark (0043) — a real circular arrow, on every round badge.
+// It replaces a literal "↻" (U+21BB), which the app's mono face has no glyph
+// for: every rewatch chip was rendering whatever the fallback font had, which
+// on this stack is a horseshoe with a stray arrowhead. Not built through
+// `make`, because this one is drawn at ~12px beside 11.5px mono rather than at
+// the set's 17px, and Lucide's 2.0 stroke goes wispy that small.
+export const IconRewatch = ({ size = 12 }: { size?: number }) => (
+  <RotateCw size={size} strokeWidth={2.4} aria-hidden="true" />
+);
 
 // Brand glyphs — Lucide is a UI-icon set, not a logo set, so these stay
 // hand-inlined SVG. `currentColor` lets links style them like text.

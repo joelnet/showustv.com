@@ -1084,7 +1084,11 @@ input:focus, select:focus { outline: 2px solid var(--amber); outline-offset: 1px
 .star-rating { display: flex; flex-direction: column; gap: 6px; }
 .your-rating-label {
   font: 700 12px var(--font-display);
-  letter-spacing: 0.04em;
+  /* One tracking for the detail-page eyebrow. This label stacks directly
+     under WATCH HISTORY on the episode page and between it and ELSEWHERE on
+     the movie page; at 0.04em it was visibly tighter than the 0.08em its two
+     neighbours (providers/external-links) share. */
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--muted);
 }
@@ -2079,6 +2083,10 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .settings-toggle { display: flex; align-items: flex-start; gap: 10px; margin: 14px 0; font-weight: 400; cursor: pointer; }
 .settings-toggle input { accent-color: var(--amber); width: 17px; height: 17px; margin: 2px 0 0; flex-shrink: 0; }
 .settings-toggle .settings-hint { display: block; margin: 2px 0 0; }
+/* Air-date alert delivery time: indented under its parent toggle, input
+   sized to its content rather than the column. */
+.settings-notify-time { margin: -4px 0 14px 27px; }
+.settings-notify-time input { align-self: flex-start; }
 
 /* ---------- TV Time import ---------- */
 
@@ -3209,11 +3217,23 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   100% { transform: translate3d(var(--drift, 0), 112vh, 0) rotate(var(--spin, 540deg)); opacity: 0; }
 }
 
+/* Bottom of the room, not the middle of it. At `top: 20%` the card landed
+   squarely on the show hero — covering the action row and the progress line
+   whose change it exists to announce, so finishing a rewatch round hid the
+   round chip disappearing, the bar reverting to lifetime and the "watched ×2"
+   arriving. Anchored down here (clear of the toast lane and the mobile tab
+   bar) it reads over the season list, where nothing is changing. */
 .celebrate-toast {
   position: absolute;
   left: 50%;
-  top: 20%;
+  bottom: calc(76px + env(safe-area-inset-bottom));
   transform: translateX(-50%);
+  /* Shrink-to-fit from `left: 50%` can only use the RIGHT half of the
+     viewport, so on a 390px phone the card was capped at ~195px and the
+     headline broke across three lines — a card twice as tall as it needed to
+     be, which is what pushed it back up over the hero. max-content opts out
+     of that available-width limit; max-width still holds the line length. */
+  width: max-content;
   max-width: min(92vw, 460px);
   display: flex;
   flex-direction: column;
@@ -3229,6 +3249,11 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 }
 
 .celebrate-emoji { font-size: 34px; line-height: 1; }
+@media (max-width: 719px) {
+  /* Above the mobile tab bar AND above the toast lane (64px + inset), so a
+     confetti card and a toast can never stack on each other. */
+  .celebrate-toast { bottom: calc(120px + env(safe-area-inset-bottom)); }
+}
 
 .celebrate-headline {
   font-family: var(--font-display);
@@ -3244,3 +3269,529 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   0%   { opacity: 0; transform: translate(-50%, 8px) scale(0.94); }
   100% { opacity: 1; transform: translate(-50%, 0) scale(1); }
 }
+
+/* ---- Rewatch ---- */
+/* A "round" is one explicit rerun of a show (round 2 = the first rewatch).
+   While one is open the show page speaks the round — its own bar, its own
+   checkmarks — layered over the lifetime numbers, which a rewatch never
+   touches. Amber is legal here under the One Bulb rule for exactly one
+   reason: a round IS progress. Everything else in this block is mono
+   production metadata in muted slate, and the ↻ glyph rides along with the
+   word "round" everywhere, so color is never the only signal. */
+
+/* The ↻ that marks every rewatch affordance. It is ALWAYS the IconRewatch SVG
+   (icons.tsx) now — never the literal U+21BB. No font in any of the app's
+   stacks ships that character, so it fell back to a thin open hook with its
+   arrowhead at the lower left: a mark that reads counter-clockwise, next to
+   badges drawing a heavy clockwise circle, for one feature. The two call
+   sites still typing it were the hero entry point and the round chip — the
+   first two things anyone looks at. The wrapper sizes the icon in em so a
+   13px button label and an 11.5px chip each get a mark in proportion. */
+.rewatch-glyph { display: inline-block; font-size: 1.15em; line-height: 1; }
+.rewatch-glyph svg { display: block; width: 0.92em; height: 0.92em; }
+
+/* Hero entry point on a caught-up show: a plain ghost button, warm-white
+   glyph and all. It used to tint the ↻ amber, which taught amber a fourth
+   meaning on a control that is neither a primary nor progress — under the One
+   Bulb rule the shape of the glyph is what does the discoverability work here.
+   (Trakt hid this behind a filter menu for years; it was the single loudest
+   complaint about the product.) While the round is being opened the glyph
+   turns, because the thing the tap produces — the round chip — appears
+   somewhere else on the page entirely. */
+.rewatch-glyph.is-spinning { animation: rewatch-spin 1.1s linear infinite; }
+@keyframes rewatch-spin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* The app-wide reduce rule only shortens durations, which would turn an
+     infinite spin into a strobe. Here the label ("Starting round 2…") is the
+     whole message anyway. */
+  .rewatch-glyph.is-spinning { animation: none; }
+}
+
+/* ↻ ROUND 2 — the slate treatment (mono, amber on amber-wash), parked with
+   the progress bar because the bar is what it qualifies. */
+.rewatch-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--amber);
+  background: var(--amber-soft);
+  border-radius: 4px;
+  padding: 2.5px 8px;
+  white-space: nowrap;
+}
+
+/* Mid-round the row carries a chip, the round bar, both readouts and two
+   controls — more than the one-line lifetime version, so it wraps. */
+.show-progress.is-rewatching { flex-wrap: wrap; row-gap: 8px; }
+
+/* Round count and lifetime count, kept as one unit: the pair is the dual
+   readout, and a phone should wrap them together rather than strand one of
+   them on a line with a button. The gap matches the parent row's, so on a
+   wide screen the grouping is invisible. */
+.rewatch-readout { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; min-width: 0; }
+
+/* The round's start date, riding with its count — a round is a dated session,
+   not a counter, so the page says when this one began. Quieter than the count
+   it qualifies. */
+.rewatch-since { opacity: 0.7; }
+
+/* The second, quieter number: lifetime progress, which the rewatch leaves
+   alone (and the times-through count with it, which used to vanish for the
+   whole length of a round). Always on screen — Trakt only reveals its
+   equivalent on hover, so phone users never see it at all.
+
+   The dot that separates the two readouts hangs off the END of the first one,
+   not off the FRONT of the second. As a `.rewatch-lifetime::before` it went
+   wherever the lifetime span went, so the moment the pair wrapped — 320px,
+   with a "· watched ×2" on the end — the second line opened with a bare
+   interpunct: "1/78 · since Aug 8" / "· lifetime 78/78 · watched ×2". A
+   separator can lead a line or it can be a separator. `nowrap` keeps the dot
+   welded to the count it follows. */
+.rewatch-count { white-space: nowrap; }
+.rewatch-count::after { content: "·"; margin-left: 9px; opacity: 0.55; }
+.rewatch-lifetime { opacity: 0.8; }
+
+/* Visible undo, never a buried one — and never a stranded one either: it sits
+   in the row's normal gap right after "Mark all watched", because a control
+   flung to the far right edge by margin-left:auto reads as belonging to
+   nothing. Muted rather than amber so it can't compete with the mark button. */
+.rewatch-actions { display: inline-flex; align-items: center; gap: 8px; }
+.rewatch-stop { color: var(--muted); }
+.rewatch-stop:hover { color: var(--text); }
+
+/* "· watched ×2 · round 2 done Aug 7" — the times-through count and the date
+   that earns it. */
+.rewatch-total { white-space: nowrap; }
+
+/* TV Time's beloved ×2, kept calm but kept an OBJECT: the system's Pill
+   (mono count on a Surface-Riser fill, fully round). As bare mono it sat in
+   the same size and colour as the air date immediately before it, and the row
+   read as one string — "Mar 16, 2010 ×2". */
+.play-badge {
+  flex-shrink: 0;
+  background: var(--surface-2);
+  border-radius: 999px;
+  padding: 1px 7px;
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+}
+
+/* Countdown on unaired episode rows: "Tomorrow" / "in 12 days". Same Pill
+   as .play-badge but muted — it's ambient schedule info, not a record of
+   the viewer's own activity. Deliberately NOT hidden with .episode-date on
+   phones: with the date column gone, the pill is the row's only "when". */
+.days-badge {
+  flex-shrink: 0;
+  background: var(--surface-2);
+  border-radius: 999px;
+  padding: 1px 7px;
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+
+/* Watched before, but not yet in this round. Mid-rewatch the checkbox speaks
+   the ROUND, so without this the row of a show you've seen three times is
+   pixel-identical to one you've never opened — the single worst thing a
+   tracker can tell you. A ghosted check inside the same hollow box says "this
+   one is on your record" without claiming the round has it; the ×N pill
+   beside it carries the number, and the button's own label says "Watched
+   before." for anyone who can't see either. */
+.episode-row.was-watched .check-btn {
+  color: var(--muted);
+  border-style: dashed;
+}
+.episode-row.was-watched .check-btn svg { opacity: 0.55; }
+@media (hover: hover) {
+  /* The hover promise is still "this marks it for the round": full green. */
+  .episode-row.was-watched .check-btn:hover { border-style: solid; }
+  .episode-row.was-watched .check-btn:hover svg { opacity: 1; }
+}
+
+@media (max-width: 899px) {
+  /* Three tidy lines instead of a ragged wrap: chip + bar, then both
+     readouts, then both controls. Below ~900px the row can't hold the chip,
+     the bar, two readouts and two buttons, and a shrinkable 180px bar becomes
+     a ~100px hairline stub that reads as a divider — so the bar takes the
+     rest of the chip's line, and the readouts get their own. */
+  .show-progress.is-rewatching .progress { flex: 1 1 160px; width: auto; }
+  .rewatch-readout { flex: 1 0 100%; }
+}
+
+@media (max-width: 519px) {
+  /* Narrower than the pair can hold ("1/78 · since Aug 8 · lifetime 78/78 ·
+     watched ×2" needs ~385px of mono at its longest), so stack them on
+     purpose instead of letting them wrap raggedly — two deliberate lines, and
+     no separator between them at all, since the line break is the separation.
+     Measured: the pair wraps from 420px down, and clears 519px with room for
+     the longest date and a two-digit ×N. */
+  .rewatch-readout { flex-direction: column; align-items: flex-start; gap: 2px; }
+  .rewatch-count::after { content: none; }
+}
+
+@media (max-width: 719px), (pointer: coarse) {
+  /* Thumb-sized targets for the controls this feature added or leans on
+     (DESIGN.md: every control grows to ≥40px on narrow screens). The two
+     progress-row links were 32px tall; the episode check 38px; the confirm
+     dialog's buttons 39px. */
+  .show-progress .link-btn { min-height: 40px; }
+  /* Mark/Clear season is how a round gets bulk-marked — the thing Trakt v3
+     removed — so it's a first-class target too. The season head is already
+     ~48px tall, so this costs no layout. */
+  .season-head .link-btn { min-height: 40px; }
+  .episode-list .check-btn { width: 40px; height: 40px; }
+  .dialog-actions .btn { min-height: 40px; }
+}
+
+/* The round's own celebration: ↻ in place of the 🎉, in the one colour a
+   completed round is allowed to be — and DRAWN, like every other rewatch mark
+   in the feature (the text character has no glyph here; see .rewatch-glyph).
+   `display: block` drops the inline baseline gap the 34px emoji line-height
+   would otherwise leave under it. */
+.celebrate-emoji.celebrate-round { color: var(--amber); }
+.celebrate-emoji.celebrate-round svg { display: block; }
+
+/* ---- Rewatch: watch history (episode + movie pages) ---- */
+/* The dated per-play record that replaced "Watched Jan 3 · 3 plays". Reads
+   like a log printed on the tape: a small uppercase label matched to the
+   Streaming/Elsewhere headings that share the column, then one play per line
+   in two FIXED mono columns — zero-padded date, right-aligned time — so the
+   list has an edge to read down instead of a ragged one. Muted slate almost
+   throughout: history is a record, not an action. It reaches for three other
+   lights, each earned — the red of the × under the pointer ("careful"), the
+   green of a play logged seconds ago ("done", the confirmation light), and
+   amber on exactly one thing, the Undo a removal leaves behind, which is the
+   one genuinely time-limited "do this now" the block ever offers (the One
+   Bulb rule spends amber on precisely that). Nothing else here is amber —
+   not the expander, not the pager, not a single count.
+
+   Row padding + the block's negative margin let the hover fill and the
+   hairlines run 8px wider than the text on both sides, so the text column
+   still starts where the paragraph above it does. */
+
+.watch-history { margin: 18px -8px 20px; padding: 0 8px; max-width: 376px; }
+
+/* Label left, honest lifetime count right, hairline under the pair — the
+   count is what a legacy row's undated plays are reconciled against. */
+.watch-history-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+}
+.watch-history-label {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+/* The heading is programmatically focusable (last-resort landing spot when a
+   removal takes the row that had focus), so it drops the plain focus outline
+   — but keeps the app's amber :focus-visible ring for the keyboard user it
+   exists for. */
+.watch-history-label:focus:not(:focus-visible) { outline: none; }
+.watch-history-count { flex-shrink: 0; }
+
+.play-list { list-style: none; margin: 0; padding: 0; }
+
+/* One play. Hairline-ruled rows rather than a card: flat, tonal, and it keeps
+   the block from reading as a second surface floating in the detail column.
+   The mount animation only ever runs for a row that is genuinely new — the
+   rows are keyed by timestamp, so a "+ Rewatch" tap slides its receipt in at
+   the top while every existing row sits still. */
+.play-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  padding: 0 8px;
+  margin: 0 -8px;
+  border-bottom: 1px solid var(--line);
+  animation: play-row-in 0.22s ease-out;
+}
+.play-row:last-child { border-bottom: none; }
+
+@keyframes play-row-in {
+  from { opacity: 0; transform: translateY(-3px); }
+}
+
+/* The whole row is the target. The × can sit 165px from its date on desktop
+   and the width of a phone away on mobile, so without a row fill nothing tells
+   you WHICH play you're about to remove until the dialog names it — on a 35px
+   row grid that's a real mis-tap. (Letterboxd's diary rows and Trakt's play
+   list both do this.) The row lights the × as well as itself, so the pointer
+   only has to be somewhere on the line. */
+/* (The Undo row is excluded — it is a slot where a play WAS, not a play, and
+   it has no × to aim at.) Not wrapped in a hover media query: on touch the
+   same fill is exactly the right press feedback for a 44px row. */
+.play-row:not(.play-undone):hover,
+.play-row:not(.play-undone):active { background: var(--surface-2); }
+.play-row:hover .play-remove { color: var(--text); }
+.play-row:hover .play-date,
+.play-row:hover .play-time { color: var(--text); }
+
+/* The rewatch mark, and the two mono columns after it. 12ch fits
+   "Aug 02, 2018" exactly (the day is zero-padded for this reason) and
+   "Today"/"Yesterday" sit inside it, so the time column starts at the same x
+   on every row and ends flush right. */
+/* The mark is the DRAWN ↻ (IconRewatch, 13px), not the text character. As a
+   raw U+21BB at font-size 12 in an 11px column it rendered ~5×6px at 1× and
+   read as a comma or a lowercase o — the feature's signature glyph, at its
+   smallest and murkiest in the one place it repeats on every single row,
+   while the same feature drew the SVG on the library and Watch Next badges.
+   Now it is one glyph everywhere. */
+.play-mark {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  color: var(--muted);
+}
+.play-mark svg { display: block; }
+.play-date { min-width: 12ch; }
+.play-time { min-width: 8ch; text-align: right; }
+
+/* Which viewing this was: "first watch" on the oldest row, "round 2" on the
+   plays inside an open round, "just now" on the one you logged seconds ago,
+   "queued" on one still waiting to sync. One slot, so a row never carries two
+   labels. */
+/* Full-strength muted, no dimming: at 0.9 it measured 4.37:1 against the
+   surface-2 row-hover fill, under the AA floor. Size and position separate it
+   from the date, not contrast. */
+.play-tag {
+  flex-shrink: 0;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+/* The receipt for the tap: green is the app's "done" light, and the words say
+   it too. */
+.play-tag.is-fresh { color: var(--green); opacity: 1; }
+
+/* A play logged seconds ago settles out of the surface-2 fill instead of
+   arriving already indistinguishable from a seven-year-old row. Slow enough
+   to still be going when the eye lands (the 0.22s slide-in is long over);
+   the "just now" tag carries the same message for anyone who missed it or
+   asked for reduced motion. */
+.play-row.is-fresh { animation: play-row-in 0.22s ease-out, play-row-fresh 2.6s ease-out; }
+@keyframes play-row-fresh {
+  from { background: var(--surface-2); }
+  to { background: transparent; }
+}
+
+/* Not settled on the server yet: queued offline, or a POST still in flight.
+   Present at full strength — the tap has to leave a mark, and dimming it to
+   say "provisional" measured 3.71:1, under AA. A dashed rule and the
+   "queued"/"saving" tag carry the state instead. No ×: there is nothing to
+   remove until the play exists (and the single-play DELETE is online-only). */
+.play-row.is-queued,
+.play-row.is-saving { border-bottom-style: dashed; }
+.play-remove-spacer { width: 34px; flex-shrink: 0; }
+
+/* The × is the app's bare .icon-btn, muted at rest. Red on hover and press
+   only: on :focus-visible it would paint a red glyph inside the amber focus
+   ring — a pairing the design system never uses — and spend the "careful"
+   light on merely tabbing past. The amber ring is the focus signal. */
+.play-remove { margin-left: auto; }
+.play-remove:hover,
+.play-remove:active { color: var(--red); }
+
+/* The row a removal leaves behind: the slot stays open for two minutes with
+   the way back inside it, where the row was and in date order — an undo that
+   jumps to a corner of the screen is an undo you have to go looking for.
+   Dashed rule, because like a queued play this is a state that resolves.
+   The Undo itself is the block's ONE amber object: a genuinely expiring
+   "do this now", which is exactly what the One Bulb rule reserves amber for.
+   It also earns .link-btn's default colour rather than overriding it. */
+.play-undone { color: var(--muted); border-bottom-style: dashed; }
+.play-undone-text { font-size: 13px; }
+/* Mono's left side bearing eats the word space before the date, and the two
+   faces butt together ("RemovedDec 29"). */
+.play-undone-text .mono { margin-left: 5px; }
+.play-undo { margin-left: auto; align-self: stretch; padding: 0 6px; font-weight: 500; }
+.play-undo:hover { text-decoration: underline; }
+
+/* ---- Under the list ---- */
+/* The expander and the pager, lifted OUT of <ul class="play-list">. They used
+   to be <li>s in it, which put a button between two static count lines in the
+   same muted grey with no chevron and no underline until hover — a hover that
+   never fires on a phone. Nothing said which of the three was tappable. Down
+   here they are the only things that are, they carry a chevron, and they sit
+   in warm-white text against the muted footnote below. Still not amber: this
+   is a way to LOOK at history, not an action on it. */
+.play-foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0 16px;
+  border-top: 1px solid var(--line);
+}
+.play-expand,
+.play-load {
+  color: var(--text);
+  padding: 0;
+  min-height: 36px;
+  font-weight: 500;
+}
+.play-expand:hover,
+.play-load:hover { text-decoration: underline; }
+.play-expand:disabled,
+.play-load:disabled { color: var(--muted); }
+/* Lucide ships one chevron; the direction is the rotation. Down = "there is
+   more below this", up = "put it away". */
+.play-chevron {
+  display: inline-flex;
+  color: var(--muted);
+  transform: rotate(90deg);
+  transition: transform 0.16s ease-out;
+}
+.play-chevron.is-open { transform: rotate(-90deg); }
+.play-foot-error { color: var(--red); font-size: 12.5px; }
+
+/* Legacy honesty note: plays the count owes that the pre-0043 schema never
+   dated. A FOOTNOTE under the list's closing rule, not the bottom row of it —
+   as the last <li> of a descending list it sat directly beneath the row
+   tagged "first watch", and every reader of a desc list takes the bottom
+   entry for the oldest. These plays fall BETWEEN the dates above.
+   Prose in the body face with the count in mono, not the whole sentence in
+   mono (DESIGN.md §3: prose is never mono; metadata is never prose-set).
+   Full-strength muted — at 0.72 opacity it computed to 3.87:1 on the page
+   background, under the 4.5:1 AA floor PRODUCT.md commits to. */
+.watch-history-note {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+  max-width: 52ch;
+}
+.play-list + .watch-history-note { border-top: 1px solid var(--line); padding-top: 8px; }
+
+/* ---- The single-play case ---- */
+/* 13,805 of this account's episodes have exactly one play. For them the
+   titled, ruled, removable table was ~107px of furniture around one date, and
+   its × was a second unwatch control 40px under the first. One quiet mono
+   line instead — the same weight as the .watched-note it replaced.
+
+   The × sits IMMEDIATELY after the date inside one press target. It used to
+   inherit .play-remove's `margin-left: auto` from the row layout, which flung
+   it to the far right of a 376px flex line (386px on a phone, where the block
+   goes full width): a 34px glyph orphaned 175px from the date, with no row,
+   no rule and no fill to connect the two — and, because the reveal-on-hover
+   rule below cannot fire on touch, permanently visible on every phone. Now
+   the group is content-width, lights up as one object on hover/press/focus,
+   and the whole thing is one 34px (40px touch) target. */
+.watch-history.is-single {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin: 8px -8px;
+  padding: 0 2px 0 8px;
+  max-width: 100%;
+  min-height: 34px;
+  border-radius: 8px;
+}
+.watch-history.is-single:hover,
+.watch-history.is-single:active,
+.watch-history.is-single:focus-within { background: var(--surface-2); }
+.watch-history.is-single .play-remove { margin-left: 0; }
+.watch-history.is-single:hover .play-remove { color: var(--text); }
+.watch-single { color: var(--muted); }
+.watch-history.is-single:hover .watch-single { color: var(--text); }
+.watch-history.is-single.is-fresh .watch-single { color: var(--green); }
+@media (hover: hover) {
+  /* Quiet at rest on a pointer device, where hover can reveal it. On touch it
+     stays visible — but adjacent and inside the press target, which is the
+     part that was actually broken. */
+  .watch-history.is-single .play-remove { opacity: 0; transition: opacity 0.12s ease-out; }
+  .watch-history.is-single:hover .play-remove,
+  .watch-history.is-single .play-remove:focus-visible { opacity: 1; }
+}
+
+/* Seen before, but not yet inside the open round — the state the page used to
+   have no words for, sitting under a button that says "Mark for round 2"
+   above a history that lists three plays. Body face: it is a sentence, and
+   the round number it used to repeat now lives once, in the chip up in the
+   slate row. */
+.episode-round-note { margin: 8px 0 0; color: var(--muted); font-size: 13.5px; }
+
+@media (max-width: 719px), (pointer: coarse) {
+  /* Thumb-sized rows: a 40px × with room around it, and the block runs the
+     full column so the target sits under the resting thumb. (The single-play
+     line is the exception — it is content-width by design, so the × can't
+     drift away from its date.) */
+  .watch-history { max-width: none; }
+  .play-row { min-height: 44px; }
+  .play-remove { width: 40px; height: 40px; }
+  .play-remove-spacer { width: 40px; }
+  .watch-history.is-single { min-height: 40px; }
+  .play-expand,
+  .play-load,
+  .play-undo { min-height: 44px; }
+}
+
+/* ---- Rewatch: library cards + Watch Next tiles ---- */
+/* Where a round shows up once you leave the show page. Both surfaces wear one
+   badge — ONE rule, so they cannot drift: same icon, same words, same mono,
+   same pill, same corner. They earn it by answering the same question in both
+   places ("why is a show I finished sitting in my queue?"), and the whole
+   promise of a rewatch is that the show comes BACK: back into the Library's
+   Watching tab, back into the queue, with its history untouched. (TV Time
+   could only ever add a "×2" to a show that stayed finished and gone.) The
+   badge is also what keeps the numbers honest: mid-round the bar, the loud
+   12/78 and the "N left" pill are all the ROUND's, not a lifetime that
+   appears to have run backwards.
+
+   Shape follows the host surface, exactly as the app already does it: over
+   artwork the system's Pill (mono count, fully round, slate scrim) — the
+   idiom .poster-card-pill, .wn-tile-count and .wn-tile-date all share — and
+   in a text row the Slate (.rewatch-chip, amber on amber-wash, 4px), which is
+   what the show page's progress line wears. Type is identical across all
+   three: mono 600, 0.08em, the word ROUND and the round's number.
+
+   Top-left because it is the one corner free on BOTH surfaces (the count and
+   air-date pills own bottom-right, and the Finished tab's episode-count pill
+   with them), and because a badge that explains the card should be read
+   before the card, not after it. Absolutely positioned, so it costs the
+   Library card no height — every progress bar in the grid keeps the same
+   baseline as its neighbours', which a chip on a line of its own would break
+   for the whole row. */
+.rewatch-pill {
+  position: absolute;
+  top: 7px;
+  left: 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  /* The scrim the app's other over-artwork pills use, so the badge holds up
+     on a bright poster. Amber text: a round in progress IS progress, the one
+     thing the One Bulb rule lets amber mean. */
+  background: rgba(15, 18, 24, 0.85);
+  color: var(--amber);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  /* Letter-spacing pads the right of the last digit; pull the padding back so
+     the badge stays optically centred. */
+  padding-right: 8px;
+}
+/* A finished rerun: ↻ ×2, the count TV Time refugees came here already
+   fluent in. Warm white, not amber — a times-through count is production
+   metadata, like the "73 episodes" pill it shares the poster with. It is the
+   only trace a completed round leaves in the grid people actually scan. */
+.rewatch-pill.is-done { color: var(--text); }
+.rewatch-pill svg { display: block; flex: none; }
+
+/* The lifetime hint ("0/78 · seen 78/78") makes the longest sub line in the
+   grid; one card wrapping to two lines drops its progress bar below the whole
+   row's shared baseline, so the line clips instead. */
+.lib-card .poster-card-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -40,6 +40,9 @@ interface NotificationItem {
   // High-rating rows only: the actor's CURRENT score, resolved live at read
   // time — null once they cleared it (and for every other type).
   ratingScore: number | null;
+  // Air-date alert rows only: how many episodes aired that day, counted live
+  // at read time — null for other types and when the episode left the catalog.
+  epCount: number | null;
   read: boolean;
   createdAt: string;
 }
@@ -88,6 +91,33 @@ function NotificationBody({ n }: { n: NotificationItem }) {
     ) : (
       <span>{n.title ?? "something"}</span>
     );
+
+  // Air-date alert rows: system notices with no actor (the caller skips the
+  // name prefix), so this is the whole sentence. A single episode names and
+  // links it, comment-row style; a multi-episode drop day counts instead
+  // ("8 new episodes of Severance"); missing details (a since-deleted
+  // episode) degrade to just the show.
+  if (n.type === "new_episode") {
+    if ((n.epCount ?? 1) > 1) {
+      return (
+        <>
+          {n.epCount} new episodes of {targetLink}
+        </>
+      );
+    }
+    if (n.episodeId != null && n.season != null && n.number != null) {
+      return (
+        <>
+          New episode of {targetLink}:{" "}
+          <Link className="notif-ep" to={mediaPath("episode", n.episodeId, n.episodeTitle)}>
+            {epCode(n.season, n.number)}
+            {n.episodeTitle ? ` · ${n.episodeTitle}` : ""}
+          </Link>
+        </>
+      );
+    }
+    return <>New episode of {targetLink}</>;
+  }
 
   if (n.type === "follow_favorite") {
     return <>favorited {targetLink}</>;
@@ -269,7 +299,7 @@ export function NotificationsPage() {
       {!items.length ? (
         <Empty
           title="No notifications yet"
-          hint="When someone follows you, reacts to your activity, comments on a show or movie you track, or someone you follow watches, favorites, comments, or creates a list, you'll hear about it here."
+          hint="When a show you watch airs a new episode, someone follows you, reacts to your activity, comments on a show or movie you track, or someone you follow watches, favorites, comments, or creates a list, you'll hear about it here."
         />
       ) : (
         <>
@@ -278,13 +308,19 @@ export function NotificationsPage() {
               <li key={n.id} className={n.read ? undefined : "is-unread"}>
                 {n.poster && <img className="notif-poster" src={poster(n.poster, "w154")!} alt="" loading="lazy" />}
                 <span className="notif-text">
-                  {n.actor ? (
-                    <Link to={`/u/${n.actor}`} className="notif-user">
-                      {n.actor}
-                    </Link>
-                  ) : (
-                    <span className="notif-user">Someone</span>
-                  )}{" "}
+                  {/* System notices (air-date alerts) have no actor — the body
+                      is the whole sentence, so no name and no "Someone". */}
+                  {n.type !== "new_episode" && (
+                    <>
+                      {n.actor ? (
+                        <Link to={`/u/${n.actor}`} className="notif-user">
+                          {n.actor}
+                        </Link>
+                      ) : (
+                        <span className="notif-user">Someone</span>
+                      )}{" "}
+                    </>
+                  )}
                   <NotificationBody n={n} />
                 </span>
                 {n.actor != null && n.youFollowActor === false && (

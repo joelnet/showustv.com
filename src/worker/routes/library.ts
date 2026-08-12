@@ -9,6 +9,7 @@ import { notifyFollowersOfFavorite, notifyFollowersOfWatch } from "../lib/notifi
 // — the public library endpoint shares them, stats.ts-style.
 import { libraryPayload, recentlyActive } from "../lib/library";
 import { RECENT_WINDOW_DAYS, STORED_SHOW_STATES } from "../../shared/constants";
+import type { RewatchRef } from "../../shared/rewatch";
 
 export const library = new Hono<AppEnv>();
 
@@ -38,16 +39,30 @@ library.get("/home", async (c) => {
   // episode air, or was followed within RECENT_WINDOW_DAYS. Otherwise it's
   // dormant and drops to the "Haven't watched for a while" bucket below.
   const recentSince = daysAgoInTz(c.get("tz"), RECENT_WINDOW_DAYS);
+  // Shows mid-rewatch (an active round in user_show_rewatches) re-enter the
+  // queue: for them "unwatched" means no this-round play (watched_at >= the
+  // round's start) instead of the lifetime watched flag, so the next round
+  // episode surfaces like any in-progress show — without touching history.
   const { results } = await c.env.DB.prepare(
-    `WITH cand AS (
+    `WITH rw AS (
+       SELECT show_id, round, started_at FROM user_show_rewatches
+       WHERE user_id = ?1 AND finished_at IS NULL
+     ),
+     cand AS (
        SELECT e.id, e.show_id, e.season_number, e.number, e.title, e.air_date, e.runtime_min, e.overview, e.still_url,
+              r.round AS rewatch_round, r.started_at AS rewatch_started,
               ROW_NUMBER() OVER (PARTITION BY e.show_id ORDER BY e.season_number, e.number) AS rn,
               COUNT(*) OVER (PARTITION BY e.show_id) AS unwatched_aired
        FROM episodes e JOIN shows sh ON sh.tmdb_id = e.show_id
+       LEFT JOIN rw r ON r.show_id = e.show_id
        WHERE e.show_id IN (SELECT show_id FROM user_shows WHERE user_id = ?1 AND state = 'watching')
          AND e.season_number > 0
          AND ${airedCond("?2", "sh")}
-         AND NOT EXISTS (SELECT 1 FROM user_episodes ue WHERE ue.user_id = ?1 AND ue.episode_id = e.id)
+         AND CASE WHEN r.show_id IS NULL
+             THEN NOT EXISTS (SELECT 1 FROM user_episodes ue WHERE ue.user_id = ?1 AND ue.episode_id = e.id)
+             ELSE NOT EXISTS (SELECT 1 FROM user_episode_plays p
+                              WHERE p.user_id = ?1 AND p.episode_id = e.id AND p.watched_at >= r.started_at)
+             END
      ),
      last_aired AS (
        SELECT show_id, MAX(air_date) AS air_date FROM episodes
@@ -56,19 +71,17 @@ library.get("/home", async (c) => {
      )
      SELECT c.id AS episode_id, c.show_id, c.season_number, c.number, c.title AS episode_title,
             c.air_date, c.runtime_min, c.overview, c.still_url, c.unwatched_aired,
+            c.rewatch_round, c.rewatch_started,
             s.title AS show_title, s.poster_url, s.backdrop_url,
             us.added_at, lw.last_watched, la.air_date AS last_aired,
-            CASE WHEN lw.last_watched IS NULL OR lw.last_watched < us.added_at
-                 THEN us.added_at ELSE lw.last_watched END AS last_activity
+            MAX(COALESCE(lw.last_watched, ''), us.added_at, COALESCE(c.rewatch_started, '')) AS last_activity
      FROM cand c
      JOIN shows s ON s.tmdb_id = c.show_id
      JOIN user_shows us ON us.show_id = c.show_id AND us.user_id = ?1
      LEFT JOIN (
-       SELECT e2.show_id,
-              MAX(CASE WHEN ue.last_rewatched_at > ue.watched_at
-                       THEN ue.last_rewatched_at ELSE ue.watched_at END) AS last_watched
-       FROM user_episodes ue JOIN episodes e2 ON e2.id = ue.episode_id
-       WHERE ue.user_id = ?1 GROUP BY e2.show_id
+       SELECT e2.show_id, MAX(p.watched_at) AS last_watched
+       FROM user_episode_plays p JOIN episodes e2 ON e2.id = p.episode_id
+       WHERE p.user_id = ?1 GROUP BY e2.show_id
      ) lw ON lw.show_id = c.show_id
      LEFT JOIN last_aired la ON la.show_id = c.show_id
      WHERE c.rn = 1
@@ -94,15 +107,28 @@ library.get("/home", async (c) => {
     number: r.number,
     episodeTitle: r.episode_title,
     count: r.unwatched_aired,
+    // Mid-round tiles carry the round for the client's ↻ chip — the same
+    // { round, startedAt } object every other surface calls `rewatch`
+    // (shared/rewatch.ts), so one shape covers the whole API.
+    ...(r.rewatch_round != null
+      ? { rewatch: { round: r.rewatch_round, startedAt: r.rewatch_started } satisfies RewatchRef }
+      : {}),
   });
   const continueWatching: any[] = [];
   const notStarted: any[] = [];
   const havenWatched: any[] = [];
   for (const r of results as any[]) {
+    // A round's start counts as watch activity: starting a rewatch on a
+    // long-finished show puts it straight into Continue Watching, not the
+    // "Haven't watched for a while" bucket its old dates would earn.
+    const lastWatched =
+      r.rewatch_started != null && (r.last_watched == null || r.rewatch_started > r.last_watched)
+        ? r.rewatch_started
+        : r.last_watched;
     // Not Started tiles carry when the show was followed: Watch Later movies
     // merge into that section below, and the whole rail sorts by added-at.
-    if (r.last_watched == null) notStarted.push({ ...showTile(r), addedAt: r.added_at });
-    else if (recentlyActive(r.last_watched, r.last_aired, recentSince)) continueWatching.push(showTile(r));
+    if (lastWatched == null) notStarted.push({ ...showTile(r), addedAt: r.added_at });
+    else if (recentlyActive(lastWatched, r.last_aired, recentSince)) continueWatching.push(showTile(r));
     else havenWatched.push(showTile(r));
   }
 
@@ -158,19 +184,81 @@ library.get("/home", async (c) => {
   // exclusion — just the same followee-visibility gate and follow window.
   const followSince = new Date(Date.now() - FOLLOWING_WINDOW_MS).toISOString();
   const [histEp, histMov, friendsR, friendsMovR, wlMovR, libR] = await c.env.DB.batch([
+    // History rail: ONE ROW PER PLAY, from the dated history itself
+    // (user_episode_plays, walked newest-first on its (user_id, watched_at)
+    // index). It used to read user_episodes and collapse an episode to its
+    // single newest date, which meant a rewatch didn't join the log, it
+    // OVERWROTE the first watch in it — on the app's only chronological
+    // surface, for the one feature whose promise is that history is never
+    // lost. Letterboxd's diary, Trakt's history and Simkl's history popup all
+    // list every play; so does this now.
+    //
+    // Each row also reports the rewatch round its play belongs to, if any: a
+    // play stamped inside a round's window (>= its start, and not after it
+    // closed — an open round has no close) was part of that rerun, and the
+    // tile marks it. Without this a rewatch in the log is pixel-identical to
+    // a first watch. Correlated over the 30 rows the rail actually shows.
+    //
+    // One BULK mark is one entry, not one per episode. "Mark all watched" —
+    // the documented way to finish a rewatch round — stamps every aired
+    // episode with a single shared timestamp, so on a 78-episode show it used
+    // to consume all 30 slots of this rail with 30 identical tiles at the
+    // same instant: the feature's own finishing move wiped the only surface
+    // that answers "what did I actually watch?". Trakt, Simkl and Letterboxd
+    // all collapse a bulk mark into one entry; so does this. Grouping is on
+    // (show, exact timestamp), which is precisely what a bulk call produces —
+    // individually tapped plays each get their own ms-stamped nowIso() and
+    // stay their own tiles. The representative episode is the FURTHEST one in
+    // the group (the progress point), the same tiebreak the followees' rail
+    // uses, and `episodes` tells the client how many went with it.
     c.env.DB.prepare(
-      `SELECT e.show_id AS id, s.title AS show_title, s.poster_url, s.backdrop_url, e.still_url,
+      `WITH ts AS (
+         -- Bound the work first: the newest distinct play timestamps, read
+         -- straight off idx_user_episode_plays_user_watched. Grouping the
+         -- whole history to take 30 rows off the top would walk every play
+         -- the account has.
+         SELECT DISTINCT p.watched_at AS watched_at FROM user_episode_plays p
+         WHERE p.user_id = ?1 ORDER BY p.watched_at DESC LIMIT 30
+       ),
+       g AS (
+         -- One row per (show, exact stamp), carrying its size and the
+         -- episode that stands for it: the furthest one in the group, which
+         -- is where the sweep left the viewer. Picked by ROW_NUMBER rather
+         -- than a MAX() the outer query has to re-resolve, so the tile joins
+         -- on an episode PRIMARY KEY and one group can only ever be one tile.
+         SELECT show_id, watched_at, episodes, episode_id FROM (
+           SELECT e.show_id AS show_id, p.watched_at AS watched_at, e.id AS episode_id,
+                  COUNT(*) OVER (PARTITION BY e.show_id, p.watched_at) AS episodes,
+                  ROW_NUMBER() OVER (PARTITION BY e.show_id, p.watched_at
+                                     ORDER BY e.season_number DESC, e.number DESC, e.id DESC) AS rn
+           FROM user_episode_plays p JOIN episodes e ON e.id = p.episode_id
+           WHERE p.user_id = ?1 AND e.season_number > 0
+             AND p.watched_at IN (SELECT watched_at FROM ts)
+         ) WHERE rn = 1
+         ORDER BY watched_at DESC LIMIT 30
+       )
+       SELECT g.show_id AS id, s.title AS show_title, s.poster_url, s.backdrop_url, e.still_url,
               e.season_number, e.number, e.title AS episode_title,
-              (CASE WHEN ue.last_rewatched_at > ue.watched_at THEN ue.last_rewatched_at ELSE ue.watched_at END) AS watched_at
-       FROM user_episodes ue JOIN episodes e ON e.id = ue.episode_id JOIN shows s ON s.tmdb_id = e.show_id
-       WHERE ue.user_id = ?1 AND e.season_number > 0
-       ORDER BY watched_at DESC LIMIT 30`
+              g.watched_at AS watched_at, g.episodes AS episodes,
+              (SELECT MAX(rw.round) FROM user_show_rewatches rw
+                 WHERE rw.user_id = ?1 AND rw.show_id = g.show_id
+                   AND g.watched_at >= rw.started_at
+                   AND (rw.finished_at IS NULL OR g.watched_at <= rw.finished_at)) AS rewatch_round
+       FROM g
+       JOIN shows s ON s.tmdb_id = g.show_id
+       JOIN episodes e ON e.id = g.episode_id
+       ORDER BY g.watched_at DESC`
     ).bind(uid),
+    // Movies keep the rail honest the same way: user_movie_plays, one row per
+    // viewing. user_movies holds a single watched_at, so a comfort movie
+    // logged three times used to appear once — the Letterboxd diary case this
+    // table exists for. Same set of movies either way (a play row exists for
+    // exactly the watched ones; unwatching drops both).
     c.env.DB.prepare(
-      `SELECT m.tmdb_id AS id, m.title, m.poster_url, um.watched_at
-       FROM user_movies um JOIN movies m ON m.tmdb_id = um.movie_id
-       WHERE um.user_id = ?1 AND um.state = 'watched' AND um.watched_at IS NOT NULL
-       ORDER BY um.watched_at DESC LIMIT 30`
+      `SELECT m.tmdb_id AS id, m.title, m.poster_url, p.watched_at
+       FROM user_movie_plays p JOIN movies m ON m.tmdb_id = p.movie_id
+       WHERE p.user_id = ?1
+       ORDER BY p.watched_at DESC LIMIT 30`
     ).bind(uid),
     c.env.DB.prepare(
       `WITH following(fid) AS (
@@ -275,6 +363,14 @@ library.get("/home", async (c) => {
       number: r.number,
       episodeTitle: r.episode_title,
       watchedAt: r.watched_at,
+      // How many episodes went in on this one stamp. 1 for a normal tap, and
+      // the client keeps naming the episode; >1 means a bulk mark and the
+      // tile says "78 episodes" instead of pretending to be one of them.
+      ...(r.episodes > 1 ? { episodes: r.episodes } : {}),
+      // The round this play went into, so the rail can mark a rerun. Round
+      // only: that round may have closed months ago, so it names an
+      // attribution, not an open session (shared/rewatch.ts).
+      ...(r.rewatch_round != null ? { rewatch: { round: r.rewatch_round } satisfies RewatchRef } : {}),
     })),
     ...(histMov.results as any[]).map((r) => ({
       kind: "movie" as const,
@@ -404,8 +500,13 @@ library.get("/library", async (c) => {
   // their hidden shows — both opt-in, so the public route (which
   // calls libraryPayload without either flag) can never serve the private
   // watchlist or a hidden show. Hidden shows must stay visible HERE so the
-  // owner can find and unhide them without losing progress.
-  return c.json(await libraryPayload(c.env.DB, c.get("uid"), c.get("tz"), { watchlist: true, includeHidden: true }));
+  // owner can find and unhide them without losing progress. Rewatch
+  // round-awareness is opt-in the same way: the public library keeps its
+  // lifetime counts and unchanged payload shape (public rewatch surfaces are
+  // deliberately out of scope).
+  return c.json(
+    await libraryPayload(c.env.DB, c.get("uid"), c.get("tz"), { watchlist: true, includeHidden: true, rewatch: true })
+  );
 });
 
 // No Library page fetches this anymore — Watch Later moved into the Shows and
@@ -513,6 +614,10 @@ library.delete("/shows/:id/remove", async (c) => {
   if (!id) return c.json({ error: "bad id" }, 400);
   const uid = c.get("uid");
   await c.env.DB.batch([
+    c.env.DB.prepare(
+      "DELETE FROM user_episode_plays WHERE user_id = ?1 AND episode_id IN (SELECT id FROM episodes WHERE show_id = ?2)"
+    ).bind(uid, id),
+    c.env.DB.prepare("DELETE FROM user_show_rewatches WHERE user_id = ?1 AND show_id = ?2").bind(uid, id),
     c.env.DB.prepare(
       "DELETE FROM user_episodes WHERE user_id = ?1 AND episode_id IN (SELECT id FROM episodes WHERE show_id = ?2)"
     ).bind(uid, id),
@@ -728,6 +833,211 @@ library.delete("/movies/:id/favorite", async (c) => {
   return c.json({ ok: true });
 });
 
+// ---------- Rewatch rounds ----------
+// A round is one explicit rewatch run of a show (round 2 = first rewatch —
+// the original watch is implicitly round 1), tracked in user_show_rewatches
+// (0043). Progress lives in user_episode_plays: an episode is "watched this
+// round" when it has a play with watched_at >= started_at — >= and never >,
+// so a play stamped at exactly the round's start still counts.
+
+// The show's active round (finished_at IS NULL), if any. At most one per
+// show; the start route 409s rather than stacking a second. `prev_state`
+// is the user_shows.state the round displaced — see restoreShowState.
+async function activeRound(
+  db: D1Database,
+  uid: number,
+  showId: number
+): Promise<{ round: number; started_at: string; prev_state: string | null } | null> {
+  return db
+    .prepare(
+      `SELECT round, started_at, prev_state FROM user_show_rewatches
+       WHERE user_id = ?1 AND show_id = ?2 AND finished_at IS NULL`
+    )
+    .bind(uid, showId)
+    .first<{ round: number; started_at: string; prev_state: string | null }>();
+}
+
+// Starting a round forces user_shows.state to 'watching' — that flip is what
+// puts the show back in Library Watching and Watch Next, the whole point over
+// TV Time. It is also a MUTATION OF THE USER'S OWN CHOICE, so the round row
+// remembers what it displaced and hands it back the moment the round ends,
+// however it ends (auto-complete, cancel). Without this an abandoned show
+// rewatched once never returns to the Abandoned tab, and an unfollowed
+// hidden show (state 'hidden' — the privacy tombstone) silently reappears in
+// the library forever.
+//
+// Only ever restores a state we ourselves set: the WHERE clause requires the
+// row to still say 'watching', so a state the user changed mid-round (Resume,
+// Abandon, watch-later) is left exactly as they left it. prev_state NULL means
+// there was no user_shows row at all — starting a rewatch on a show you'd
+// unfollowed is an explicit "I'm tracking this again", so that follow stays.
+async function restoreShowState(db: D1Database, uid: number, showId: number, prevState: string | null): Promise<void> {
+  if (prevState == null || prevState === "watching") return;
+  await db
+    .prepare(
+      `UPDATE user_shows SET state = ?3, last_state_change = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+       WHERE user_id = ?1 AND show_id = ?2 AND state = 'watching'`
+    )
+    .bind(uid, showId, prevState)
+    .run();
+}
+
+// A finished round claims "I covered every aired episode". Removing one of
+// its plays makes that false — so the round re-opens (finished_at back to
+// NULL) rather than standing as a completed round the history no longer
+// supports, with no way back in to finish it. The show returns to the queue
+// with it, exactly as when the round was started.
+//
+// Only the LATEST round can re-open: at most one round may be active, and an
+// older round's window is closed off by the rounds after it. Cheap enough to
+// run after every un-watch — the lookup is a primary-key seek that finds
+// nothing for the ~all shows that have never been rewatched.
+async function reopenRoundIfIncomplete(c: Context<AppEnv>, uid: number, showId: number): Promise<void> {
+  const last = await c.env.DB.prepare(
+    `SELECT round, started_at, finished_at FROM user_show_rewatches
+     WHERE user_id = ?1 AND show_id = ?2 ORDER BY round DESC LIMIT 1`
+  )
+    .bind(uid, showId)
+    .first<{ round: number; started_at: string; finished_at: string | null }>();
+  if (!last || last.finished_at == null) return;
+  const remaining = await c.env.DB.prepare(
+    `SELECT COUNT(*) AS n FROM episodes e JOIN shows s ON s.tmdb_id = e.show_id
+     WHERE e.show_id = ?2 AND e.season_number > 0
+       AND ${airedCond("?3", "s")}
+       AND NOT EXISTS (SELECT 1 FROM user_episode_plays p
+                       WHERE p.user_id = ?1 AND p.episode_id = e.id AND p.watched_at >= ?4)`
+  )
+    .bind(uid, showId, todayInTz(c.get("tz")), last.started_at)
+    .first<{ n: number }>();
+  if ((remaining?.n ?? 0) === 0) return;
+  await c.env.DB.batch([
+    c.env.DB.prepare(
+      `UPDATE user_show_rewatches SET finished_at = NULL
+       WHERE user_id = ?1 AND show_id = ?2 AND round = ?3 AND finished_at IS NOT NULL`
+    ).bind(uid, showId, last.round),
+    // Back in the queue, like any open round. prev_state is untouched — it
+    // still remembers what the round displaced when it opened.
+    c.env.DB.prepare(
+      `INSERT INTO user_shows (user_id, show_id) VALUES (?1, ?2)
+       ON CONFLICT (user_id, show_id) DO UPDATE
+         SET state = 'watching', last_state_change = strftime('%Y-%m-%dT%H:%M:%fZ','now')`
+    ).bind(uid, showId),
+  ]);
+}
+
+// Auto-complete: when a watch action has just given every aired
+// regular-season episode a this-round play, close the round. Returns whether
+// it did — the caller's response then carries roundComplete: true, which
+// drives the client's confetti. Specials (season 0) never gate completion,
+// matching the rest of the app's progress accounting.
+async function completeRoundIfDone(
+  c: Context<AppEnv>,
+  uid: number,
+  showId: number,
+  round: number,
+  startedAt: string
+): Promise<boolean> {
+  const remaining = await c.env.DB.prepare(
+    `SELECT COUNT(*) AS n FROM episodes e JOIN shows s ON s.tmdb_id = e.show_id
+     WHERE e.show_id = ?2 AND e.season_number > 0
+       AND ${airedCond("?3", "s")}
+       AND NOT EXISTS (SELECT 1 FROM user_episode_plays p
+                       WHERE p.user_id = ?1 AND p.episode_id = e.id AND p.watched_at >= ?4)`
+  )
+    .bind(uid, showId, todayInTz(c.get("tz")), startedAt)
+    .first<{ n: number }>();
+  if ((remaining?.n ?? 0) !== 0) return false;
+  const closed = await c.env.DB.prepare(
+    `UPDATE user_show_rewatches SET finished_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+     WHERE user_id = ?1 AND show_id = ?2 AND round = ?3 AND finished_at IS NULL
+     RETURNING prev_state`
+  )
+    .bind(uid, showId, round)
+    .first<{ prev_state: string | null }>();
+  // The round is over, so the state it borrowed goes back.
+  if (closed) await restoreShowState(c.env.DB, uid, showId, closed.prev_state);
+  return true;
+}
+
+library.post("/shows/:id/rewatch", async (c) => {
+  const id = intParam(c.req.param("id"));
+  if (!id) return c.json({ error: "bad id" }, 400);
+  const uid = c.get("uid");
+  await ensureShow(c.env, id);
+  if (await activeRound(c.env.DB, uid, id)) return c.json({ error: "a rewatch is already in progress" }, 409);
+
+  // You can only re-watch what you've watched. The show page offers the
+  // button on exactly this test (caught up: every aired regular-season
+  // episode watched, and at least one has aired) and the server has to make
+  // the same call, or a stale tab / a hand-rolled request opens "ROUND 2" on
+  // a show with no history at all — a round chip over 0/27, a Library card
+  // claiming a rerun of something never seen, and a permanent state flip to
+  // 'watching' underneath it. Simkl only offers Add Rewatch on completed
+  // shows; Trakt needs history. Counted like deriveState and PUT
+  // /shows/:id/state: regular seasons only, aired per the shared rule in the
+  // viewer's timezone. Also reads the state the round is about to displace.
+  const row = await c.env.DB.prepare(
+    `SELECT us.state AS state,
+       (SELECT COUNT(*) FROM user_episodes ue JOIN episodes e ON e.id = ue.episode_id
+          WHERE ue.user_id = ?1 AND e.show_id = ?2 AND e.season_number > 0) AS watched,
+       (SELECT COUNT(*) FROM episodes e JOIN shows s ON s.tmdb_id = e.show_id
+          WHERE e.show_id = ?2 AND e.season_number > 0 AND ${airedCond("?3", "s")}) AS aired
+     FROM shows sh LEFT JOIN user_shows us ON us.user_id = ?1 AND us.show_id = ?2
+     WHERE sh.tmdb_id = ?2`
+  )
+    .bind(uid, id, todayInTz(c.get("tz")))
+    .first<{ state: string | null; watched: number; aired: number }>();
+  if (!row) return c.json({ error: "unknown show" }, 404);
+  if (row.aired === 0 || row.watched < row.aired)
+    return c.json({ error: "There’s nothing to re-watch yet — catch up on this show first." }, 409);
+
+  // Round numbering: 2 + count of existing rounds (canceled rounds are
+  // deleted outright, so the count is completed rounds). Computed inside the
+  // INSERT so the number can't race the check above. prev_state travels with
+  // it so the end of the round can hand the show's state back.
+  const round = await c.env.DB.prepare(
+    `INSERT INTO user_show_rewatches (user_id, show_id, round, prev_state)
+     SELECT ?1, ?2, 2 + COUNT(*), ?3 FROM user_show_rewatches WHERE user_id = ?1 AND show_id = ?2
+     RETURNING round, started_at`
+  )
+    .bind(uid, id, row.state)
+    .first<{ round: number; started_at: string }>();
+  // Starting a round re-enters the show into Library Watching and Watch Next
+  // — THE payoff over TV Time, where a finished show could only rejoin the
+  // queue by destructively unwatching it. The hidden flag rides along, and
+  // the displaced state is remembered above rather than overwritten for good.
+  await c.env.DB.prepare(
+    `INSERT INTO user_shows (user_id, show_id) VALUES (?1, ?2)
+     ON CONFLICT (user_id, show_id) DO UPDATE
+       SET state = 'watching', last_state_change = strftime('%Y-%m-%dT%H:%M:%fZ','now')`
+  )
+    .bind(uid, id)
+    .run();
+  return c.json({ round: round!.round, startedAt: round!.started_at });
+});
+
+library.delete("/shows/:id/rewatch", async (c) => {
+  const id = intParam(c.req.param("id"));
+  if (!id) return c.json({ error: "bad id" }, 400);
+  const uid = c.get("uid");
+  // Cancel = delete the active round row, and put back the user_shows.state
+  // it displaced. Plays are NEVER deleted by starting, finishing, or
+  // canceling a round — every episode the user ever watched stays watched.
+  // With the round gone the library derives finished/up_to_date from the
+  // lifetime counts again, and Watch Next drops the show because nothing is
+  // left unwatched; the state hand-back is what returns an abandoned or
+  // unfollowed-and-hidden show to where the user actually put it.
+  const round = await activeRound(c.env.DB, uid, id);
+  if (!round) return c.json({ ok: true }); // nothing open — idempotent
+  await c.env.DB.prepare(
+    "DELETE FROM user_show_rewatches WHERE user_id = ?1 AND show_id = ?2 AND finished_at IS NULL"
+  )
+    .bind(uid, id)
+    .run();
+  await restoreShowState(c.env.DB, uid, id, round.prev_state);
+  return c.json({ ok: true });
+});
+
 // ---------- Mark watched: episode / season / show ----------
 
 library.post("/episodes/:id/watch", async (c) => {
@@ -739,13 +1049,26 @@ library.post("/episodes/:id/watch", async (c) => {
 
   // Episode meta + whether this user has already watched it. Doubles as the
   // existence check (unknown id → 404) and feeds the "caught up" test below.
+  // The show's active rewatch round rides along (LEFT JOIN — NULLs when none)
+  // for the auto-complete check after the mark lands.
   const ep = await c.env.DB.prepare(
     `SELECT e.show_id, e.season_number, ${airedCond("?3", "s")} AS aired, s.title AS show_title,
-            EXISTS (SELECT 1 FROM user_episodes ue WHERE ue.user_id = ?1 AND ue.episode_id = e.id) AS already
-     FROM episodes e JOIN shows s ON s.tmdb_id = e.show_id WHERE e.id = ?2`
+            EXISTS (SELECT 1 FROM user_episodes ue WHERE ue.user_id = ?1 AND ue.episode_id = e.id) AS already,
+            rw.round AS rw_round, rw.started_at AS rw_started
+     FROM episodes e JOIN shows s ON s.tmdb_id = e.show_id
+     LEFT JOIN user_show_rewatches rw ON rw.user_id = ?1 AND rw.show_id = e.show_id AND rw.finished_at IS NULL
+     WHERE e.id = ?2`
   )
     .bind(uid, id, today)
-    .first<{ show_id: number; season_number: number; aired: number; show_title: string; already: number }>();
+    .first<{
+      show_id: number;
+      season_number: number;
+      aired: number;
+      show_title: string;
+      already: number;
+      rw_round: number | null;
+      rw_started: string | null;
+    }>();
   if (!ep) return c.json({ error: "unknown episode" }, 404);
 
   await c.env.DB.batch([
@@ -763,12 +1086,38 @@ library.post("/episodes/:id/watch", async (c) => {
     // can retry an op whose response was lost (tab died / 5xx after apply),
     // so the same timestamp arriving twice must not inflate play_count.
     // Genuine rewatches always carry a fresh "now" (or distinct backdate).
+    //
+    // The guard asks user_episode_plays, which 0043 made the source of truth,
+    // NOT the row's two legacy date columns. Those hold only the first watch
+    // and the LAST rewatch, so a replay of any play in between (or of any
+    // play at all, once a third one lands and moves last_rewatched_at along)
+    // slipped through and bumped play_count without adding a dated play — the
+    // episode page then reported the difference as "+1 play with no date on
+    // record", i.e. a pre-2026 legacy play, about a play created seconds ago.
+    // This statement runs BEFORE the play insert below in the same batch, so
+    // the row it is looking for is the one from the ORIGINAL mark.
+    //
+    // The two denormalized dates are folded with MIN/MAX rather than
+    // overwritten, mirroring what removePlayStmts() recomputes on the way
+    // out. A live mark always carries the newest timestamp, so this is a
+    // no-op for it — but the Watch history's undo restores a play by POSTing
+    // its ORIGINAL date, and a bare assignment would drag "last rewatched"
+    // backwards to a play from 2018 while newer ones sit above it.
     c.env.DB.prepare(
       `INSERT INTO user_episodes (user_id, episode_id, watched_at) VALUES (?1, ?2, ?3)
        ON CONFLICT (user_id, episode_id) DO UPDATE
-         SET play_count = play_count + 1, last_rewatched_at = excluded.watched_at
-         WHERE user_episodes.watched_at != excluded.watched_at
-           AND COALESCE(user_episodes.last_rewatched_at, '') != excluded.watched_at`
+         SET play_count = play_count + 1,
+             watched_at = MIN(user_episodes.watched_at, excluded.watched_at),
+             last_rewatched_at = MAX(
+               COALESCE(user_episodes.last_rewatched_at, user_episodes.watched_at), excluded.watched_at)
+         WHERE NOT EXISTS (SELECT 1 FROM user_episode_plays p
+                           WHERE p.user_id = ?1 AND p.episode_id = ?2 AND p.watched_at = ?3)`
+    ).bind(uid, id, watchedAt),
+    // The dated play row (0043) — the append-only history underneath
+    // play_count. The PK absorbs an identical-timestamp replay, the same
+    // offline-queue retry guard the WHERE clause above implements.
+    c.env.DB.prepare(
+      "INSERT INTO user_episode_plays (user_id, episode_id, watched_at) VALUES (?1, ?2, ?3) ON CONFLICT DO NOTHING"
     ).bind(uid, id, watchedAt),
   ]);
 
@@ -800,65 +1149,444 @@ library.post("/episodes/:id/watch", async (c) => {
     caughtUp = (remaining?.n ?? 0) === 0;
   }
 
-  return c.json({ ok: true, caughtUp, showTitle: ep.show_title });
+  // Round auto-complete: only a play that lands inside the round (watched_at
+  // >= its start — a backdated mark is history-only) can finish it. The flag
+  // ships only when this mark closed the round, and caughtUp above keeps its
+  // first-watch-only rules untouched.
+  let roundComplete = false;
+  if (ep.rw_round != null && ep.rw_started != null && watchedAt >= ep.rw_started) {
+    roundComplete = await completeRoundIfDone(c, uid, ep.show_id, ep.rw_round, ep.rw_started);
+  }
+
+  return c.json({
+    ok: true,
+    caughtUp,
+    showTitle: ep.show_title,
+    ...(roundComplete ? { roundComplete: true, round: ep.rw_round } : {}),
+  });
 });
+
+// Drop ONE dated play and re-derive the row's denormalized columns from the
+// plays that remain: earliest = the first watch, anything after it = the last
+// rewatch, play_count one lower (floored at 1 — legacy rows can owe plays the
+// old schema never dated). The row itself goes only when no play is left.
+// Shared by every single-play removal so they can't drift apart.
+function removePlayStmts(db: D1Database, uid: number, episodeId: number, watchedAt: string) {
+  return [
+    db
+      .prepare("DELETE FROM user_episode_plays WHERE user_id = ?1 AND episode_id = ?2 AND watched_at = ?3")
+      .bind(uid, episodeId, watchedAt),
+    db
+      .prepare(
+        `UPDATE user_episodes SET play_count = MAX(play_count - 1, 1),
+           watched_at = COALESCE((SELECT MIN(p.watched_at) FROM user_episode_plays p
+                                  WHERE p.user_id = ?1 AND p.episode_id = ?2), watched_at),
+           last_rewatched_at = (SELECT NULLIF(MAX(p.watched_at), MIN(p.watched_at)) FROM user_episode_plays p
+                                WHERE p.user_id = ?1 AND p.episode_id = ?2)
+         WHERE user_id = ?1 AND episode_id = ?2`
+      )
+      .bind(uid, episodeId),
+    db
+      .prepare(
+        `DELETE FROM user_episodes WHERE user_id = ?1 AND episode_id = ?2
+           AND NOT EXISTS (SELECT 1 FROM user_episode_plays p WHERE p.user_id = ?1 AND p.episode_id = ?2)`
+      )
+      .bind(uid, episodeId),
+  ];
+}
+
+// Un-tick an episode.
+//
+// WHAT COMES OFF IS THE CALLER'S CALL. It used to be decided from the round
+// state the server happened to see when the request arrived, which is a
+// different thing from what the user acted on — and the gap between them is
+// where an undo turns into a purge. Three ways in: un-tick twice in a row
+// (the second sees no this-round play and takes the destructive branch), two
+// requests in flight at once (the loser sees the same thing), or — the one
+// that needs no unusual behavior at all — a queued offline un-tick replayed
+// after the round has closed, which is precisely what the offline queue does
+// with this route. Each of those wiped an episode's ENTIRE dated history,
+// under a dialog that promises "everything you've already watched stays
+// watched". Trakt never destroys history on an un-tick either; removing a
+// play is its own explicit action.
+//
+// So the scope travels in the request, and a replay can only ever do the
+// thing the user asked for:
+//   'round' — undo a round tick. Removes the latest play inside the latest
+//     round window that has one (open OR closed: a round that auto-completed
+//     between the tap and the replay is still the round the user was in), and
+//     nothing else. Finds none → no-op, so a double-fire can't fall through
+//     to something destructive.
+//   'play'  — undo one viewing. Removes the newest play, whatever it was
+//     part of. The episode stays watched if earlier plays remain.
+//   'all'   — unwatch outright: the row and every dated play with it. The
+//     explicit purge, for a client that means it.
+// No scope (a client cached before this shipped) keeps the old behavior
+// exactly: round-scoped while a round is genuinely open, destructive
+// otherwise.
+type UnwatchScope = "round" | "play" | "all";
 
 library.delete("/episodes/:id/watch", async (c) => {
   const id = intParam(c.req.param("id"));
   if (!id) return c.json({ error: "bad id" }, 400);
-  await c.env.DB.prepare("DELETE FROM user_episodes WHERE user_id = ?1 AND episode_id = ?2").bind(c.get("uid"), id).run();
+  const uid = c.get("uid");
+  const body = await c.req.json().catch(() => ({}));
+  const raw = String((body as any)?.scope ?? "");
+  const scope: UnwatchScope | null = raw === "round" || raw === "play" || raw === "all" ? raw : null;
+
+  const [epR, roundR] = await c.env.DB.batch([
+    c.env.DB.prepare(
+      `SELECT e.show_id,
+              (SELECT MAX(p.watched_at) FROM user_episode_plays p
+                 WHERE p.user_id = ?1 AND p.episode_id = e.id) AS latest
+       FROM episodes e WHERE e.id = ?2`
+    ).bind(uid, id),
+    // The play a round tick would be undoing: the newest one inside the
+    // newest round window that holds any. `>=` on the start (never `>` —
+    // Trakt's equality bug) and `<=` on the close.
+    c.env.DB.prepare(
+      `SELECT rw.round, rw.finished_at, MAX(p.watched_at) AS latest
+       FROM episodes e
+       JOIN user_show_rewatches rw ON rw.user_id = ?1 AND rw.show_id = e.show_id
+       JOIN user_episode_plays p ON p.user_id = ?1 AND p.episode_id = e.id
+            AND p.watched_at >= rw.started_at
+            AND (rw.finished_at IS NULL OR p.watched_at <= rw.finished_at)
+       WHERE e.id = ?2
+       GROUP BY rw.round ORDER BY rw.round DESC LIMIT 1`
+    ).bind(uid, id),
+  ]);
+  const ep = epR.results[0] as { show_id: number; latest: string | null } | undefined;
+  if (!ep) return c.json({ error: "unknown episode" }, 404);
+  const roundPlay = roundR.results[0] as { round: number; finished_at: string | null; latest: string } | undefined;
+
+  // Legacy (no scope): the old rule, spelled out — round-scoped only while
+  // the round is actually open.
+  const effective: UnwatchScope = scope ?? (roundPlay && roundPlay.finished_at == null ? "round" : "all");
+
+  if (effective === "round") {
+    if (roundPlay) await c.env.DB.batch(removePlayStmts(c.env.DB, uid, id, roundPlay.latest));
+  } else if (effective === "play") {
+    if (ep.latest != null) await c.env.DB.batch(removePlayStmts(c.env.DB, uid, id, ep.latest));
+    else await c.env.DB.prepare("DELETE FROM user_episodes WHERE user_id = ?1 AND episode_id = ?2").bind(uid, id).run();
+  } else {
+    // Full unwatch: the row goes, and its dated plays go with it.
+    await c.env.DB.batch([
+      c.env.DB.prepare("DELETE FROM user_episode_plays WHERE user_id = ?1 AND episode_id = ?2").bind(uid, id),
+      c.env.DB.prepare("DELETE FROM user_episodes WHERE user_id = ?1 AND episode_id = ?2").bind(uid, id),
+    ]);
+  }
+  // A completed round that no longer covers every aired episode isn't
+  // completed. Re-open it rather than leave a ×2 the history can't back.
+  await reopenRoundIfIncomplete(c, uid, ep.show_id);
   return c.json({ ok: true });
 });
 
-async function bulkWatch(c: any, showId: number, seasonNumber: number | null, unwatch: boolean) {
+// ---------- Paging the dated history ----------
+
+// One page of older plays. The detail payload ships the newest PLAYS_LIMIT
+// (routes/catalog.ts) so a comfort movie logged weekly for three years isn't
+// 150 DOM nodes above the rating — but "history is never destroyed" is the
+// whole promise of this feature, and a count of plays you cannot open is not
+// a history. Letterboxd pages the diary and Trakt pages the play list; these
+// two routes are the same thing, cursored on the timestamp the client already
+// holds (the oldest row on screen) rather than an offset, so a removal or a
+// new play mid-scroll can't shift the window and duplicate or skip a row.
+const PLAYS_PAGE = 25;
+
+// `?before=<iso>` — exclusive upper bound, the oldest play already loaded.
+// Absent/garbage means "from the newest", which is the same page the detail
+// payload already carries.
+function beforeCursor(raw: string | undefined): string | null {
+  if (!raw) return null;
+  const t = Date.parse(raw);
+  return Number.isNaN(t) ? null : new Date(t).toISOString();
+}
+
+// LIMIT one extra row is how `more` is known without a second COUNT: if the
+// page came back full plus one, there is another page behind it.
+function playsPage(rows: any[]): { plays: { watchedAt: string }[]; more: boolean } {
+  const more = rows.length > PLAYS_PAGE;
+  return { plays: rows.slice(0, PLAYS_PAGE).map((p) => ({ watchedAt: p.watched_at })), more };
+}
+
+library.get("/episodes/:id/plays", async (c) => {
+  const id = intParam(c.req.param("id"));
+  if (!id) return c.json({ error: "bad id" }, 400);
+  const before = beforeCursor(c.req.query("before"));
+  const r = await c.env.DB.prepare(
+    `SELECT watched_at FROM user_episode_plays
+     WHERE user_id = ?1 AND episode_id = ?2 AND (?3 IS NULL OR watched_at < ?3)
+     ORDER BY watched_at DESC LIMIT ${PLAYS_PAGE + 1}`
+  )
+    .bind(c.get("uid"), id, before)
+    .all();
+  return c.json(playsPage(r.results as any[]));
+});
+
+library.get("/movies/:id/plays", async (c) => {
+  const id = intParam(c.req.param("id"));
+  if (!id) return c.json({ error: "bad id" }, 400);
+  const before = beforeCursor(c.req.query("before"));
+  const r = await c.env.DB.prepare(
+    `SELECT watched_at FROM user_movie_plays
+     WHERE user_id = ?1 AND movie_id = ?2 AND (?3 IS NULL OR watched_at < ?3)
+     ORDER BY watched_at DESC LIMIT ${PLAYS_PAGE + 1}`
+  )
+    .bind(c.get("uid"), id, before)
+    .all();
+  return c.json(playsPage(r.results as any[]));
+});
+
+// Remove ONE dated play — the Watch history rows' remove button on the
+// episode page. The row's denormalized columns are recomputed from the plays
+// that remain; removing the last play is a full unwatch (row deleted), same
+// as DELETE /watch outside a round.
+library.delete("/episodes/:id/plays", async (c) => {
+  const id = intParam(c.req.param("id"));
+  const body = await c.req.json().catch(() => ({}));
+  const t = Date.parse(String(body?.watched_at ?? ""));
+  const watchedAt = Number.isNaN(t) ? null : new Date(t).toISOString();
+  if (!id || !watchedAt) return c.json({ error: "bad request" }, 400);
+  const uid = c.get("uid");
+
+  // Removing a play can invalidate a completed round, so the show is needed
+  // either way. Unknown episode → 404 rather than a silent ok.
+  const ep = await c.env.DB.prepare("SELECT show_id FROM episodes WHERE id = ?1")
+    .bind(id)
+    .first<{ show_id: number }>();
+  if (!ep) return c.json({ error: "unknown episode" }, 404);
+
+  const del = await c.env.DB.prepare("DELETE FROM user_episode_plays WHERE user_id = ?1 AND episode_id = ?2 AND watched_at = ?3")
+    .bind(uid, id, watchedAt)
+    .run();
+  if ((del.meta.changes ?? 0) === 0) return c.json({ ok: true }); // already gone — idempotent
+
+  // Re-derive the row's columns from the plays that remain (and drop it if
+  // none do) — the same three statements every single-play removal uses. The
+  // play itself is already gone above, which the first statement absorbs.
+  await c.env.DB.batch(removePlayStmts(c.env.DB, uid, id, watchedAt));
+  await reopenRoundIfIncomplete(c, uid, ep.show_id);
+  return c.json({ ok: true });
+});
+
+// The episode span a bulk call sweeps: one season, everything up to and
+// including SxxEyy (watch-until), or every regular season. `cond(n)` renders
+// the SQL predicate with the scope's binds starting at placeholder ?n, so
+// each statement below can lay its own parameters out first.
+type BulkScope = { season?: number; until?: { season: number; number: number } };
+
+function scopeSql(scope: BulkScope): { cond: (n: number) => string; binds: number[] } {
+  if (scope.until != null) {
+    const u = scope.until;
+    return {
+      cond: (n) =>
+        `(e.season_number > 0 AND (e.season_number < ?${n} OR (e.season_number = ?${n} AND e.number <= ?${n + 1})))`,
+      binds: [u.season, u.number],
+    };
+  }
+  if (scope.season != null) return { cond: (n) => `e.season_number = ?${n}`, binds: [scope.season] };
+  return { cond: () => "e.season_number > 0", binds: [] };
+}
+
+// Bulk mark/unmark, round-aware — season bulk marking MUST keep working
+// mid-rewatch (Trakt v3 removed it; users revolted):
+//   - outside a round, marking keeps its insert-if-new behavior, and each
+//     newly watched episode also gets a dated play row (one shared timestamp);
+//   - during a round, every aired target episode without a this-round play
+//     gains one; rows that already existed bump play_count, new ones insert
+//     with play_count 1 as usual. Re-running the same bulk mark mid-round is
+//     a no-op — the NOT EXISTS guard is the bulk twin of the single-episode
+//     replay dedupe.
+// Returns { roundComplete, round } when the call just finished the active
+// round, for the response flag that drives the client's confetti.
+async function bulkWatch(
+  c: Context<AppEnv>,
+  showId: number,
+  scope: BulkScope,
+  unwatch: boolean,
+  unwatchScope?: UnwatchScope | null
+): Promise<{ roundComplete: boolean; round?: number }> {
   const uid = c.get("uid");
   const today = todayInTz(c.get("tz"));
-  const seasonCond = seasonNumber == null ? "e.season_number > 0" : "e.season_number = ?4";
+  const round = await activeRound(c.env.DB, uid, showId);
+  const { cond, binds } = scopeSql(scope);
 
   if (unwatch) {
-    const sql = `DELETE FROM user_episodes WHERE user_id = ?1 AND episode_id IN
-       (SELECT e.id FROM episodes e WHERE e.show_id = ?2 AND ${seasonCond.replace("?4", "?3")})`;
-    const stmt = seasonNumber == null ? c.env.DB.prepare(sql).bind(uid, showId) : c.env.DB.prepare(sql).bind(uid, showId, seasonNumber);
-    await stmt.run();
-  } else {
-    const sql = `INSERT INTO user_episodes (user_id, episode_id, watched_at)
-       SELECT ?1, e.id, ?3 FROM episodes e JOIN shows sh ON sh.tmdb_id = e.show_id
-       WHERE e.show_id = ?2 AND ${seasonCond}
-         AND ${airedCond(`?${seasonNumber == null ? "4" : "5"}`, "sh")}
-       ON CONFLICT (user_id, episode_id) DO NOTHING`;
-    const args = seasonNumber == null ? [uid, showId, nowIso(), today] : [uid, showId, nowIso(), seasonNumber, today];
-    await c.env.DB.batch([
-      c.env.DB.prepare("INSERT INTO user_shows (user_id, show_id) VALUES (?1, ?2) ON CONFLICT DO NOTHING").bind(uid, showId),
-      c.env.DB.prepare(sql).bind(...args),
-    ]);
+    // Same rule as the single-episode un-tick: the CALLER says what it is
+    // undoing, because this route is queued offline too and a replay must not
+    // be able to upgrade "clear this season's round marks" into "delete this
+    // season's entire history". 'round' works on the latest round's window
+    // even if it has since closed; 'all' is the explicit purge; no scope
+    // keeps the old server-state-derived behavior.
+    const window =
+      unwatchScope === "all"
+        ? null
+        : unwatchScope === "round"
+          ? await c.env.DB
+              .prepare(
+                `SELECT started_at, finished_at FROM user_show_rewatches
+                 WHERE user_id = ?1 AND show_id = ?2 ORDER BY round DESC LIMIT 1`
+              )
+              .bind(uid, showId)
+              .first<{ started_at: string; finished_at: string | null }>()
+          : round && { started_at: round.started_at, finished_at: null };
+    if (unwatchScope === "round" && !window) {
+      // The caller undid a round mark on a show that has no round on record
+      // (canceled, or the request is a stale replay). There is nothing to
+      // take back — and it must NEVER fall through to the purge below.
+    } else if (window) {
+      // Un-marking inside a round mirrors the single-episode DELETE /watch:
+      // drop each episode's LATEST in-window play, step play_count back
+      // (floor 1), keep the rows — history survives, checkmarks clear.
+      // Binds: ?1 uid, ?2 show, ?3 window start, ?4 window end (NULL = open),
+      // scope from ?5 (or ?3 where the window isn't needed).
+      const inWindow = "p.watched_at >= ?3 AND (?4 IS NULL OR p.watched_at <= ?4)";
+      await c.env.DB.batch([
+        c.env.DB.prepare(
+          `UPDATE user_episodes SET play_count = MAX(play_count - 1, 1)
+           WHERE user_id = ?1 AND episode_id IN
+             (SELECT e.id FROM episodes e WHERE e.show_id = ?2 AND ${cond(5)}
+                AND EXISTS (SELECT 1 FROM user_episode_plays p
+                            WHERE p.user_id = ?1 AND p.episode_id = e.id AND ${inWindow}))`
+        ).bind(uid, showId, window.started_at, window.finished_at, ...binds),
+        c.env.DB.prepare(
+          `DELETE FROM user_episode_plays WHERE user_id = ?1 AND (episode_id, watched_at) IN
+             (SELECT p.episode_id, MAX(p.watched_at) FROM user_episode_plays p
+              JOIN episodes e ON e.id = p.episode_id
+              WHERE p.user_id = ?1 AND e.show_id = ?2 AND ${cond(5)} AND ${inWindow}
+              GROUP BY p.episode_id)`
+        ).bind(uid, showId, window.started_at, window.finished_at, ...binds),
+        c.env.DB.prepare(
+          `UPDATE user_episodes SET
+             watched_at = COALESCE((SELECT MIN(p.watched_at) FROM user_episode_plays p
+                                    WHERE p.user_id = ?1 AND p.episode_id = user_episodes.episode_id), watched_at),
+             last_rewatched_at =
+               (SELECT NULLIF(MAX(p.watched_at), MIN(p.watched_at)) FROM user_episode_plays p
+                WHERE p.user_id = ?1 AND p.episode_id = user_episodes.episode_id)
+           WHERE user_id = ?1 AND episode_id IN (SELECT e.id FROM episodes e WHERE e.show_id = ?2 AND ${cond(3)})`
+        ).bind(uid, showId, ...binds),
+        // Episodes whose only play ever was this round's don't stay watched.
+        c.env.DB.prepare(
+          `DELETE FROM user_episodes WHERE user_id = ?1
+             AND episode_id IN (SELECT e.id FROM episodes e WHERE e.show_id = ?2 AND ${cond(3)})
+             AND NOT EXISTS (SELECT 1 FROM user_episode_plays p
+                             WHERE p.user_id = ?1 AND p.episode_id = user_episodes.episode_id)`
+        ).bind(uid, showId, ...binds),
+      ]);
+    } else {
+      // Outside a round: existing behavior — rows go, and their dated plays
+      // go with them.
+      await c.env.DB.batch([
+        c.env.DB.prepare(
+          `DELETE FROM user_episode_plays WHERE user_id = ?1 AND episode_id IN
+             (SELECT e.id FROM episodes e WHERE e.show_id = ?2 AND ${cond(3)})`
+        ).bind(uid, showId, ...binds),
+        c.env.DB.prepare(
+          `DELETE FROM user_episodes WHERE user_id = ?1 AND episode_id IN
+             (SELECT e.id FROM episodes e WHERE e.show_id = ?2 AND ${cond(3)})`
+        ).bind(uid, showId, ...binds),
+      ]);
+    }
+    // A completed round the remaining plays no longer cover re-opens.
+    await reopenRoundIfIncomplete(c, uid, showId);
+    return { roundComplete: false };
   }
+
+  // One shared timestamp for the whole sweep, like today's bulk insert.
+  const ts = nowIso();
+  const stmts = [
+    c.env.DB.prepare("INSERT INTO user_shows (user_id, show_id) VALUES (?1, ?2) ON CONFLICT DO NOTHING").bind(uid, showId),
+  ];
+  if (round) {
+    // Binds: ?1 uid, ?2 show, ?3 ts, ?4 today, ?5 round start, scope from ?6.
+    stmts.push(
+      c.env.DB.prepare(
+        `INSERT INTO user_episode_plays (user_id, episode_id, watched_at)
+         SELECT ?1, e.id, ?3 FROM episodes e JOIN shows sh ON sh.tmdb_id = e.show_id
+         WHERE e.show_id = ?2 AND ${cond(6)}
+           AND ${airedCond("?4", "sh")}
+           AND NOT EXISTS (SELECT 1 FROM user_episode_plays p
+                           WHERE p.user_id = ?1 AND p.episode_id = e.id AND p.watched_at >= ?5)
+         ON CONFLICT DO NOTHING`
+      ).bind(uid, showId, ts, today, round.started_at, ...binds),
+      // Rows that existed before this call and just gained a play (the ?3
+      // timestamp is unique to this sweep) count it as a rewatch. Runs
+      // BEFORE the row insert below, so fresh rows keep play_count 1.
+      c.env.DB.prepare(
+        `UPDATE user_episodes SET play_count = play_count + 1, last_rewatched_at = ?3
+         WHERE user_id = ?1 AND episode_id IN
+           (SELECT p.episode_id FROM user_episode_plays p JOIN episodes e ON e.id = p.episode_id
+            WHERE p.user_id = ?1 AND e.show_id = ?2 AND p.watched_at = ?3)`
+      ).bind(uid, showId, ts)
+    );
+  } else {
+    // Outside a round: dated plays only for episodes about to be newly
+    // inserted — bulk marking has always been history backfill, so episodes
+    // already watched are untouched (no play, no play_count bump).
+    stmts.push(
+      c.env.DB.prepare(
+        `INSERT INTO user_episode_plays (user_id, episode_id, watched_at)
+         SELECT ?1, e.id, ?3 FROM episodes e JOIN shows sh ON sh.tmdb_id = e.show_id
+         WHERE e.show_id = ?2 AND ${cond(5)}
+           AND ${airedCond("?4", "sh")}
+           AND NOT EXISTS (SELECT 1 FROM user_episodes ue WHERE ue.user_id = ?1 AND ue.episode_id = e.id)
+         ON CONFLICT DO NOTHING`
+      ).bind(uid, showId, ts, today, ...binds)
+    );
+  }
+  stmts.push(
+    c.env.DB.prepare(
+      `INSERT INTO user_episodes (user_id, episode_id, watched_at)
+       SELECT ?1, e.id, ?3 FROM episodes e JOIN shows sh ON sh.tmdb_id = e.show_id
+       WHERE e.show_id = ?2 AND ${cond(5)}
+         AND ${airedCond("?4", "sh")}
+       ON CONFLICT (user_id, episode_id) DO NOTHING`
+    ).bind(uid, showId, ts, today, ...binds)
+  );
+  await c.env.DB.batch(stmts);
+
+  if (round && (await completeRoundIfDone(c, uid, showId, round.round, round.started_at))) {
+    return { roundComplete: true, round: round.round };
+  }
+  return { roundComplete: false };
 }
+
+// Bulk watch responses carry roundComplete/round when the sweep just closed
+// an active rewatch round — the same flag the single-episode route ships.
+const bulkJson = (r: { roundComplete: boolean; round?: number }) => ({
+  ok: true,
+  ...(r.roundComplete ? { roundComplete: true, round: r.round } : {}),
+});
 
 library.post("/shows/:id/seasons/:num/watch", async (c) => {
   const id = intParam(c.req.param("id"));
   const num = Number(c.req.param("num"));
   if (!id || !Number.isInteger(num) || num < 0) return c.json({ error: "bad request" }, 400);
-  await bulkWatch(c, id, num, false);
-  return c.json({ ok: true });
+  return c.json(bulkJson(await bulkWatch(c, id, { season: num }, false)));
 });
 
 library.delete("/shows/:id/seasons/:num/watch", async (c) => {
   const id = intParam(c.req.param("id"));
   const num = Number(c.req.param("num"));
   if (!id || !Number.isInteger(num) || num < 0) return c.json({ error: "bad request" }, 400);
-  await bulkWatch(c, id, num, true);
+  // Scoped by the caller, like the single-episode un-tick — this route is
+  // queued offline too, so the season's whole history must not hinge on what
+  // the round state looks like whenever the replay lands.
+  const body = await c.req.json().catch(() => ({}));
+  const raw = String((body as any)?.scope ?? "");
+  await bulkWatch(c, id, { season: num }, true, raw === "round" || raw === "all" ? raw : null);
   return c.json({ ok: true });
 });
 
 library.post("/shows/:id/watch-all", async (c) => {
   const id = intParam(c.req.param("id"));
   if (!id) return c.json({ error: "bad id" }, 400);
-  await bulkWatch(c, id, null, false);
-  return c.json({ ok: true });
+  return c.json(bulkJson(await bulkWatch(c, id, {}, false)));
 });
 
 // Catch-up: mark everything up to and including SxxEyy watched, one call.
-// Regular seasons only — specials (season 0) are never swept in.
+// Regular seasons only — specials (season 0) are never swept in (scopeSql's
+// until predicate keeps the explicit season_number > 0 guard).
 library.post("/shows/:id/watch-until", async (c) => {
   const id = intParam(c.req.param("id"));
   const body = await c.req.json().catch(() => ({}));
@@ -866,20 +1594,7 @@ library.post("/shows/:id/watch-until", async (c) => {
   const number = Number(body.number);
   if (!id || !Number.isInteger(season) || season < 1 || !Number.isInteger(number) || number < 1)
     return c.json({ error: "bad request" }, 400);
-
-  const uid = c.get("uid");
-  await c.env.DB.batch([
-    c.env.DB.prepare("INSERT INTO user_shows (user_id, show_id) VALUES (?1, ?2) ON CONFLICT DO NOTHING").bind(uid, id),
-    c.env.DB.prepare(
-      `INSERT INTO user_episodes (user_id, episode_id, watched_at)
-       SELECT ?1, e.id, ?3 FROM episodes e JOIN shows sh ON sh.tmdb_id = e.show_id
-       WHERE e.show_id = ?2 AND e.season_number > 0
-         AND (e.season_number < ?4 OR (e.season_number = ?4 AND e.number <= ?5))
-         AND ${airedCond("?6", "sh")}
-       ON CONFLICT (user_id, episode_id) DO NOTHING`
-    ).bind(uid, id, nowIso(), season, number, todayInTz(c.get("tz"))),
-  ]);
-  return c.json({ ok: true });
+  return c.json(bulkJson(await bulkWatch(c, id, { until: { season, number } }, false)));
 });
 
 // ---------- Movies ----------
@@ -890,17 +1605,28 @@ library.post("/movies/:id/watch", async (c) => {
   if (!id || !watchedAt) return c.json({ error: "bad request" }, 400);
   await ensureMovie(c.env, id);
   // The WHERE mirrors the episode-watch upsert: an exact replay
-  // of an already-recorded mark (same watched_at, already watched) is a
-  // no-op so offline-queue retries can't inflate play_count; genuine
-  // rewatches carry a fresh timestamp and still count.
-  await c.env.DB.prepare(
-    `INSERT INTO user_movies (user_id, movie_id, state, watched_at, play_count, added_at) VALUES (?1, ?2, 'watched', ?3, 1, ?4)
-     ON CONFLICT (user_id, movie_id) DO UPDATE
-       SET state = 'watched', watched_at = excluded.watched_at, play_count = user_movies.play_count + 1
-       WHERE user_movies.state != 'watched' OR COALESCE(user_movies.watched_at, '') != excluded.watched_at`
-  )
-    .bind(c.get("uid"), id, watchedAt, nowIso())
-    .run();
+  // of an already-recorded mark (same watched_at) is a no-op so offline-queue
+  // retries can't inflate play_count; genuine rewatches carry a fresh
+  // timestamp and still count. It asks user_movie_plays — the 0043 source of
+  // truth — not user_movies.watched_at, which only ever holds the LATEST
+  // watch: a replay of any earlier dated play used to pass the check and bump
+  // play_count with no play row behind it, which the movie page then printed
+  // as an undated legacy play. The statement runs before the play insert
+  // below in the same batch, so it sees the pre-existing plays only.
+  await c.env.DB.batch([
+    c.env.DB.prepare(
+      `INSERT INTO user_movies (user_id, movie_id, state, watched_at, play_count, added_at) VALUES (?1, ?2, 'watched', ?3, 1, ?4)
+       ON CONFLICT (user_id, movie_id) DO UPDATE
+         SET state = 'watched', play_count = user_movies.play_count + 1,
+             watched_at = MAX(COALESCE(user_movies.watched_at, excluded.watched_at), excluded.watched_at)
+         WHERE user_movies.state != 'watched'
+            OR NOT EXISTS (SELECT 1 FROM user_movie_plays p
+                           WHERE p.user_id = ?1 AND p.movie_id = ?2 AND p.watched_at = ?3)`
+    ).bind(c.get("uid"), id, watchedAt, nowIso()),
+    c.env.DB.prepare(
+      "INSERT INTO user_movie_plays (user_id, movie_id, watched_at) VALUES (?1, ?2, ?3) ON CONFLICT DO NOTHING"
+    ).bind(c.get("uid"), id, watchedAt),
+  ]);
   // Notify followers, off the response path — see the episode
   // watch route above for the reasoning.
   c.executionCtx.waitUntil(
@@ -912,9 +1638,48 @@ library.post("/movies/:id/watch", async (c) => {
 library.delete("/movies/:id/watch", async (c) => {
   const id = intParam(c.req.param("id"));
   if (!id) return c.json({ error: "bad id" }, 400);
-  await c.env.DB.prepare("DELETE FROM user_movies WHERE user_id = ?1 AND movie_id = ?2 AND state = 'watched'")
-    .bind(c.get("uid"), id)
+  // Full unwatch: the row goes, and its dated plays go with it — the same
+  // pairing as the episode unwatch outside a round.
+  await c.env.DB.batch([
+    c.env.DB.prepare("DELETE FROM user_movie_plays WHERE user_id = ?1 AND movie_id = ?2").bind(c.get("uid"), id),
+    c.env.DB.prepare("DELETE FROM user_movies WHERE user_id = ?1 AND movie_id = ?2 AND state = 'watched'").bind(
+      c.get("uid"),
+      id
+    ),
+  ]);
+  return c.json({ ok: true });
+});
+
+// Remove ONE dated movie play — the Watch history rows' remove button on the
+// movie page, mirroring DELETE /episodes/:id/plays. Removing the last play
+// is the existing unwatch (row deleted); otherwise play_count steps back and
+// watched_at snaps to the latest remaining play (the column the watch upsert
+// keeps at the most recent watch).
+library.delete("/movies/:id/plays", async (c) => {
+  const id = intParam(c.req.param("id"));
+  const body = await c.req.json().catch(() => ({}));
+  const t = Date.parse(String(body?.watched_at ?? ""));
+  const watchedAt = Number.isNaN(t) ? null : new Date(t).toISOString();
+  if (!id || !watchedAt) return c.json({ error: "bad request" }, 400);
+  const uid = c.get("uid");
+
+  const del = await c.env.DB.prepare("DELETE FROM user_movie_plays WHERE user_id = ?1 AND movie_id = ?2 AND watched_at = ?3")
+    .bind(uid, id, watchedAt)
     .run();
+  if ((del.meta.changes ?? 0) === 0) return c.json({ ok: true }); // already gone — idempotent
+
+  await c.env.DB.batch([
+    c.env.DB.prepare(
+      `UPDATE user_movies SET play_count = MAX(play_count - 1, 1),
+         watched_at = COALESCE((SELECT MAX(p.watched_at) FROM user_movie_plays p
+                                WHERE p.user_id = ?1 AND p.movie_id = ?2), watched_at)
+       WHERE user_id = ?1 AND movie_id = ?2 AND state = 'watched'`
+    ).bind(uid, id),
+    c.env.DB.prepare(
+      `DELETE FROM user_movies WHERE user_id = ?1 AND movie_id = ?2 AND state = 'watched'
+         AND NOT EXISTS (SELECT 1 FROM user_movie_plays p WHERE p.user_id = ?1 AND p.movie_id = ?2)`
+    ).bind(uid, id),
+  ]);
   return c.json({ ok: true });
 });
 

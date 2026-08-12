@@ -9,7 +9,11 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 
 export interface ConfirmOptions {
   title: string;
-  message?: string;
+  // Nodes, not just a string: dates and counts inside a confirm are
+  // production metadata and set in mono (`<strong>` in .dialog-body), so the
+  // thing you're confirming is typeset the same as the row you tapped
+  // (DESIGN.md, the Printed-On-The-Tape rule).
+  message?: React.ReactNode;
   confirmLabel?: string;
   cancelLabel?: string;
   danger?: boolean;
@@ -25,6 +29,14 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
   const [req, setReq] = useState<{ opts: ConfirmOptions; resolve: (r: boolean | null) => void } | null>(null);
   const ref = useRef<HTMLDialogElement>(null);
   const resultRef = useRef<boolean | null>(null);
+  // The button the dialog should open on: the confirm normally, the cancel on
+  // a destructive one. It needs a ref because React's `autoFocus` prop is not
+  // the HTML `autofocus` ATTRIBUTE — React calls focus() during commit, and
+  // showModal() then runs the spec's own focus algorithm, which finds no
+  // autofocus attribute and lands on the first focusable child. So every
+  // dialog opened on Cancel, and Enter on "Watch it again?" cancelled the
+  // rewatch the user had just asked for.
+  const focusRef = useRef<HTMLButtonElement>(null);
 
   const confirm = useCallback<ConfirmFn>(
     (opts) =>
@@ -36,7 +48,9 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
   );
 
   useEffect(() => {
-    if (req) ref.current?.showModal();
+    if (!req) return;
+    ref.current?.showModal();
+    focusRef.current?.focus(); // after showModal(), which would otherwise win
   }, [req]);
 
   const requestClose = (r: boolean | null) => {
@@ -66,7 +80,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
               <button
                 type="button"
                 className="btn btn-ghost"
-                autoFocus={req.opts.danger}
+                ref={req.opts.danger ? focusRef : null}
                 onClick={() => requestClose(false)}
               >
                 {req.opts.cancelLabel ?? "Cancel"}
@@ -74,7 +88,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
               <button
                 type="button"
                 className={`btn${req.opts.danger ? " btn-solid-danger" : ""}`}
-                autoFocus={!req.opts.danger}
+                ref={req.opts.danger ? null : focusRef}
                 onClick={() => requestClose(true)}
               >
                 {req.opts.confirmLabel ?? "OK"}

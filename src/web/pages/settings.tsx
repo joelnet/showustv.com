@@ -168,6 +168,8 @@ interface NotificationPrefs {
   newFollower: boolean;
   listCreated: boolean;
   reaction: boolean;
+  pushNewEpisode: boolean;
+  notifyTime: string; // "HH:MM" wall-clock in the user's tz — air-date alert delivery time
   pushPublicKey: string | null;
 }
 
@@ -179,6 +181,9 @@ interface NotificationPrefs {
 function NotificationSettings({ prefs, reload }: { prefs: NotificationPrefs; reload: () => void }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // Local buffer for the air-date alert time so segment-by-segment edits in
+  // the native time control don't fire a PUT each; saved on blur/dismiss.
+  const [notifyTime, setNotifyTime] = useState(prefs.notifyTime);
 
   const supported = pushSupported();
 
@@ -192,6 +197,8 @@ function NotificationSettings({ prefs, reload }: { prefs: NotificationPrefs; rel
     newFollower?: boolean;
     listCreated?: boolean;
     reaction?: boolean;
+    pushNewEpisode?: boolean;
+    notifyTime?: string;
   }) => {
     setBusy(true);
     setErr(null);
@@ -205,11 +212,47 @@ function NotificationSettings({ prefs, reload }: { prefs: NotificationPrefs; rel
     }
   };
 
+  // A time input is "" mid-edit or when cleared — only a complete "HH:MM"
+  // that actually changed is worth a round trip.
+  const saveNotifyTime = () => {
+    if (notifyTime && notifyTime !== prefs.notifyTime) togglePref({ notifyTime });
+  };
+
   // iOS Safari only exposes push inside an installed (home-screen) app.
   const iosNeedsInstall = !supported && isIos() && !isStandalone();
 
   return (
     <>
+      <label className="settings-toggle">
+        <input
+          type="checkbox"
+          checked={prefs.pushNewEpisode}
+          disabled={busy}
+          onChange={() => togglePref({ pushNewEpisode: !prefs.pushNewEpisode })}
+        />
+        <span>
+          A show you watch airs a new episode
+          <span className="settings-hint">
+            Get a notification on the day a new episode airs. Networks don’t publish exact air times, so it
+            arrives at your chosen time of day.
+          </span>
+        </span>
+      </label>
+
+      {prefs.pushNewEpisode && (
+        <label className="settings-field settings-notify-time">
+          Delivery time
+          <span className="settings-hint">New-episode alerts arrive at this time, in your timezone.</span>
+          <input
+            type="time"
+            value={notifyTime}
+            disabled={busy}
+            onChange={(e) => setNotifyTime(e.target.value)}
+            onBlur={saveNotifyTime}
+          />
+        </label>
+      )}
+
       <label className="settings-toggle">
         <input
           type="checkbox"
