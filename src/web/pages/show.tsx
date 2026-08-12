@@ -5,7 +5,7 @@ import { mediaPath, idFromParam } from "../paths";
 import { useApi, useDocumentTitle, getCached, setCached, dropCached, readApiCache } from "../hooks";
 import { useAuth } from "../app";
 import { poster, backdrop } from "../img";
-import { fmtAirDate, fmtEpisodeDate, epCode } from "../format";
+import { fmtAirDate, fmtCalDate, fmtDaysUntil, fmtEpisodeDate, epCode } from "../format";
 import { Slate, ErrorNote, Progress, CheckButton, StarRating, ExternalLinks } from "../components/ui";
 import { ShowPageSkeleton } from "../components/skeleton";
 import { WhereToWatch, type WatchInfo } from "../components/where-to-watch";
@@ -461,16 +461,25 @@ function PublicShowView({
               </div>
               {open && (
                 <ul className="episode-list">
-                  {season.episodes.map((e) => (
-                    <li key={e.id} className={`episode-row${e.aired ? "" : " is-future"}`}>
-                      <Slate season={e.season_number} number={e.number} />
-                      <Link to={mediaPath("episode", e.id, e.title)} className="episode-title">
-                        {e.title ?? `Episode ${e.number}`}
-                      </Link>
-                      <span className="episode-date mono">{fmtEpisodeDate(e.air_date, e.aired, tz)}</span>
-                      {!e.aired && <span className="on-air-dot on-air-dot--future" title="Not aired yet" />}
-                    </li>
-                  ))}
+                  {season.episodes.map((e) => {
+                    // The pill carries the countdown, so the date column
+                    // shows the plain calendar date — fmtEpisodeDate would
+                    // print "Tomorrow" and the row would say it twice.
+                    const countdown = e.aired ? null : fmtDaysUntil(e.air_date, tz);
+                    return (
+                      <li key={e.id} className={`episode-row${e.aired ? "" : " is-future"}`}>
+                        <Slate season={e.season_number} number={e.number} />
+                        <Link to={mediaPath("episode", e.id, e.title)} className="episode-title">
+                          {e.title ?? `Episode ${e.number}`}
+                        </Link>
+                        <span className="episode-date mono">
+                          {!e.aired && e.air_date ? fmtCalDate(e.air_date, tz) : fmtEpisodeDate(e.air_date, e.aired, tz)}
+                        </span>
+                        {countdown && <span className="mono days-badge">{countdown}</span>}
+                        {!e.aired && <span className="on-air-dot on-air-dot--future" title="Not aired yet" />}
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </div>
@@ -1288,6 +1297,10 @@ export function ShowPage() {
                     // repeats outside one, where the green check already says
                     // "seen" and ×1 on every row would be noise.
                     const badge = everWatched ? Math.max(plays, 1) : plays > 1 ? plays : 0;
+                    // The pill carries the countdown, so the date column
+                    // shows the plain calendar date — fmtEpisodeDate would
+                    // print "Tomorrow" and the row would say it twice.
+                    const countdown = e.aired ? null : fmtDaysUntil(e.air_date, tz);
                     return (
                       <li
                         key={e.id}
@@ -1297,7 +1310,10 @@ export function ShowPage() {
                         <Link to={mediaPath("episode", e.id, e.title)} className="episode-title">
                           {e.title ?? `Episode ${e.number}`}
                         </Link>
-                        <span className="episode-date mono">{fmtEpisodeDate(e.air_date, e.aired, tz)}</span>
+                        <span className="episode-date mono">
+                          {!e.aired && e.air_date ? fmtCalDate(e.air_date, tz) : fmtEpisodeDate(e.air_date, e.aired, tz)}
+                        </span>
+                        {countdown && <span className="mono days-badge">{countdown}</span>}
                         {/* TV Time's beloved play counter, kept calm — a pill,
                             not a suffix on the air date. It carries its UNIT
                             now: as a bare "×3" it sat 40px under a hero

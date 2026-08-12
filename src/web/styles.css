@@ -3383,6 +3383,20 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   letter-spacing: 0.02em;
 }
 
+/* Countdown on unaired episode rows: "Tomorrow" / "in 12 days". Same Pill
+   as .play-badge but muted — it's ambient schedule info, not a record of
+   the viewer's own activity. Deliberately NOT hidden with .episode-date on
+   phones: with the date column gone, the pill is the row's only "when". */
+.days-badge {
+  flex-shrink: 0;
+  background: var(--surface-2);
+  border-radius: 999px;
+  padding: 1px 7px;
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+
 /* Watched before, but not yet in this round. Mid-rewatch the checkbox speaks
    the ROUND, so without this the row of a show you've seen three times is
    pixel-identical to one you've never opened — the single worst thing a

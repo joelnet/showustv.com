@@ -32,9 +32,29 @@ export function fmtAirDate(d: string | null, tz: string): string {
   if (d === today) return "Today";
   const tomorrow = new Date(dateOnlyUTC(today).getTime() + 86400_000).toISOString().slice(0, 10);
   if (d === tomorrow) return "Tomorrow";
+  return fmtCalDate(d, tz);
+}
+
+// Plain calendar date with no Today/Tomorrow special-casing: short month +
+// day, year only when it differs from the current year in tz. Used where a
+// countdown pill already says how near the date is.
+export function fmtCalDate(d: string, tz: string): string {
   const opts: Intl.DateTimeFormatOptions = { timeZone: "UTC", month: "short", day: "numeric" };
-  if (d.slice(0, 4) !== today.slice(0, 4)) opts.year = "numeric";
+  if (d.slice(0, 4) !== todayStr(tz).slice(0, 4)) opts.year = "numeric";
   return dateOnlyUTC(d).toLocaleDateString("en-US", opts);
+}
+
+// Countdown pill for unaired episode rows. Whole days only — air dates are
+// date-only (TMDB has no air times) — with both sides in UTC from their
+// literal parts, same rule as fmtAirDate. Null means "no pill": undated
+// episodes, and past dates on rows a stale cached payload still marks
+// unaired (the server classifies an episode airing today as aired, so a
+// fresh payload never yields ≤ 0 here).
+export function fmtDaysUntil(d: string | null, tz: string): string | null {
+  if (!d) return null;
+  const days = Math.round((dateOnlyUTC(d).getTime() - dateOnlyUTC(todayStr(tz)).getTime()) / 86400_000);
+  if (days <= 0) return null;
+  return days === 1 ? "Tomorrow" : `in ${days} days`;
 }
 
 // Full timestamps (watched_at etc.): user tz, 12-hour AM/PM.
