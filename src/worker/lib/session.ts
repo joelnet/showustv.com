@@ -3,6 +3,10 @@
 // per-user session_epoch that requireAuth checks against the DB so a session
 // can be revoked server-side before its 30-day expiry. Payload
 // carries uid + tz + epoch; changing tz in settings reissues the cookie.
+//
+// Expiry slides: requireAuth/optionalAuth re-mint a validated cookie once it
+// is older than a day, so a device in active use stays signed in indefinitely
+// and only ~30 days without a visit signs it out.
 
 import type { Context, Next } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
@@ -10,6 +14,10 @@ import type { AppEnv } from "../env";
 
 const COOKIE = "sess";
 const TTL_SECONDS = 30 * 24 * 3600;
+// Sliding renewal happens at most this often per device: a cookie younger
+// than a day is left alone, so steady use costs one Set-Cookie a day, not one
+// per request.
+const RENEW_AFTER_SECONDS = 24 * 3600;
 
 interface SessionPayload {
   u: number;
@@ -40,21 +48,15 @@ async function sign(secret: string, data: string): Promise<Uint8Array> {
   return new Uint8Array(sig);
 }
 
-export async function issueSession(c: Context<AppEnv>, uid: number, tz: string): Promise<void> {
-  // Embed the user's CURRENT session_epoch so the cookie is
-  // revocable: bumping users.session_epoch invalidates every cookie minted
-  // before the bump. The authoritative value is read here rather than trusted
-  // from the caller, so a freshly minted cookie always carries the live epoch —
-  // in particular, when the acting user changes their own password/email we
-  // bump the epoch FIRST and then re-issue here, so their current device stays
-  // signed in while every other session dies.
-  const row = await c.env.DB.prepare("SELECT session_epoch FROM users WHERE id = ?1")
-    .bind(uid)
-    .first<{ session_epoch: number }>();
+// Private minting path: every caller must hold an epoch it KNOWS is current —
+// issueSession reads it from the DB, renewal reuses one sessionAccountValid
+// just checked. Nothing else may mint, or a stale epoch could outlive a
+// revocation.
+async function mintCookie(c: Context<AppEnv>, uid: number, tz: string, epoch: number): Promise<void> {
   const payload: SessionPayload = {
     u: uid,
     tz,
-    e: row?.session_epoch ?? 0,
+    e: epoch,
     exp: Math.floor(Date.now() / 1000) + TTL_SECONDS,
   };
   const body = b64url(enc.encode(JSON.stringify(payload)));
@@ -66,6 +68,31 @@ export async function issueSession(c: Context<AppEnv>, uid: number, tz: string):
     maxAge: TTL_SECONDS,
     secure: new URL(c.req.url).protocol === "https:",
   });
+}
+
+export async function issueSession(c: Context<AppEnv>, uid: number, tz: string): Promise<void> {
+  // Embed the user's CURRENT session_epoch so the cookie is
+  // revocable: bumping users.session_epoch invalidates every cookie minted
+  // before the bump. The authoritative value is read here rather than trusted
+  // from the caller, so a freshly minted cookie always carries the live epoch —
+  // in particular, when the acting user changes their own password/email we
+  // bump the epoch FIRST and then re-issue here, so their current device stays
+  // signed in while every other session dies.
+  const row = await c.env.DB.prepare("SELECT session_epoch FROM users WHERE id = ?1")
+    .bind(uid)
+    .first<{ session_epoch: number }>();
+  await mintCookie(c, uid, tz, row?.session_epoch ?? 0);
+}
+
+// Sliding renewal. Call only with a payload sessionAccountValid has just
+// accepted: re-minting with the payload's own epoch (?? 0 mirrors how the
+// check read a legacy cookie) then can't extend a revoked session, and it
+// upgrades legacy epoch-less cookies in passing. The payload carries no
+// issued-at, so age is derived from exp: older than RENEW_AFTER_SECONDS ⟺
+// remaining lifetime under TTL − RENEW_AFTER.
+async function renewIfAging(c: Context<AppEnv>, session: SessionPayload): Promise<void> {
+  if (session.exp - Date.now() / 1000 < TTL_SECONDS - RENEW_AFTER_SECONDS)
+    await mintCookie(c, session.u, session.tz, session.e ?? 0);
 }
 
 export function clearSession(c: Context<AppEnv>): void {
@@ -138,6 +165,7 @@ export async function requireAuth(c: Context<AppEnv>, next: Next) {
     clearSession(c);
     return c.json({ error: "unauthorized" }, 401);
   }
+  await renewIfAging(c, session);
   c.set("uid", session.u);
   c.set("tz", session.tz);
   await next();
@@ -154,6 +182,7 @@ export async function optionalAuth(c: Context<AppEnv>, next: Next) {
   // deleted session must not be treated as "the viewer" even on a public read.
   // Never 401s — a stale cookie just falls through as anonymous.
   if (session && (await sessionAccountValid(c.env.DB, session))) {
+    await renewIfAging(c, session);
     c.set("uid", session.u);
     c.set("tz", session.tz);
   }
