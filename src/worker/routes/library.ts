@@ -48,6 +48,30 @@ library.get("/home", async (c) => {
        SELECT show_id, round, started_at FROM user_show_rewatches
        WHERE user_id = ?1 AND finished_at IS NULL
      ),
+     front AS (
+       -- The user's progress point per show: the FURTHEST episode watched,
+       -- under the same rule cand uses for "unwatched" (this-round plays
+       -- mid-rewatch, the lifetime flag otherwise). Candidates are clipped to
+       -- episodes AFTER it — watching S02E01 makes a skipped S01E05 a gap
+       -- behind you, not "next up"; the queue never points backwards. A show
+       -- whose only unwatched episodes are gaps drops out of the queue
+       -- entirely (they stay reachable on the show page) until something new
+       -- airs ahead. No aired filter here: a watched episode marks progress
+       -- whatever TMDB currently says about its date.
+       SELECT show_id, season_number, number FROM (
+         SELECT e.show_id, e.season_number, e.number,
+                ROW_NUMBER() OVER (PARTITION BY e.show_id ORDER BY e.season_number DESC, e.number DESC) AS rn
+         FROM episodes e
+         LEFT JOIN rw r ON r.show_id = e.show_id
+         WHERE e.show_id IN (SELECT show_id FROM user_shows WHERE user_id = ?1 AND state = 'watching')
+           AND e.season_number > 0
+           AND CASE WHEN r.show_id IS NULL
+               THEN EXISTS (SELECT 1 FROM user_episodes ue WHERE ue.user_id = ?1 AND ue.episode_id = e.id)
+               ELSE EXISTS (SELECT 1 FROM user_episode_plays p
+                            WHERE p.user_id = ?1 AND p.episode_id = e.id AND p.watched_at >= r.started_at)
+               END
+       ) WHERE rn = 1
+     ),
      cand AS (
        SELECT e.id, e.show_id, e.season_number, e.number, e.title, e.air_date, e.runtime_min, e.overview, e.still_url,
               r.round AS rewatch_round, r.started_at AS rewatch_started,
@@ -55,9 +79,13 @@ library.get("/home", async (c) => {
               COUNT(*) OVER (PARTITION BY e.show_id) AS unwatched_aired
        FROM episodes e JOIN shows sh ON sh.tmdb_id = e.show_id
        LEFT JOIN rw r ON r.show_id = e.show_id
+       LEFT JOIN front f ON f.show_id = e.show_id
        WHERE e.show_id IN (SELECT show_id FROM user_shows WHERE user_id = ?1 AND state = 'watching')
          AND e.season_number > 0
          AND ${airedCond("?2", "sh")}
+         AND (f.show_id IS NULL
+              OR e.season_number > f.season_number
+              OR (e.season_number = f.season_number AND e.number > f.number))
          AND CASE WHEN r.show_id IS NULL
              THEN NOT EXISTS (SELECT 1 FROM user_episodes ue WHERE ue.user_id = ?1 AND ue.episode_id = e.id)
              ELSE NOT EXISTS (SELECT 1 FROM user_episode_plays p

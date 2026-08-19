@@ -35,14 +35,22 @@ GET /watch-next                   ← library.ts:53
 
 Source: `library.ts:60–96`. Returns one row per followed show whose next unwatched aired episode should surface.
 
+CTE `front` finds each show's progress point — the furthest episode watched
+(this-round plays mid-rewatch, the lifetime `user_episodes` row otherwise).
+
 CTE `cand` picks candidate episodes:
 
 - Show is in `user_shows` with `state = 'watching'`.
 - Regular season (`season_number > 0`, no specials).
 - `air_date IS NOT NULL AND air_date <= today` (already aired in user's timezone).
 - Episode has no matching `user_episodes` row for this user (unwatched).
+- Episode is **after the show's `front` row**. The queue never points
+  backwards: watch S02E01 with S01E05 still unticked and next up is S02E02,
+  not the gap. A show whose only unwatched episodes are gaps behind the
+  progress point leaves the queue entirely (the gaps stay reachable on the
+  show page) until something new airs ahead.
 - `ROW_NUMBER() OVER (PARTITION BY show_id ORDER BY season_number, number)` selects the first unwatched episode per show.
-- `COUNT(*) OVER (PARTITION BY show_id)` gives the "N left" badge.
+- `COUNT(*) OVER (PARTITION BY show_id)` gives the "N left" badge (episodes ahead of the progress point only).
 
 A second CTE `last_aired` gives the most recent aired episode date per show (used for the recency filter).
 
