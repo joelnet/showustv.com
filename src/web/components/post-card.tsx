@@ -1,6 +1,7 @@
-// One feed post, Instagram-style: who, a square image, the reaction row,
+// One feed post, Instagram-style: a square image, the heart + comment row,
 // the reaction tallies, then the caption ("joelnet watched S02·E05–E07 of
-// Severance") and a link into the comment thread. The image is the show or
+// Severance"), a link into the comment thread, and the time. No header: the
+// caption already names the user. The image is the show or
 // movie poster, cropped square (a show's backdrop is the fallback); a 404
 // anywhere in the chain walks to the next candidate so the card never shows a
 // broken image.
@@ -47,17 +48,6 @@ export function PostCard({ post, detail = false }: { post: FeedPost; detail?: bo
 
   return (
     <article className="post-card" aria-label={label}>
-      <header className="post-head">
-        <span className="post-avatar" aria-hidden="true">
-          {post.username.charAt(0).toUpperCase()}
-        </span>
-        <Link to={`/u/${post.username}`} className="post-user">
-          {post.username}
-        </Link>
-        <time className="post-when mono" dateTime={post.lastAt} title={user ? fmtDateTime(post.lastAt, user.tz) : undefined}>
-          {fmtAgo(post.lastAt)}
-        </time>
-      </header>
       {detail ? (
         <PostImage post={post} alt={imgAlt} />
       ) : (
@@ -101,6 +91,9 @@ export function PostCard({ post, detail = false }: { post: FeedPost; detail?: bo
           View {post.commentCount === 1 ? "1 comment" : `all ${post.commentCount} comments`}
         </Link>
       )}
+      <time className="post-when mono" dateTime={post.lastAt} title={user ? fmtDateTime(post.lastAt, user.tz) : undefined}>
+        {fmtAgo(post.lastAt)}
+      </time>
     </article>
   );
 }

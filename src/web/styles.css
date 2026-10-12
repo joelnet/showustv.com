@@ -3773,25 +3773,20 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   border-radius: var(--radius);
   position: relative;
 }
-.post-head { display: flex; align-items: center; gap: 10px; padding: 10px 12px; }
-.post-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 999px;
-  background: var(--amber-soft);
-  color: var(--amber);
-  font: 700 14px var(--font-body);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
 .post-user { font-weight: 700; color: var(--text); }
-.post-when { margin-left: auto; color: var(--muted); font-size: 12px; flex-shrink: 0; }
+.post-when { display: block; padding: 0 12px 12px; margin-top: -4px; color: var(--muted); font-size: 12px; }
 
-/* The square. aspect-ratio on the wrapper (not the img) keeps the card's
-   height stable while the image loads or walks its fallback chain. */
-.post-media { display: block; width: 100%; aspect-ratio: 1 / 1; background: var(--surface-2); overflow: hidden; }
+/* The square sits flush at the top of the card (no header), so it carries
+   the card's top radius. aspect-ratio on the wrapper (not the img) keeps the
+   card's height stable while the image loads or walks its fallback chain. */
+.post-media {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background: var(--surface-2);
+  overflow: hidden;
+  border-radius: var(--radius) var(--radius) 0 0;
+}
 .post-media img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .post-media-link { display: block; }
 
@@ -3799,15 +3794,21 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 .post-react { flex: 1; min-width: 0; }
 /* An open picker sits above the cards that follow. */
 .post-react:has(.menu-pop) { z-index: 31; }
-.post-quick { display: flex; align-items: center; gap: 0; }
-.post-quick .react-option { width: 36px; height: 36px; font-size: 20px; }
-.post-react-more { width: 36px; height: 36px; }
+/* The single trigger: an outline heart, or the viewer's own emoji once they
+   have reacted. */
+.post-react-btn { width: 36px; height: 36px; font-size: 20px; line-height: 1; color: var(--text); border-radius: 7px; }
+.post-react-btn:hover { background: var(--surface-2); }
+.post-react-btn.is-reacted { background: var(--amber-soft); }
+.post-react-more { color: var(--muted); }
+.post-react-more:hover { color: var(--text); }
+/* The quick row: six emoji plus "+" in a single line below the heart. */
+.menu-pop--quick { display: flex; gap: 2px; padding: 3px; min-width: 0; }
 .post-comment-btn { width: auto; min-width: 36px; height: 36px; gap: 4px; padding: 0 6px; color: var(--muted); border-radius: 7px; }
 .post-comment-btn:hover { color: var(--text); background: var(--surface-2); text-decoration: none; }
 .post-comment-count { font-size: 12px; font-variant-numeric: tabular-nums; }
 
 /* The full picker: the bell menu's chrome as a scrollable emoji grid that
-   drops below the quick row. Column count is mirrored in post-reactions.tsx
+   replaces the quick row in place. Column count is mirrored in post-reactions.tsx
    (GRID_COLS) for Up/Down arrow navigation. */
 .menu-pop--grid {
   display: grid;
@@ -3834,12 +3835,11 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 }
 .post-rx.is-mine { border-color: var(--amber); color: var(--amber); }
 
-.post-caption { margin: 0; padding: 4px 12px 10px; font-size: 15px; line-height: 1.5; }
+.post-caption { margin: 0; padding: 4px 12px 8px; font-size: 15px; line-height: 1.5; }
 .post-caption .post-ep { color: var(--text); font-weight: 600; }
-.post-comments-link { display: block; padding: 0 12px 12px; margin-top: -4px; color: var(--muted); font-size: 13.5px; }
+.post-comments-link { display: block; padding: 0 12px 8px; margin-top: -4px; color: var(--muted); font-size: 13.5px; }
 .post-comments-link:hover { color: var(--text); }
 
 /* Skeleton blocks the feed shell uses. */
 .feed-skel { display: flex; flex-direction: column; gap: 18px; }
-.skel-avatar { width: 32px; height: 32px; }
 .skel-square { width: 100%; aspect-ratio: 1 / 1; border-radius: 0; }
