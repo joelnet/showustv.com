@@ -25,6 +25,8 @@
 import type { Env } from "../env";
 import { REACTION_EMOJI, type ReactionType } from "../../shared/reactions";
 import { sendPush, vapidConfigured, type PushUrgency, type StoredSubscription } from "./push";
+import { isFeedBetaUser } from "./feed-posts";
+import { episodeRangeText } from "../../shared/feed";
 
 const DEDUPE_WINDOW_MS = 24 * 3600 * 1000;
 
@@ -747,6 +749,150 @@ export async function notifyUserOfReaction(
     url: `/${targetType}/${targetId}`,
     tag: `rx-${actorId}-${targetType.charAt(0)}-${targetId}-${episodeId ?? 0}`,
   });
+}
+
+// ---------- Feed post notifications (/feed) ----------
+
+// Push copy for a post: "Dexter: S02·E05–E07" / "Inception". Resolved at
+// send time from the post's current episodes, like every other push body.
+async function postCaption(env: Env, postId: number): Promise<string | null> {
+  const [postR, epR] = await env.DB.batch([
+    env.DB.prepare(
+      `SELECT fp.target_type, COALESCE(s.title, m.title) AS title
+       FROM feed_posts fp
+       LEFT JOIN shows s ON fp.target_type = 'show' AND s.tmdb_id = fp.target_id
+       LEFT JOIN movies m ON fp.target_type = 'movie' AND m.tmdb_id = fp.target_id
+       WHERE fp.id = ?1`
+    ).bind(postId),
+    env.DB.prepare(
+      `SELECT e.season_number AS season, e.number FROM feed_post_episodes fpe
+       JOIN episodes e ON e.id = fpe.episode_id WHERE fpe.post_id = ?1
+       ORDER BY e.season_number, e.number`
+    ).bind(postId),
+  ]);
+  const post = postR.results[0] as { target_type: string; title: string | null } | undefined;
+  if (!post?.title) return null;
+  const span = episodeRangeText(epR.results as { season: number; number: number }[]);
+  return post.target_type === "show" && span ? `${post.title}: ${span}` : post.title;
+}
+
+// Reaction on a feed post: the post's owner hears "X reacted" with the emoji
+// + caption. Single recipient, same guards and 24h dedupe shape as
+// notifyUserOfReaction (per recipient, actor, post), gated by the same
+// `reaction` pref. The route only calls this when the upsert changed the
+// row. Self-reaction can't reach here (the route rejects it).
+export async function notifyPostReaction(
+  env: Env,
+  actorId: number,
+  ownerId: number,
+  postId: number,
+  emoji: string
+): Promise<void> {
+  // TEMPORARY: a recipient outside the feed beta can't open /feed/:id, so
+  // they must not be handed a link to it.
+  if (!(await isFeedBetaUser(env, ownerId))) return;
+  const since = new Date(Date.now() - DEDUPE_WINDOW_MS).toISOString();
+  const created = await env.DB.prepare(
+    `INSERT INTO notifications (user_id, type, actor_id, post_id)
+     SELECT ru.id, 'post_reaction', ?1, ?3
+     FROM users ru
+     JOIN users au ON au.id = ?1 AND au.deleted_at IS NULL AND au.shadow_banned = 0
+     WHERE ru.id = ?2 AND ru.deleted_at IS NULL
+       AND COALESCE((SELECT np.reaction FROM notification_prefs np
+                     WHERE np.user_id = ?2 AND np.show_id = 0), 1) = 1
+       AND NOT EXISTS (SELECT 1 FROM notifications n
+                       WHERE n.user_id = ?2 AND n.type = 'post_reaction'
+                         AND n.actor_id = ?1 AND n.post_id = ?3 AND n.created_at >= ?4)
+     RETURNING user_id`
+  )
+    .bind(actorId, ownerId, postId, since)
+    .first<{ user_id: number }>();
+  if (!created || !vapidConfigured(env)) return;
+
+  const [actor, caption] = await Promise.all([
+    env.DB.prepare("SELECT username FROM users WHERE id = ?1 AND deleted_at IS NULL")
+      .bind(actorId)
+      .first<{ username: string }>(),
+    postCaption(env, postId),
+  ]);
+  if (!actor || !caption) return;
+  await pushToRecipients(env, [ownerId], {
+    title: `${actor.username} reacted`,
+    body: `${emoji} ${caption}`,
+    url: `/feed/${postId}`,
+    tag: `prx-${actorId}-${postId}`,
+  });
+}
+
+// Comment on a feed post. The post's owner hears "X commented on your post";
+// on a reply, the parent comment's author hears "X replied to your comment"
+// (when they're neither the actor nor the owner, who already got the first).
+// Each is a single recipient with the usual guards and a 24h dedupe per
+// (recipient, type, actor, post), so a back-and-forth is one notification
+// per side, not one per message. Gated by the `tracked_comment` pref — the
+// existing "someone commented" toggle — until the feed gets its own.
+export async function notifyPostComment(
+  env: Env,
+  actorId: number,
+  postId: number,
+  commentId: number,
+  parentId: number | null
+): Promise<void> {
+  const [postR, parentR] = await env.DB.batch([
+    env.DB.prepare("SELECT user_id FROM feed_posts WHERE id = ?1").bind(postId),
+    parentId != null
+      ? env.DB.prepare("SELECT user_id FROM comments WHERE id = ?1").bind(parentId)
+      : env.DB.prepare("SELECT NULL AS user_id WHERE 0"),
+  ]);
+  const ownerId = (postR.results[0] as { user_id: number } | undefined)?.user_id;
+  if (ownerId == null) return;
+  const parentAuthor = (parentR.results[0] as { user_id: number } | undefined)?.user_id ?? null;
+
+  const targets: { recipient: number; type: "post_comment" | "post_reply" }[] = [];
+  if (ownerId !== actorId) targets.push({ recipient: ownerId, type: "post_comment" });
+  if (parentAuthor != null && parentAuthor !== actorId && parentAuthor !== ownerId)
+    targets.push({ recipient: parentAuthor, type: "post_reply" });
+  if (!targets.length) return;
+
+  const since = new Date(Date.now() - DEDUPE_WINDOW_MS).toISOString();
+  const delivered: typeof targets = [];
+  for (const t of targets) {
+    // TEMPORARY: see notifyPostReaction.
+    if (!(await isFeedBetaUser(env, t.recipient))) continue;
+    const created = await env.DB.prepare(
+      `INSERT INTO notifications (user_id, type, actor_id, post_id, comment_id)
+       SELECT ru.id, ?3, ?1, ?4, ?5
+       FROM users ru
+       JOIN users au ON au.id = ?1 AND au.deleted_at IS NULL AND au.shadow_banned = 0
+       WHERE ru.id = ?2 AND ru.deleted_at IS NULL
+         AND COALESCE((SELECT np.tracked_comment FROM notification_prefs np
+                       WHERE np.user_id = ?2 AND np.show_id = 0), 1) = 1
+         AND NOT EXISTS (SELECT 1 FROM notifications n
+                         WHERE n.user_id = ?2 AND n.type = ?3
+                           AND n.actor_id = ?1 AND n.post_id = ?4 AND n.created_at >= ?6)
+       RETURNING user_id`
+    )
+      .bind(actorId, t.recipient, t.type, postId, commentId, since)
+      .first<{ user_id: number }>();
+    if (created) delivered.push(t);
+  }
+  if (!delivered.length || !vapidConfigured(env)) return;
+
+  const [actor, caption] = await Promise.all([
+    env.DB.prepare("SELECT username FROM users WHERE id = ?1 AND deleted_at IS NULL")
+      .bind(actorId)
+      .first<{ username: string }>(),
+    postCaption(env, postId),
+  ]);
+  if (!actor || !caption) return;
+  for (const t of delivered) {
+    await pushToRecipients(env, [t.recipient], {
+      title: t.type === "post_reply" ? `${actor.username} replied to your comment` : `${actor.username} commented on your post`,
+      body: caption,
+      url: `/feed/${postId}`,
+      tag: `${t.type === "post_reply" ? "prp" : "pcm"}-${actorId}-${postId}`,
+    });
+  }
 }
 
 // Admin test notification: the admin page's "Send test

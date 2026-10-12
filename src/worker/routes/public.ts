@@ -35,7 +35,7 @@ type ProfileGate =
 // followers out).
 //
 // The teaser must never carry the private content — no stats,
-// lists, achievements, comments, counts, or watch history. The mutual check
+// lists, comments, counts, or watch history. The mutual check
 // demands BOTH directions be active in a single self-join: `f` is
 // viewer→owner, `r` is owner→viewer. The owner's row already proved them
 // not-deleted; the users join re-checks the viewer, since sessions are
@@ -163,9 +163,8 @@ pub.get("/profile/:username", async (c) => {
                            AND h.show_id = COALESCE(s.tmdb_id, es.tmdb_id))
        ORDER BY c.created_at DESC LIMIT 15`
     ).bind(user.id),
-    c.env.DB.prepare("SELECT achievement_id FROM user_achievements WHERE user_id = ?1 ORDER BY unlocked_at").bind(user.id),
-    // Watch-history rows: Shows / Movies / Anime tile rows above
-    // the achievements, straight from the history tables. Shows are deduped
+    // Watch-history rows: Shows / Movies / Anime tiles straight from
+    // the history tables. Shows are deduped
     // to ONE row per show — the latest-watched episode — so a binge can't
     // flood the row; ROW_NUMBER (the friends-watched pattern in
     // routes/library.ts) rather than GROUP BY+MAX because bulk mark-watched
@@ -183,7 +182,7 @@ pub.get("/profile/:username", async (c) => {
     historyShowsStmt(c, user.id, true),
     historyMoviesStmt(c, user.id, true),
   ];
-  const [statsR, listsR, postersR, commentsR, achR, histShowsR, histMoviesR, histAnimeShowsR, histAnimeMoviesR] =
+  const [statsR, listsR, postersR, commentsR, histShowsR, histMoviesR, histAnimeShowsR, histAnimeMoviesR] =
     await c.env.DB.batch(statements);
 
   // The items are TileItem-shaped (components/tiles.tsx) so the client
@@ -235,7 +234,6 @@ pub.get("/profile/:username", async (c) => {
     private: !user.profile_public,
     stats: statsFromRow(statsR.results[0]),
     lists: (listsR.results as any[]).map((l) => ({ ...l, posters: posters.get(l.id) ?? [] })),
-    achievements: (achR.results as any[]).map((r) => r.achievement_id),
     // The Shows / Movies / Anime history rows — visible exactly
     // when the profile is (no per-section toggle), deduped and split above.
     history: {

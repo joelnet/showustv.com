@@ -23,7 +23,7 @@ import { publicListPath } from "../paths";
 import { SmpteBars, ErrorNote } from "../components/ui";
 import { ShareButton } from "../components/share";
 import { ProfileSkeleton } from "../components/skeleton";
-import { IconList, IconCheck, IconPlus, IconLock, IconChevron, IconBell, IconBellOff } from "../components/icons";
+import { IconList, IconCheck, IconPlus, IconLock, IconBell, IconBellOff } from "../components/icons";
 import {
   StatsGrid,
   ProfileHistory,
@@ -33,7 +33,6 @@ import {
   type ProfileComment,
   type ProfileHistoryData,
 } from "./profile";
-import { ACHIEVEMENTS, ACHIEVEMENTS_BY_ID } from "../../shared/achievements";
 
 interface FullProfile {
   username: string;
@@ -43,7 +42,6 @@ interface FullProfile {
   private?: boolean;
   stats: WatchStats;
   lists: { id: number; name: string; count: number; posters: string[] }[];
-  achievements: string[];
   comments: ProfileComment[];
   history?: ProfileHistoryData; // optional: tolerates older cached payloads
 }
@@ -57,27 +55,6 @@ interface PrivateTeaser {
 }
 
 type PublicProfile = FullProfile | PrivateTeaser;
-
-// Compact link to the dedicated achievements page — the grid
-// used to render here and crowded the page. The count is earned/total; the
-// page itself still shows unlocked only (a public profile is a brag wall,
-// not a checklist of what the person hasn't done), so zero earned hides the
-// row entirely rather than advertising an empty page.
-function PublicAchievements({ username, ids }: { username: string; ids: string[] }) {
-  const earned = ids.filter((id) => ACHIEVEMENTS_BY_ID.has(id)).length;
-  if (!earned) return null;
-  return (
-    <h2 className="section-title">
-      <Link to={`/u/${username}/achievements`} className="ach-page-link">
-        Achievements{" "}
-        <span className="mono ach-count">
-          ({earned}/{ACHIEVEMENTS.length})
-        </span>
-        <IconChevron size={11} />
-      </Link>
-    </h2>
-  );
-}
 
 type Relation = "none" | "following" | "self";
 type NotifyLevel = "all" | "some" | "none";
@@ -426,12 +403,11 @@ export function PublicProfilePage() {
           </div>
           {user?.isAdmin && <AdminTools username={data.username} tz={user.tz} />}
           <StatsGrid stats={data.stats} />
-          {/* Watch history rows, above Achievements — only ever
+          {/* Watch history rows — only ever
               present on a full profile payload (the teaser branch above never
               has it), so profile visibility is the one and only gate. The
               headings open this user's public library. */}
           {data.history && <ProfileHistory history={data.history} base={`/u/${data.username}/library`} />}
-          <PublicAchievements username={data.username} ids={data.achievements} />
           <ProfileComments comments={data.comments} />
           {data.lists.length > 0 && (
             <>

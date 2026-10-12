@@ -43,6 +43,11 @@ interface NotificationItem {
   // Air-date alert rows only: how many episodes aired that day, counted live
   // at read time — null for other types and when the episode left the catalog.
   epCount: number | null;
+  // Feed post rows only (post_comment / post_reply / post_reaction): the post
+  // to deep-link, and for reactions the reactor's CURRENT emoji (null once
+  // cleared). `title` on these rows is the post's show/movie title.
+  postId: number | null;
+  postEmoji: string | null;
   read: boolean;
   createdAt: string;
 }
@@ -83,6 +88,16 @@ function NotificationBody({ n }: { n: NotificationItem }) {
         <span>{n.title ?? "a list"}</span>
       );
     return <>created a new list {listLink}</>;
+  }
+
+  // Feed post rows: the whole story lives on the post page (the comment
+  // thread is there), so the post's title links /feed/:id, not the show.
+  if (n.type === "post_comment" || n.type === "post_reply" || n.type === "post_reaction") {
+    const postLink =
+      n.postId != null ? <Link to={`/feed/${n.postId}`}>{n.title ?? "something you watched"}</Link> : <span>{n.title ?? "something you watched"}</span>;
+    if (n.type === "post_reply") return <>replied to your comment on {postLink}</>;
+    if (n.type === "post_reaction") return <>reacted{n.postEmoji ? ` ${n.postEmoji}` : ""} to your post about {postLink}</>;
+    return <>commented on your post about {postLink}</>;
   }
 
   const targetLink =

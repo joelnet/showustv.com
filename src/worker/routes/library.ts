@@ -5,6 +5,10 @@ import { ensureShow, ensureMovie } from "../lib/tmdb";
 import { nowIso, todayInTz, daysAgoInTz } from "../lib/dates";
 import { airedCond } from "../lib/aired";
 import { notifyFollowersOfFavorite, notifyFollowersOfWatch } from "../lib/notifications";
+// Feed posts (/feed): the single-episode and movie watch routes record one;
+// every play-removal path reconciles. Bulk sweeps and the importer are
+// history backfill and never post, the same rule the watch notification uses.
+import { recordEpisodeWatch, recordMovieWatch, reconcileShowPosts, reconcileMoviePosts } from "../lib/feed-posts";
 // The library payload and its derivation helpers live in lib/library.ts now
 // — the public library endpoint shares them, stats.ts-style.
 import { libraryPayload, recentlyActive } from "../lib/library";
@@ -663,6 +667,7 @@ library.delete("/shows/:id/remove", async (c) => {
     ).bind(uid, id),
     c.env.DB.prepare("DELETE FROM user_shows WHERE user_id = ?1 AND show_id = ?2").bind(uid, id),
   ]);
+  c.executionCtx.waitUntil(reconcileShowPosts(c.env, uid, id).catch((e) => console.error("feed post failed", e)));
   return c.json({ ok: true });
 });
 
@@ -1157,6 +1162,13 @@ library.post("/episodes/:id/watch", async (c) => {
   c.executionCtx.waitUntil(
     notifyFollowersOfWatch(c.env, uid, "show", ep.show_id, id).catch((e) => console.error("notify failed", e))
   );
+  // Feed post: join the watcher's current sitting on this show or open a new
+  // one (lib/feed-posts.ts). Independent of the notification above.
+  c.executionCtx.waitUntil(
+    recordEpisodeWatch(c.env, uid, ep.show_id, id, watchedAt, ep.season_number).catch((e) =>
+      console.error("feed post failed", e)
+    )
+  );
 
   // Confetti trigger: this watch just caught the user up when it
   // was a *fresh* watch (not a rewatch) of an aired, regular-season episode
@@ -1306,6 +1318,7 @@ library.delete("/episodes/:id/watch", async (c) => {
   // A completed round that no longer covers every aired episode isn't
   // completed. Re-open it rather than leave a ×2 the history can't back.
   await reopenRoundIfIncomplete(c, uid, ep.show_id);
+  c.executionCtx.waitUntil(reconcileShowPosts(c.env, uid, ep.show_id).catch((e) => console.error("feed post failed", e)));
   return c.json({ ok: true });
 });
 
@@ -1394,6 +1407,7 @@ library.delete("/episodes/:id/plays", async (c) => {
   // play itself is already gone above, which the first statement absorbs.
   await c.env.DB.batch(removePlayStmts(c.env.DB, uid, id, watchedAt));
   await reopenRoundIfIncomplete(c, uid, ep.show_id);
+  c.executionCtx.waitUntil(reconcileShowPosts(c.env, uid, ep.show_id).catch((e) => console.error("feed post failed", e)));
   return c.json({ ok: true });
 });
 
@@ -1517,6 +1531,7 @@ async function bulkWatch(
     }
     // A completed round the remaining plays no longer cover re-opens.
     await reopenRoundIfIncomplete(c, uid, showId);
+    c.executionCtx.waitUntil(reconcileShowPosts(c.env, uid, showId).catch((e) => console.error("feed post failed", e)));
     return { roundComplete: false };
   }
 
@@ -1660,6 +1675,9 @@ library.post("/movies/:id/watch", async (c) => {
   c.executionCtx.waitUntil(
     notifyFollowersOfWatch(c.env, c.get("uid"), "movie", id).catch((e) => console.error("notify failed", e))
   );
+  c.executionCtx.waitUntil(
+    recordMovieWatch(c.env, c.get("uid"), id, watchedAt).catch((e) => console.error("feed post failed", e))
+  );
   return c.json({ ok: true });
 });
 
@@ -1675,6 +1693,7 @@ library.delete("/movies/:id/watch", async (c) => {
       id
     ),
   ]);
+  c.executionCtx.waitUntil(reconcileMoviePosts(c.env, c.get("uid"), id).catch((e) => console.error("feed post failed", e)));
   return c.json({ ok: true });
 });
 
@@ -1708,6 +1727,7 @@ library.delete("/movies/:id/plays", async (c) => {
          AND NOT EXISTS (SELECT 1 FROM user_movie_plays p WHERE p.user_id = ?1 AND p.movie_id = ?2)`
     ).bind(uid, id),
   ]);
+  c.executionCtx.waitUntil(reconcileMoviePosts(c.env, uid, id).catch((e) => console.error("feed post failed", e)));
   return c.json({ ok: true });
 });
 

@@ -28,11 +28,14 @@ import { LibraryPage } from "./pages/library";
 import { ListsPage, ListDetailPage } from "./pages/lists";
 import { PublicListPage } from "./pages/public-list";
 import { publicListPath, idFromParam } from "./paths";
+// TEMPORARY: the Socials tab opens the new feed only for FEED_BETA_USERS.
+import { isFeedBetaUsername } from "../shared/constants";
 import { ProfilePage } from "./pages/profile";
 import { PublicProfilePage } from "./pages/public-profile";
 import { PublicLibraryPage } from "./pages/public-library";
-import { MyAchievementsPage, PublicAchievementsPage } from "./pages/achievements";
 import { FollowingPage } from "./pages/following";
+import { FeedPage } from "./pages/feed";
+import { FeedPostPage } from "./pages/feed-post";
 import { NotificationsPage } from "./pages/notifications";
 import { SettingsPage } from "./pages/settings";
 import { AdminPage } from "./pages/admin";
@@ -104,7 +107,7 @@ const AuthCtx = createContext<{ user: User | null; setUser: (u: User | null) => 
 // Worker (social previews), and those pages maintain it client-side
 // (useDocumentTitle). Without this, navigating from one of them to any other
 // route would leave the last show/movie/username stuck in the tab. Only the
-// exact /u/:username page keeps its title — sub-paths (achievements, lists)
+// exact /u/:username page keeps its title — sub-paths (library, lists)
 // don't set one, so they reset like everything else.
 function DocumentTitleSync() {
   const { pathname } = useLocation();
@@ -167,9 +170,9 @@ function OwnOrPublic({ own, other }: { own: React.ReactElement; other: React.Rea
 // The retired own-profile address: old bookmarks and deep links
 // to /profile land on the custom URL instead. Shell already bounced the
 // signed-out to /login before this renders; the guard just keeps it total.
-function ProfileRedirect({ sub = "" }: { sub?: string }) {
+function ProfileRedirect() {
   const { user } = useAuth();
-  return <Navigate to={user ? `/u/${user.username}${sub}` : "/login"} replace />;
+  return <Navigate to={user ? `/u/${user.username}` : "/login"} replace />;
 }
 
 // Lists moved to owner-scoped, SEO-friendly URLs:
@@ -233,6 +236,8 @@ function PublicShell() {
 function Header() {
   const navigate = useNavigate();
   const profilePath = useProfilePath();
+  const { user } = useAuth();
+  const socialsPath = isFeedBetaUsername(user?.username) ? "/feed" : "/following";
   const { pathname } = useLocation();
   const { available, ios, install } = useInstallPrompt();
   // Show the install affordance unless the app is already running installed.
@@ -248,7 +253,7 @@ function Header() {
   // Install (see the mobile rules in styles.css). CSS-gated to phone width, so
   // desktop keeps the logo; the class is a no-op there and off every other page
   // and whenever Install isn't available. Same exact-profile match as the title
-  // sync above — sub-pages (achievements, library) keep their logo.
+  // sync above — sub-pages (lists, library) keep their logo.
   const installOverLogo = showInstall && /^\/u\/[^/]+\/?$/.test(pathname);
   return (
     <header className={`header${installOverLogo ? " header--profile-install" : ""}`}>
@@ -263,7 +268,7 @@ function Header() {
             it. Text-only to match the sibling desktop nav links; order mirrors
             the footer (after Watch now). Scoping is automatic — .header-nav is
             display:none at phone widths, so this never duplicates the footer tab. */}
-        <NavLink to="/following">Socials</NavLink>
+        <NavLink to={socialsPath}>Socials</NavLink>
         <NavLink to="/library">Library</NavLink>
         <NavLink to="/lists">Lists</NavLink>
         <NavLink to={profilePath}>Profile</NavLink>
@@ -413,10 +418,12 @@ function UpdateToast() {
 
 function TabBar() {
   const profilePath = useProfilePath();
+  const { user } = useAuth();
+  const socialsPath = isFeedBetaUsername(user?.username) ? "/feed" : "/following";
   return (
     <nav className="tabbar" aria-label="Primary">
       <NavLink to="/" end><IconPlay /><span>Watch now</span></NavLink>
-      <NavLink to="/following"><IconUsers /><span>Socials</span></NavLink>
+      <NavLink to={socialsPath}><IconUsers /><span>Socials</span></NavLink>
       <NavLink to="/library"><IconLibrary /><span>Library</span></NavLink>
       <NavLink to="/lists"><IconList /><span>Lists</span></NavLink>
       <NavLink to={profilePath}><IconUser /><span>Profile</span></NavLink>
@@ -570,7 +577,6 @@ export function App() {
               <Route path="/episode/:id" element={<EpisodePage />} />
               <Route path="/movie/:id" element={<MoviePage />} />
               <Route path="/u/:username" element={<PublicProfilePage />} />
-              <Route path="/u/:username/achievements" element={<PublicAchievementsPage />} />
               <Route path="/u/:username/library" element={<PublicLibraryPage tab="shows" />} />
               <Route path="/u/:username/library/movies" element={<PublicLibraryPage tab="movies" />} />
               <Route path="/u/:username/library/anime" element={<PublicLibraryPage tab="anime" />} />
@@ -603,22 +609,18 @@ export function App() {
               element={<OwnOrPublic own={<ListDetailPage />} other={<PublicListPage />} />}
             />
             <Route path="/following" element={<FollowingPage />} />
+            {/* The feed (beta-gated inside the pages; others bounce to /following). */}
+            <Route path="/feed" element={<FeedPage />} />
+            <Route path="/feed/:postId" element={<FeedPostPage />} />
             <Route path="/notifications" element={<NotificationsPage />} />
             {/* Your profile lives at its shareable custom URL;
                 the old /profile addresses redirect so bookmarks and older
                 links keep working. */}
             <Route path="/profile" element={<ProfileRedirect />} />
-            <Route path="/profile/achievements" element={<ProfileRedirect sub="/achievements" />} />
             {/* Every profile gets the same app chrome as any other
                 signed-in page; your own name renders the owner
-                view, anyone else's the public one. The
-                achievements pages split the same way: the full
-                goal catalog for you, unlocked-only for everyone else. */}
+                view, anyone else's the public one. */}
             <Route path="/u/:username" element={<OwnOrPublic own={<ProfilePage />} other={<PublicProfilePage />} />} />
-            <Route
-              path="/u/:username/achievements"
-              element={<OwnOrPublic own={<MyAchievementsPage />} other={<PublicAchievementsPage />} />}
-            />
             {/* The public library renders the same for every
                 signed-in viewer — the server gates by profile visibility and
                 serves the owner their own in full, so no OwnOrPublic split:

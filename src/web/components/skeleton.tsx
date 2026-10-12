@@ -276,6 +276,30 @@ export function FollowingSkeleton() {
   );
 }
 
+// Feed (/feed): post cards — a byline, the square image, an action row,
+// then the caption line.
+export function FeedSkeleton({ count = 2 }: { count?: number }) {
+  return (
+    <SkeletonShell className="feed-skel">
+      {range(count).map((i) => (
+        <div key={i} className="post-card">
+          <div className="post-head">
+            <Skeleton className="skel-btn--round skel-avatar" />
+            <Skeleton className="skel-line" style={{ width: w(i, 18, 14) }} />
+          </div>
+          <Skeleton className="skel-square" />
+          <div className="post-actions">
+            <Skeleton className="skel-line" style={{ width: "46%" }} />
+          </div>
+          <div className="post-caption">
+            <Skeleton className="skel-line" style={{ width: w(i + 2, 55, 30) }} />
+          </div>
+        </div>
+      ))}
+    </SkeletonShell>
+  );
+}
+
 // Show page: hero panel (poster, title, action row, progress), overview
 // copy, then a few collapsed season bars.
 export function ShowPageSkeleton() {

@@ -3,7 +3,6 @@ import type { Context } from "hono";
 import type { AppEnv, Env } from "./env";
 import { requireAuth } from "./lib/session";
 import { csrfGuard } from "./lib/csrf";
-import { checkAchievements } from "./lib/achievements";
 import { TmdbError, ensureShow, ensureMovie } from "./lib/tmdb";
 import { TMDB_CACHE_POLICY_DAYS } from "../shared/constants";
 import { isSocialPreviewPath, serveSocialPreview } from "./lib/social-preview";
@@ -19,6 +18,7 @@ import { ratings } from "./routes/ratings";
 import { lists } from "./routes/lists";
 import { profile } from "./routes/profile";
 import { social } from "./routes/social";
+import { feed as feedRoutes } from "./routes/feed";
 import { comments, commentReads } from "./routes/comments";
 import { admin } from "./routes/admin";
 import { importer } from "./routes/import";
@@ -58,14 +58,6 @@ function logMutation(c: Context<AppEnv>, status: number): void {
     .run()
     .catch((e) => console.error("activity_log insert failed", e));
   c.executionCtx.waitUntil(insert);
-
-  // Achievements piggyback on the same hook: any successful
-  // mutation by a known user may have unlocked something. Runs in the
-  // background; a check that loses a race just re-awards idempotently later.
-  const uid = c.get("uid");
-  if (uid && status < 400 && !new URL(c.req.url).pathname.startsWith("/api/admin/")) {
-    c.executionCtx.waitUntil(checkAchievements(c.env, uid).catch((e) => console.error("achievement check failed", e)));
-  }
 }
 
 app.get("/healthz", async (c) => {
@@ -100,6 +92,7 @@ app.route("/ratings", ratings);
 app.route("/lists", lists);
 app.route("/profile", profile);
 app.route("/social", social);
+app.route("/feed", feedRoutes); // beta-gated inside (FEED_BETA_USERS)
 app.route("/comments", comments);
 app.route("/notifications", notifications);
 app.route("/admin", admin);

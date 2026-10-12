@@ -27,7 +27,7 @@ const TITLE_PATH_RE = /^\/(show|movie|episode)\/(\d+)(?:-[^/]*)?\/?$/;
 // Profile pages: exactly /u/:username. The charset mirrors
 // USERNAME_RE (src/worker/lib/username.ts) — anything else can't be a real
 // username. Shared-list sub-paths get their own card (LIST_PATH_RE below);
-// other sub-paths like /u/:username/library or /u/:username/achievements keep
+// other sub-paths like /u/:username/library keep
 // the landing card.
 const USER_PATH_RE = /^\/u\/([A-Za-z0-9_]{3,20})\/?$/;
 

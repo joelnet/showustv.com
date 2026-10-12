@@ -30,8 +30,8 @@ import type { Context } from "hono";
 import type { AppEnv } from "../env";
 import { optionalAuth } from "../lib/session";
 import { nowIso } from "../lib/dates";
-import { checkAchievements } from "../lib/achievements";
-import { notifyFollowersOfComment, notifyTrackersOfComment } from "../lib/notifications";
+import { notifyFollowersOfComment, notifyTrackersOfComment, notifyPostComment } from "../lib/notifications";
+import { canSeePost, isFeedBetaUser } from "../lib/feed-posts";
 import { COMMENT_MAX_LEN, COMMENT_URL_RE } from "../../shared/constants";
 
 // Write endpoints (post/edit/vote/delete). Mounted behind requireAuth.
@@ -51,12 +51,26 @@ const TARGET_TABLE: Record<string, { table: string; pk: string }> = {
   movie: { table: "movies", pk: "tmdb_id" },
   show: { table: "shows", pk: "tmdb_id" },
   list: { table: "custom_lists", pk: "id" },
+  // Feed posts (lib/feed-posts.ts) reuse the thread system; their gate is
+  // listCommentsClosed's post branch, not a public-title existence check.
+  post: { table: "feed_posts", pk: "id" },
 };
 
 // List comments are only open when the owner made the list public AND turned
 // comments on; a private or comments-off list must not accept or serve comments.
-// Other target types have no such gate.
+// Post comments (the /feed) are open only to a signed-in viewer who may see
+// the post — its owner, or a follower under the feed's visibility rule —
+// and, TEMPORARILY, only while that viewer is in FEED_BETA_USERS (the feed
+// itself is gated the same way). Other target types have no such gate.
+// Every route that reads or writes a thread runs this before anything else,
+// so a closed thread answers exactly like one that doesn't exist.
 async function listCommentsClosed(c: Context<AppEnv>, targetType: string, targetId: number): Promise<boolean> {
+  if (targetType === "post") {
+    const uid = c.get("uid");
+    if (uid == null) return true;
+    if (!(await isFeedBetaUser(c.env, uid))) return true;
+    return !(await canSeePost(c.env, uid, targetId));
+  }
   if (targetType !== "list") return false;
   const open = await c.env.DB.prepare(
     "SELECT 1 FROM custom_lists WHERE id = ?1 AND is_shared = 1 AND comments_enabled = 1"
@@ -390,13 +404,15 @@ comments.post("/", async (c) => {
   if (targetType === "list") {
     if (await listCommentsClosed(c, targetType, targetId))
       return c.json({ error: "Comments are closed for this list" }, 403);
+  } else if (targetType === "post") {
+    // A post the viewer can't see must not confirm it exists.
+    if (await listCommentsClosed(c, targetType, targetId)) return c.json({ error: "not found" }, 404);
   } else {
     const t = TARGET_TABLE[targetType];
     const exists = await c.env.DB.prepare(`SELECT 1 FROM ${t.table} WHERE ${t.pk} = ?1`).bind(targetId).first();
     if (!exists) return c.json({ error: `no such ${targetType}` }, 404);
   }
 
-  let parentUserId: number | null = null;
   if (parentId != null) {
     const parent = await c.env.DB.prepare(
       `SELECT c.target_type, c.target_id, c.deleted_at, c.user_id, u.shadow_banned
@@ -406,7 +422,6 @@ comments.post("/", async (c) => {
       .first<{ target_type: string; target_id: number; deleted_at: string | null; user_id: number; shadow_banned: number }>();
     if (!parent || parent.target_type !== targetType || parent.target_id !== targetId)
       return c.json({ error: "no such comment" }, 404);
-    parentUserId = parent.user_id;
     // A ghost parent must be indistinguishable from a deleted one — same
     // check, same message — or replying becomes a shadow-ban probe.
     if (parent.deleted_at || (parent.shadow_banned && parent.user_id !== uid))
@@ -438,13 +453,6 @@ comments.post("/", async (c) => {
   )
     .bind(targetType, targetId, uid, body, parentId)
     .first<{ id: number; created_at: string }>();
-  // This reply may have just unlocked the PARENT author's thread-starter —
-  // the middleware only checks the mutating user.
-  if (parentUserId != null && parentUserId !== uid) {
-    c.executionCtx.waitUntil(
-      checkAchievements(c.env, parentUserId).catch((e) => console.error("achievement check failed", e))
-    );
-  }
   // Tell the commenter's followers who also track this title,
   // then everyone else tracking it — off the response path like
   // the watch routes. Sequential on purpose: the tracker fan-out dedupes
@@ -453,7 +461,13 @@ comments.post("/", async (c) => {
   // one). Replies count — they're comments too, and the 24h dedupe keeps a
   // thread from spamming. List comments don't fan out: there's no tracked
   // show/movie to key on.
-  if (targetType !== "list") {
+  if (targetType === "post") {
+    // Post threads notify the post's owner (and the parent comment's author
+    // on a reply) — one recipient each, not a fan-out.
+    c.executionCtx.waitUntil(
+      notifyPostComment(c.env, uid, targetId, row!.id, parentId).catch((e) => console.error("notify failed", e))
+    );
+  } else if (targetType !== "list") {
     const mediaType = targetType as "episode" | "show" | "movie";
     c.executionCtx.waitUntil(
       (async () => {
@@ -558,13 +572,6 @@ comments.put("/:id/vote", async (c) => {
   const s = await c.env.DB.prepare("SELECT COALESCE(SUM(value), 0) AS score FROM comment_votes WHERE comment_id = ?1")
     .bind(id)
     .first<{ score: number }>();
-  // This vote may have just unlocked the comment AUTHOR's crowd-pleaser —
-  // the middleware only checks the mutating user.
-  if (cm.user_id !== uid) {
-    c.executionCtx.waitUntil(
-      checkAchievements(c.env, cm.user_id).catch((e) => console.error("achievement check failed", e))
-    );
-  }
   return c.json({ score: s?.score ?? 0 });
 });
 

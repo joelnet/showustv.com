@@ -40,3 +40,17 @@ export type DerivedShowState =
   | "not_started"
   | "stopped"
   | "watch_later";
+
+// ---------- Social feed beta (TEMPORARY) ----------
+
+// The Instagram-style feed (/feed) is gated to these usernames while it's
+// being tried out in production. This is a hard-coded, throwaway switch, not a
+// feature-flag system: to ship the feed to everyone, delete this constant and
+// its call sites — lib/feed-posts.ts isFeedBetaUser (used by routes/feed.ts,
+// the comments 'post' gate, and the post notification helpers) and the web
+// nav/route redirects (app.tsx, pages/feed.tsx, pages/feed-post.tsx).
+export const FEED_BETA_USERS = ["joelnet"] as const;
+
+// Usernames are stored COLLATE NOCASE, so compare case-insensitively.
+export const isFeedBetaUsername = (u: string | null | undefined): boolean =>
+  !!u && (FEED_BETA_USERS as readonly string[]).includes(u.toLowerCase());

@@ -31,13 +31,15 @@ notifications.get("/", async (c) => {
   // episode-title fix shows through and a since-deleted episode degrades to the
   // show-only text.
   const { results } = await c.env.DB.prepare(
-    `SELECT n.id, n.type, n.target_type, n.target_id, n.episode_id, n.read_at, n.created_at,
+    `SELECT n.id, n.type, n.target_type, n.target_id, n.episode_id, n.post_id, n.comment_id, n.read_at, n.created_at,
             u.username AS actor,
             -- List rows resolve their name the same way — live at
             -- read time, so a renamed list shows through and a since-deleted one
             -- degrades to "a list". The URL uses the actor (the list owner).
-            COALESCE(s.title, m.title, cl.name) AS title,
-            COALESCE(s.poster_url, m.poster_url) AS poster,
+            -- Post rows (post_comment / post_reply / post_reaction) resolve
+            -- their title through the post's show or movie, live as well.
+            COALESCE(s.title, m.title, cl.name, ps.title, pm.title) AS title,
+            COALESCE(s.poster_url, m.poster_url, ps.poster_url, pm.poster_url) AS poster,
             e.season_number AS ep_season, e.number AS ep_number, e.title AS ep_title,
             -- Follow rows carry whether the recipient follows the
             -- actor NOW, computed live at read time — so the Follow back button
@@ -49,6 +51,7 @@ notifications.get("/", async (c) => {
                       WHERE fb.follower_id = n.user_id AND fb.followee_id = n.actor_id AND fb.state = 'active')
             END AS you_follow_actor,
             ar.reaction,
+            prx.emoji AS post_emoji,
             rt.score AS rating_score,
             -- Air-date alert rows live-count that day's episodes (same
             -- read-time philosophy): a late-added episode shows through, and
@@ -64,6 +67,12 @@ notifications.get("/", async (c) => {
      LEFT JOIN movies m ON n.target_type = 'movie' AND m.tmdb_id = n.target_id
      LEFT JOIN custom_lists cl ON n.target_type = 'list' AND cl.id = n.target_id
      LEFT JOIN episodes e ON e.id = n.episode_id
+     LEFT JOIN feed_posts fp ON fp.id = n.post_id
+     LEFT JOIN shows  ps ON fp.target_type = 'show'  AND ps.tmdb_id = fp.target_id
+     LEFT JOIN movies pm ON fp.target_type = 'movie' AND pm.tmdb_id = fp.target_id
+     -- Post reaction rows show the reactor's CURRENT emoji, the same live
+     -- read as activity reactions; cleared → plain "reacted".
+     LEFT JOIN post_reactions prx ON n.type = 'post_reaction' AND prx.post_id = n.post_id AND prx.user_id = n.actor_id
      -- Reaction rows resolve the reactor's CURRENT reaction live at read
      -- time, like everything else here — change it and old rows follow;
      -- clear it and they degrade to plain "reacted" (#20). Full-PK probe,
@@ -89,6 +98,8 @@ notifications.get("/", async (c) => {
       target_type: "show" | "movie" | "list" | null;
       target_id: number | null;
       episode_id: number | null;
+      post_id: number | null;
+      comment_id: number | null;
       read_at: string | null;
       created_at: string;
       actor: string | null;
@@ -99,6 +110,7 @@ notifications.get("/", async (c) => {
       ep_title: string | null;
       you_follow_actor: number | null;
       reaction: string | null;
+      post_emoji: string | null;
       rating_score: number | null;
       ep_count: number | null;
     }>();
@@ -125,6 +137,12 @@ notifications.get("/", async (c) => {
     // Reaction rows only: the reactor's current reaction, null once cleared
     // (and for every other type).
     reaction: r.reaction,
+    // Post rows only (post_comment / post_reply / post_reaction): the feed
+    // post to deep-link, the triggering comment, and — for reactions — the
+    // reactor's current emoji (null once cleared, and for every other type).
+    postId: r.post_id,
+    commentId: r.comment_id,
+    postEmoji: r.post_emoji,
     // High-rating rows only: the actor's current score, null once cleared
     // (and for every other type).
     ratingScore: r.rating_score,

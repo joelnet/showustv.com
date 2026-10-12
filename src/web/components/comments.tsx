@@ -75,7 +75,13 @@ function hiddenCount(n: CommentNode): number {
   return c;
 }
 
-export function Comments({ targetType, targetId }: { targetType: "episode" | "movie" | "show" | "list"; targetId: number }) {
+export function Comments({
+  targetType,
+  targetId,
+}: {
+  targetType: "episode" | "movie" | "show" | "list" | "post";
+  targetId: number;
+}) {
   const { user } = useAuth();
   const { online } = useOffline();
   const verified = !!user?.emailVerified; // server enforces too (403)

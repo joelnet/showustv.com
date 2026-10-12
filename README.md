@@ -103,6 +103,13 @@ To enable browser push notifications, also set the two VAPID secrets — see
 to `main` (feature branches are covered by their PR), and on a merge to `main` it
 applies remote D1 migrations and runs `wrangler deploy`.
 
+Migration `0045_remove_achievements.sql` removes all stored awards and the
+unused badge tables. CI applies this cleanup after deploying the new Worker.
+For a manual upgrade from an existing installation through migration 0044,
+run `npm run deploy` before `npm run db:migrate:remote`, so the old Worker
+stops querying those tables before they are dropped. Fresh installations can
+apply all migrations before deploying.
+
 One-time setup — add repository secrets (Settings → Secrets and variables →
 Actions):
 

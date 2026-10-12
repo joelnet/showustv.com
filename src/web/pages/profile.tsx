@@ -2,20 +2,17 @@
 // /u/<username>, the same address visitors use — so the address
 // bar always shows the link worth copying; the old /profile path just
 // redirects here (app.tsx). On top of everything visitors see (stats,
-// achievements, conversations), the owner gets the management
+// watch history, conversations), the owner gets the management
 // affordances: the username editor, the public/private toggle,
 // and the lists pinned to the profile (add / remove / reorder).
 // Email verification lives on the Settings page (settings.tsx). Visitors'
 // view: public-profile.tsx, which reuses the section components defined here.
-// The achievements grid lives on its own page (achievements.tsx)
-// — here it's just a linked count.
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useApi, useDocumentTitle, dropCached } from "../hooks";
 import { api, post, put, del } from "../api";
 import { watchTimeStr, fmtAgo, fmtDateTime } from "../format";
 import { mediaPath, publicListPath, type MediaType } from "../paths";
-import { ACHIEVEMENTS } from "../../shared/achievements";
 import { useAuth } from "../app";
 import { useConfirm } from "../components/dialog";
 import { useToast } from "../components/toast";
@@ -55,7 +52,6 @@ interface ProfileList {
 interface ProfileData {
   username: string;
   isPublic: boolean;
-  achievements: { id: string; unlockedAt: string }[];
   stats: WatchStats;
   followingCount: number;
   followersCount: number;
@@ -182,7 +178,7 @@ export function StatsGrid({ stats }: { stats: WatchStats }) {
 // The watch-history rows: Shows, Movies, and Anime as Watch-Now-
 // style side-scrolling tile rows, each already deduped server-side to one
 // tile per show (the latest-watched episode) so a binge can't flood a row.
-// Rendered ABOVE Achievements on both profile views. Each heading opens the
+// Rendered on both profile views. Each heading opens the
 // matching library tab — `base` is the owner's own /library on their page,
 // /u/:username/library (the public library) for visitors.
 // Visibility rides the profile gate alone — no per-section toggle: the
@@ -546,26 +542,12 @@ export function ProfilePage() {
 
       <StatsGrid stats={data.stats} />
 
-      {/* Watch history rows, above Achievements. From the public
+      {/* Watch history rows. From the public
           payload like the feed sections below — so this doubles as the
           visitor preview — but the headings link to the owner's own /library
           tabs: that page (with the Watch Later subtabs) is the useful one
           here. */}
       {pub?.history && <ProfileHistory history={pub.history} base="/library" />}
-
-      {/* The grid moved to its own page — the heading itself is
-          now the link, with the earned/total count, so the profile stays
-          tidy. Zero earned still links out: the page doubles as the goal
-          catalog, so it answers "how do I get one?" better than a hint. */}
-      <h2 className="section-title">
-        <Link to={`/u/${data.username}/achievements`} className="ach-page-link">
-          Achievements{" "}
-          <span className="mono ach-count">
-            ({data.achievements.length}/{ACHIEVEMENTS.length})
-          </span>
-          <IconChevron size={11} />
-        </Link>
-      </h2>
 
       {/* What visitors see below the fold, straight from the public payload,
           so this page doubles as the preview. Waits on that second fetch (it

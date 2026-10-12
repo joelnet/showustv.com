@@ -159,9 +159,8 @@ export function Tile({ item, markable, onWatched, posterArt }: { item: TileItem;
       if (!r?.queued) onWatched?.();
       // Same catch-up confetti as the episode/show pages — and the same for a
       // tick that closes a rewatch round, which the server flags on any watch
-      // route. Finishing a round from here is exactly as much of an
-      // achievement as finishing it on the show page; it must not pass in
-      // silence just because the last tap happened in the queue.
+      // route. Finishing a round from here gets the same celebration as
+      // finishing it on the show page.
       //
       // One event, one announcement, and the SAME one the show page gives:
       // the round number turns the card into "Round 2 in the books.", which

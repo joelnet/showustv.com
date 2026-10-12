@@ -1708,7 +1708,7 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
 /* Watch-history rows on the profile:.wn-home already supplies
    the 28px stack Watch Now uses between sections; this just settles the block
    between the Stats slider above (its bottom margin wins the collapse) and
-   the Achievements heading below (whose own top margin provides that gap). */
+   the next section heading below (whose own top margin provides that gap). */
 .profile-history { margin: 0 0 2px; }
 /* Flat stat cards (replacing the earlier glow treatment): the
    standard card — surface fill, 1px hairline, 10px radius — with an
@@ -2987,51 +2987,6 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
   margin: 0;
 }
 
-/* Achievements. */
-.ach-count { font-size: 13px; }
-/* The profile pages link out to the achievements page instead
-   of rendering the grid inline — the section heading itself is the link. */
-.ach-page-link { display: inline-flex; align-items: center; gap: 8px; color: inherit; }
-.ach-page-link:hover { color: var(--amber); text-decoration: none; }
-/* On the achievements page the count sits inside the 28px h1 — scale it up
-   from the 13px it uses inside section titles. */
-.page-title .ach-count { font-size: 16px; font-weight: 400; color: var(--muted); }
-.ach-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
-  gap: 22px 12px;
-  margin-bottom: 26px;
-}
-/* Flat achievement coins (replacing the earlier glowing medallions):
-   each achievement is the emoji on a plain surface-riser disc with a
-   1px hairline ring, title and one-line description stacked beneath. No
-   gloss, no amber glow, no hover lift — the Flat-Room Rule applies. */
-.ach {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 9px;
-  padding: 6px 4px;
-  opacity: 0.4; /* locked catalog entries read as dim */
-}
-.ach-emoji {
-  display: grid;
-  place-items: center;
-  width: 66px;
-  height: 66px;
-  border-radius: 50%;
-  font-size: 29px;
-  line-height: 1;
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-  filter: grayscale(1);
-}
-.ach.is-unlocked { opacity: 1; }
-.ach.is-unlocked .ach-emoji { filter: none; }
-.ach-title { font-weight: 700; font-size: 13.5px; color: var(--text); }
-.ach-desc { color: var(--muted); font-size: 12px; line-height: 1.35; }
-
 /* Admin tools on profiles. */
 .admin-tools { margin: 0 0 20px; display: flex; gap: 8px; flex-wrap: wrap; flex-direction: column; align-items: flex-start; }
 .admin-tools > .btn { align-self: flex-start; }
@@ -3795,3 +3750,96 @@ a.providers-shelf:hover .providers-out { color: var(--amber); }
    grid; one card wrapping to two lines drops its progress bar below the whole
    row's shared baseline, so the line clips instead. */
 .lib-card .poster-card-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- Feed (/feed) ---------- */
+
+/* A single narrow column of post cards, Instagram's proportions: the square
+   image is the card's width, so the column stays phone-sized on desktop. */
+.feed { max-width: 520px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+.feed-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.feed-head .page-title { margin-bottom: 0; }
+.feed-people { color: var(--muted); border-radius: 8px; }
+.feed-people:hover { color: var(--text); background: var(--surface); text-decoration: none; }
+.feed-back { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 14px; align-self: flex-start; }
+.feed-back:hover { color: var(--text); }
+.feed-more { align-self: center; }
+.feed-thread { margin-top: 4px; }
+
+/* overflow stays visible so the emoji grid popover (.menu-pop--grid,
+   absolutely positioned inside the action row) can drop below the card. */
+.post-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  position: relative;
+}
+.post-head { display: flex; align-items: center; gap: 10px; padding: 10px 12px; }
+.post-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: var(--amber-soft);
+  color: var(--amber);
+  font: 700 14px var(--font-body);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.post-user { font-weight: 700; color: var(--text); }
+.post-when { margin-left: auto; color: var(--muted); font-size: 12px; flex-shrink: 0; }
+
+/* The square. aspect-ratio on the wrapper (not the img) keeps the card's
+   height stable while the image loads or walks its fallback chain. */
+.post-media { display: block; width: 100%; aspect-ratio: 1 / 1; background: var(--surface-2); overflow: hidden; }
+.post-media img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.post-media-link { display: block; }
+
+.post-actions { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 4px 6px 0; }
+.post-react { flex: 1; min-width: 0; }
+/* An open picker sits above the cards that follow. */
+.post-react:has(.menu-pop) { z-index: 31; }
+.post-quick { display: flex; align-items: center; gap: 0; }
+.post-quick .react-option { width: 36px; height: 36px; font-size: 20px; }
+.post-react-more { width: 36px; height: 36px; }
+.post-comment-btn { width: auto; min-width: 36px; height: 36px; gap: 4px; padding: 0 6px; color: var(--muted); border-radius: 7px; }
+.post-comment-btn:hover { color: var(--text); background: var(--surface-2); text-decoration: none; }
+.post-comment-count { font-size: 12px; font-variant-numeric: tabular-nums; }
+
+/* The full picker: the bell menu's chrome as a scrollable emoji grid that
+   drops below the quick row. Column count is mirrored in post-reactions.tsx
+   (GRID_COLS) for Up/Down arrow navigation. */
+.menu-pop--grid {
+  display: grid;
+  grid-template-columns: repeat(8, 34px);
+  gap: 2px;
+  padding: 4px;
+  max-height: 256px;
+  overflow: auto;
+  min-width: 0;
+}
+@media (max-width: 400px) {
+  .menu-pop--grid { grid-template-columns: repeat(6, 34px); }
+}
+
+.post-rx-summary { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 12px 6px; }
+.post-rx {
+  font-size: 13px;
+  line-height: 1;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  font-variant-numeric: tabular-nums;
+}
+.post-rx.is-mine { border-color: var(--amber); color: var(--amber); }
+
+.post-caption { margin: 0; padding: 4px 12px 10px; font-size: 15px; line-height: 1.5; }
+.post-caption .post-ep { color: var(--text); font-weight: 600; }
+.post-comments-link { display: block; padding: 0 12px 12px; margin-top: -4px; color: var(--muted); font-size: 13.5px; }
+.post-comments-link:hover { color: var(--text); }
+
+/* Skeleton blocks the feed shell uses. */
+.feed-skel { display: flex; flex-direction: column; gap: 18px; }
+.skel-avatar { width: 32px; height: 32px; }
+.skel-square { width: 100%; aspect-ratio: 1 / 1; border-radius: 0; }

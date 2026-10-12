@@ -45,12 +45,23 @@ jobs:
       # Additive migrations apply before the new code goes live. Non-interactive
       # runs auto-confirm.
       - name: Apply D1 migrations
-        run: npx wrangler d1 migrations apply showustv --remote
+        # The old Worker still reads the award tables. Defer their removal
+        # until the replacement Worker is live; other migrations run first.
+        run: |
+          mv migrations/0045_remove_achievements.sql "$RUNNER_TEMP/0045_remove_achievements.sql"
+          npx wrangler d1 migrations apply showustv --remote
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Deploy
         run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Remove retired award tables
+        run: |
+          mv "$RUNNER_TEMP/0045_remove_achievements.sql" migrations/0045_remove_achievements.sql
+          npx wrangler d1 migrations apply showustv --remote
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

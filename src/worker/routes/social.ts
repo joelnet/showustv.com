@@ -47,7 +47,7 @@ async function findUser(c: Context<AppEnv>, username: string): Promise<{ id: num
 // an earlier change removed the eye toggle that set that flag, freezing it, so gating on it
 // permanently hid the activity of any user whose flag was 0 from their
 // followers/mutuals — the exact symptom this gate now avoids.
-const FOLLOWING_CTE = `WITH following(fid) AS (
+export const FOLLOWING_CTE = `WITH following(fid) AS (
   SELECT f.followee_id FROM follows f
   JOIN users fu ON fu.id = f.followee_id
   WHERE f.follower_id = ?1 AND f.state = 'active'
