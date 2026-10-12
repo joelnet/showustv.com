@@ -1,13 +1,13 @@
 // One feed post, Instagram-style: who, a square image, the reaction row,
 // the reaction tallies, then the caption ("joelnet watched S02·E05–E07 of
-// Severance") and a link into the comment thread. The image is the still of
-// the latest episode in the post (or the movie poster), cropped square; a
-// 404 anywhere in the chain walks to the next candidate so the card never
-// shows a broken image.
+// Severance") and a link into the comment thread. The image is the show or
+// movie poster, cropped square (a show's backdrop is the fallback); a 404
+// anywhere in the chain walks to the next candidate so the card never shows a
+// broken image.
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../app";
-import { backdrop, poster, still, stillLarge } from "../img";
+import { backdrop, poster } from "../img";
 import { fmtAgo, fmtDateTime } from "../format";
 import { mediaPath } from "../paths";
 import { episodeRangeText, type FeedPost } from "../../shared/feed";
@@ -15,11 +15,8 @@ import { IconComment } from "./icons";
 import { PostReactions, type ReactionState } from "./post-reactions";
 
 function imageChain(post: FeedPost): string[] {
-  const ep = post.latestEpisode;
   const chain =
-    post.kind === "show"
-      ? [stillLarge(ep?.still ?? null), still(ep?.still ?? null), backdrop(post.backdrop), poster(post.poster, "w500")]
-      : [poster(post.poster, "w500")];
+    post.kind === "show" ? [poster(post.poster, "w500"), backdrop(post.backdrop)] : [poster(post.poster, "w500")];
   return chain.filter((u): u is string => !!u);
 }
 
@@ -46,11 +43,7 @@ export function PostCard({ post, detail = false }: { post: FeedPost; detail?: bo
   const verb = post.rewatch ? "rewatched" : "watched";
   const span = post.kind === "show" ? episodeRangeText(post.episodes) : "";
   const label = `${post.username}'s post about ${post.title}`;
-  const ep = post.latestEpisode;
-  const imgAlt =
-    post.kind === "show" && ep
-      ? `${post.title}, season ${ep.season} episode ${ep.number}${ep.title ? `: ${ep.title}` : ""}`
-      : post.title;
+  const imgAlt = `${post.title} poster`;
 
   return (
     <article className="post-card" aria-label={label}>
