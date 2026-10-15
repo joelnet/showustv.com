@@ -2,14 +2,10 @@
 // newest sitting first, with emoji reactions. Comments on posts ride the
 // shared comment system (routes/comments.ts, target_type 'post'). Posts are
 // materialized by lib/feed-posts.ts off the watch routes.
-//
-// TEMPORARY: the whole router is gated to FEED_BETA_USERS (shared/constants
-// .ts) — everyone else gets the same 404 an unknown route would, so the
-// feature's existence doesn't leak. Delete the middleware with the constant.
 
 import { Hono } from "hono";
 import type { AppEnv, Env } from "../env";
-import { canSeePost, isFeedBetaUser } from "../lib/feed-posts";
+import { canSeePost } from "../lib/feed-posts";
 import { notifyPostReaction } from "../lib/notifications";
 import { FOLLOWING_CTE } from "./social";
 import { POST_REACTION_SET } from "../../shared/post-reactions";
@@ -18,7 +14,6 @@ import type { FeedPost } from "../../shared/feed";
 export const feed = new Hono<AppEnv>();
 
 feed.use("*", async (c, next) => {
-  if (!(await isFeedBetaUser(c.env, c.get("uid")))) return c.json({ error: "not found" }, 404);
   await next();
   c.res.headers.set("cache-control", "no-store");
 });

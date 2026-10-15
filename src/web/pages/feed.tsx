@@ -1,17 +1,14 @@
 // The feed (/feed): what the people you follow are watching, as a column
 // of posts newest sitting first — your own watches included, Instagram
-// style. Beta-gated to FEED_BETA_USERS for now (shared/constants.ts); anyone
-// else lands on the Following page the Socials tab used to open.
+// style.
 import { useEffect, useState } from "react";
-import { Link, Navigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { api } from "../api";
-import { useAuth } from "../app";
 import { useApi, useDocumentTitle } from "../hooks";
 import { Empty, ErrorNote } from "../components/ui";
 import { FeedSkeleton } from "../components/skeleton";
 import { IconUsers } from "../components/icons";
 import { PostCard } from "../components/post-card";
-import { isFeedBetaUsername } from "../../shared/constants";
 import type { FeedPost } from "../../shared/feed";
 
 interface FeedResponse {
@@ -20,17 +17,14 @@ interface FeedResponse {
 }
 
 export function FeedPage() {
-  const { user } = useAuth();
   useDocumentTitle("Feed");
-  const { data, loading, error } = useApi<FeedResponse>(isFeedBetaUsername(user?.username) ? "/feed" : null);
+  const { data, loading, error } = useApi<FeedResponse>("/feed");
   // Pages after the first append here; a refetch of page one (new data
   // object) drops them so the list can't duplicate.
   const [extra, setExtra] = useState<{ posts: FeedPost[]; cursor: string | null } | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [moreError, setMoreError] = useState<string | null>(null);
   useEffect(() => setExtra(null), [data]);
-
-  if (!isFeedBetaUsername(user?.username)) return <Navigate to="/following" replace />;
 
   const head = (
     <div className="feed-head">

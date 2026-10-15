@@ -1,9 +1,7 @@
 // One feed post with its comment thread (/feed/:postId) — where a
 // post_comment / post_reply / post_reaction notification lands. The thread
-// is the shared Comments component with the 'post' target type. Beta-gated
-// like the feed itself.
-import { Link, Navigate, useParams } from "react-router-dom";
-import { useAuth } from "../app";
+// is the shared Comments component with the 'post' target type.
+import { Link, useParams } from "react-router-dom";
 import { useApi, useDocumentTitle } from "../hooks";
 import { Empty, ErrorNote } from "../components/ui";
 import { FeedSkeleton } from "../components/skeleton";
@@ -11,18 +9,13 @@ import { Comments } from "../components/comments";
 import { PostCard } from "../components/post-card";
 import { IconChevronLeft } from "../components/icons";
 import { idFromParam } from "../paths";
-import { isFeedBetaUsername } from "../../shared/constants";
 import type { FeedPost } from "../../shared/feed";
 
 export function FeedPostPage() {
-  const { user } = useAuth();
   const { postId } = useParams();
   const id = idFromParam(postId ?? "");
-  const flagged = isFeedBetaUsername(user?.username);
-  const { data, loading, error } = useApi<{ post: FeedPost }>(flagged && id ? `/feed/posts/${id}` : null);
+  const { data, loading, error } = useApi<{ post: FeedPost }>(id ? `/feed/posts/${id}` : null);
   useDocumentTitle(data?.post ? `${data.post.username} watched ${data.post.title}` : "Post");
-
-  if (!flagged) return <Navigate to="/following" replace />;
 
   const back = (
     <Link to="/feed" className="feed-back">

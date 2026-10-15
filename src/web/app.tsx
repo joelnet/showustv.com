@@ -28,8 +28,6 @@ import { LibraryPage } from "./pages/library";
 import { ListsPage, ListDetailPage } from "./pages/lists";
 import { PublicListPage } from "./pages/public-list";
 import { publicListPath, idFromParam } from "./paths";
-// TEMPORARY: the Socials tab opens the new feed only for FEED_BETA_USERS.
-import { isFeedBetaUsername } from "../shared/constants";
 import { ProfilePage } from "./pages/profile";
 import { PublicProfilePage } from "./pages/public-profile";
 import { PublicLibraryPage } from "./pages/public-library";
@@ -237,7 +235,6 @@ function Header() {
   const navigate = useNavigate();
   const profilePath = useProfilePath();
   const { user } = useAuth();
-  const socialsPath = isFeedBetaUsername(user?.username) ? "/feed" : "/following";
   const { pathname } = useLocation();
   const { available, ios, install } = useInstallPrompt();
   // Show the install affordance unless the app is already running installed.
@@ -268,7 +265,7 @@ function Header() {
             it. Text-only to match the sibling desktop nav links; order mirrors
             the footer (after Watch now). Scoping is automatic — .header-nav is
             display:none at phone widths, so this never duplicates the footer tab. */}
-        <NavLink to={socialsPath}>Socials</NavLink>
+        <NavLink to="/feed">Socials</NavLink>
         <NavLink to="/library">Library</NavLink>
         <NavLink to="/lists">Lists</NavLink>
         <NavLink to={profilePath}>Profile</NavLink>
@@ -418,12 +415,10 @@ function UpdateToast() {
 
 function TabBar() {
   const profilePath = useProfilePath();
-  const { user } = useAuth();
-  const socialsPath = isFeedBetaUsername(user?.username) ? "/feed" : "/following";
   return (
     <nav className="tabbar" aria-label="Primary">
       <NavLink to="/" end><IconPlay /><span>Watch now</span></NavLink>
-      <NavLink to={socialsPath}><IconUsers /><span>Socials</span></NavLink>
+      <NavLink to="/feed"><IconUsers /><span>Socials</span></NavLink>
       <NavLink to="/library"><IconLibrary /><span>Library</span></NavLink>
       <NavLink to="/lists"><IconList /><span>Lists</span></NavLink>
       <NavLink to={profilePath}><IconUser /><span>Profile</span></NavLink>
@@ -609,7 +604,6 @@ export function App() {
               element={<OwnOrPublic own={<ListDetailPage />} other={<PublicListPage />} />}
             />
             <Route path="/following" element={<FollowingPage />} />
-            {/* The feed (beta-gated inside the pages; others bounce to /following). */}
             <Route path="/feed" element={<FeedPage />} />
             <Route path="/feed/:postId" element={<FeedPostPage />} />
             <Route path="/notifications" element={<NotificationsPage />} />

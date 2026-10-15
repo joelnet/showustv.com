@@ -25,7 +25,6 @@
 import type { Env } from "../env";
 import { REACTION_EMOJI, type ReactionType } from "../../shared/reactions";
 import { sendPush, vapidConfigured, type PushUrgency, type StoredSubscription } from "./push";
-import { isFeedBetaUser } from "./feed-posts";
 import { episodeRangeText } from "../../shared/feed";
 
 const DEDUPE_WINDOW_MS = 24 * 3600 * 1000;
@@ -788,9 +787,6 @@ export async function notifyPostReaction(
   postId: number,
   emoji: string
 ): Promise<void> {
-  // TEMPORARY: a recipient outside the feed beta can't open /feed/:id, so
-  // they must not be handed a link to it.
-  if (!(await isFeedBetaUser(env, ownerId))) return;
   const since = new Date(Date.now() - DEDUPE_WINDOW_MS).toISOString();
   const created = await env.DB.prepare(
     `INSERT INTO notifications (user_id, type, actor_id, post_id)
@@ -857,8 +853,6 @@ export async function notifyPostComment(
   const since = new Date(Date.now() - DEDUPE_WINDOW_MS).toISOString();
   const delivered: typeof targets = [];
   for (const t of targets) {
-    // TEMPORARY: see notifyPostReaction.
-    if (!(await isFeedBetaUser(env, t.recipient))) continue;
     const created = await env.DB.prepare(
       `INSERT INTO notifications (user_id, type, actor_id, post_id, comment_id)
        SELECT ru.id, ?3, ?1, ?4, ?5

@@ -31,7 +31,7 @@ import type { AppEnv } from "../env";
 import { optionalAuth } from "../lib/session";
 import { nowIso } from "../lib/dates";
 import { notifyFollowersOfComment, notifyTrackersOfComment, notifyPostComment } from "../lib/notifications";
-import { canSeePost, isFeedBetaUser } from "../lib/feed-posts";
+import { canSeePost } from "../lib/feed-posts";
 import { COMMENT_MAX_LEN, COMMENT_URL_RE } from "../../shared/constants";
 
 // Write endpoints (post/edit/vote/delete). Mounted behind requireAuth.
@@ -59,16 +59,14 @@ const TARGET_TABLE: Record<string, { table: string; pk: string }> = {
 // List comments are only open when the owner made the list public AND turned
 // comments on; a private or comments-off list must not accept or serve comments.
 // Post comments (the /feed) are open only to a signed-in viewer who may see
-// the post — its owner, or a follower under the feed's visibility rule —
-// and, TEMPORARILY, only while that viewer is in FEED_BETA_USERS (the feed
-// itself is gated the same way). Other target types have no such gate.
+// the post — its owner, or a follower under the feed's visibility rule.
+// Other target types have no such gate.
 // Every route that reads or writes a thread runs this before anything else,
 // so a closed thread answers exactly like one that doesn't exist.
 async function listCommentsClosed(c: Context<AppEnv>, targetType: string, targetId: number): Promise<boolean> {
   if (targetType === "post") {
     const uid = c.get("uid");
     if (uid == null) return true;
-    if (!(await isFeedBetaUser(c.env, uid))) return true;
     return !(await canSeePost(c.env, uid, targetId));
   }
   if (targetType !== "list") return false;

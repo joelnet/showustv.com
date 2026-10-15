@@ -15,19 +15,11 @@
 // the notification fan-outs.
 
 import type { Env } from "../env";
-import { isFeedBetaUsername } from "../../shared/constants";
 
 // A new single-episode watch joins the watcher's latest post for that show
 // while it lands within this gap of the post's last watch — one episode a
 // night is one post a night; a late binge across midnight stays one post.
 export const POST_GAP_MS = 8 * 3600 * 1000;
-
-// TEMPORARY beta gate (shared/constants.ts FEED_BETA_USERS). The only place
-// the worker consults the list.
-export async function isFeedBetaUser(env: Env, uid: number): Promise<boolean> {
-  const row = await env.DB.prepare("SELECT username FROM users WHERE id = ?1").bind(uid).first<{ username: string }>();
-  return isFeedBetaUsername(row?.username);
-}
 
 // Record a single-episode watch. Runs AFTER the play row is inserted, so the
 // rewatch probe uses strict `<` on the timestamp to look past this play.

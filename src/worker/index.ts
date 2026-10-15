@@ -92,7 +92,7 @@ app.route("/ratings", ratings);
 app.route("/lists", lists);
 app.route("/profile", profile);
 app.route("/social", social);
-app.route("/feed", feedRoutes); // beta-gated inside (FEED_BETA_USERS)
+app.route("/feed", feedRoutes);
 app.route("/comments", comments);
 app.route("/notifications", notifications);
 app.route("/admin", admin);
