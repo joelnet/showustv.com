@@ -4,9 +4,13 @@
 // derived view of the plays tables) so each has a stable id for reactions,
 // comments, and notification deep links.
 //
-// Only the single-episode watch and the movie watch routes create posts; the
-// bulk season/show sweeps and the importer are history backfill and never do
-// (the same rule the follow-watch notification applies). Every path that
+// The single-episode watch, the movie watch, and the bulk season/show sweeps
+// create posts. A sweep is one deliberate action, so it posts once — every
+// episode it stamped, collapsed into one card ("9 episodes") — the way the
+// History rail collapses it into one tile. Without this, a user who only ever
+// ticks whole seasons showed up in the Watch Now rail (which reads the plays
+// directly) but never on /feed. Sweeps still don't NOTIFY followers. The
+// importer never posts: it replays history from another app. Every path that
 // removes a play reconciles instead: an episode stays in its post only while
 // the EXACT play it recorded still exists, so un-ticks, single-play removals,
 // round undos and full unwatches all funnel through one helper.
@@ -73,6 +77,64 @@ export async function recordEpisodeWatch(
   if (!created) return;
   await env.DB.prepare("INSERT INTO feed_post_episodes (post_id, episode_id, watched_at) VALUES (?1, ?2, ?3)")
     .bind(created.id, episodeId, watchedAt)
+    .run();
+}
+
+// Record a bulk sweep (season / watch-all / watch-until): every play this
+// sweep stamped on the show at its one shared timestamp. Runs AFTER the play
+// inserts. Joins the latest post for the show inside POST_GAP_MS like a
+// single watch does (tick E01, then "mark season" = one sitting), else opens
+// one post for the whole sweep. A sweep that stamped nothing (everything
+// already watched) posts nothing. rewatch: every swept episode had an earlier
+// play — MIN over the per-episode flags. All SQL-side, so a 500-episode
+// watch-all never hits D1's bound-parameter cap.
+export async function recordBulkWatch(env: Env, uid: number, showId: number, watchedAt: string): Promise<void> {
+  const SWEPT = `FROM user_episode_plays p JOIN episodes e ON e.id = p.episode_id
+                 WHERE p.user_id = ?1 AND e.show_id = ?2 AND p.watched_at = ?3 AND e.season_number > 0`;
+  const [sweepR, latestR] = await env.DB.batch([
+    env.DB.prepare(
+      `SELECT COUNT(*) AS n,
+              COALESCE(MIN(EXISTS (SELECT 1 FROM user_episode_plays q
+                                   WHERE q.user_id = ?1 AND q.episode_id = p.episode_id AND q.watched_at < ?3)), 0) AS rw
+       ${SWEPT}`
+    ).bind(uid, showId, watchedAt),
+    env.DB.prepare(
+      `SELECT id, last_at FROM feed_posts
+       WHERE user_id = ?1 AND target_type = 'show' AND target_id = ?2
+       ORDER BY last_at DESC LIMIT 1`
+    ).bind(uid, showId),
+  ]);
+  const sweep = sweepR.results[0] as { n: number; rw: number } | undefined;
+  if (!sweep?.n) return;
+  const isRewatch = !!sweep.rw;
+  const latest = latestR.results[0] as { id: number; last_at: string } | undefined;
+
+  let postId: number;
+  if (latest && Math.abs(Date.parse(watchedAt) - Date.parse(latest.last_at)) <= POST_GAP_MS) {
+    await env.DB.prepare(
+      `UPDATE feed_posts SET last_at = MAX(last_at, ?2), first_at = MIN(first_at, ?2),
+                             rewatch = CASE WHEN ?3 THEN rewatch ELSE 0 END
+       WHERE id = ?1`
+    )
+      .bind(latest.id, watchedAt, isRewatch ? 1 : 0)
+      .run();
+    postId = latest.id;
+  } else {
+    const created = await env.DB.prepare(
+      `INSERT INTO feed_posts (user_id, target_type, target_id, first_at, last_at, rewatch)
+       VALUES (?1, 'show', ?2, ?3, ?3, ?4) RETURNING id`
+    )
+      .bind(uid, showId, watchedAt, isRewatch ? 1 : 0)
+      .first<{ id: number }>();
+    if (!created) return;
+    postId = created.id;
+  }
+  await env.DB.prepare(
+    `INSERT INTO feed_post_episodes (post_id, episode_id, watched_at)
+     SELECT ?4, p.episode_id, p.watched_at ${SWEPT}
+     ON CONFLICT (post_id, episode_id) DO UPDATE SET watched_at = MAX(watched_at, excluded.watched_at)`
+  )
+    .bind(uid, showId, watchedAt, postId)
     .run();
 }
 

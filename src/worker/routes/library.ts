@@ -8,7 +8,7 @@ import { notifyFollowersOfFavorite, notifyFollowersOfWatch } from "../lib/notifi
 // Feed posts (/feed): the single-episode and movie watch routes record one;
 // every play-removal path reconciles. Bulk sweeps and the importer are
 // history backfill and never post, the same rule the watch notification uses.
-import { recordEpisodeWatch, recordMovieWatch, reconcileShowPosts, reconcileMoviePosts } from "../lib/feed-posts";
+import { recordEpisodeWatch, recordBulkWatch, recordMovieWatch, reconcileShowPosts, reconcileMoviePosts } from "../lib/feed-posts";
 // The library payload and its derivation helpers live in lib/library.ts now
 // — the public library endpoint shares them, stats.ts-style.
 import { libraryPayload, recentlyActive } from "../lib/library";
@@ -1587,6 +1587,11 @@ async function bulkWatch(
     ).bind(uid, showId, ts, today, ...binds)
   );
   await c.env.DB.batch(stmts);
+  // One feed post for the whole sweep (lib/feed-posts.ts). Still no follower
+  // notification — that stays single-episode only.
+  c.executionCtx.waitUntil(
+    recordBulkWatch(c.env, uid, showId, ts).catch((e) => console.error("feed post failed", e))
+  );
 
   if (round && (await completeRoundIfDone(c, uid, showId, round.round, round.started_at))) {
     return { roundComplete: true, round: round.round };
